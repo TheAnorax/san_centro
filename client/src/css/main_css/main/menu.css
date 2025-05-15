@@ -1,0 +1,453 @@
+/* Estilo general del componente "menu" */
+
+body,
+html {
+  /* Estilo */
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+/* == Contenedor general del menu == */
+.menu-container {
+  /* Estilo */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* -- Encabezado del menu -- */
+.menu-header {
+  /* Colores */
+  background: linear-gradient(90deg, #e53935, #ff5f43); /* Gradiente moderno */
+  color: white;
+
+  /* Estilo */
+  padding: 5px 15px; /* Reducimos el espaciado interno */
+  text-align: left;
+  font-size: 0.9em; /* Tamaño de fuente ligeramente más pequeño */
+  font-weight: bold;
+  letter-spacing: 1px; /* Espaciado entre letras */
+  display: flex; /* Usamos flexbox */
+  align-items: center; /* Centramos verticalmente */
+
+  /* Efecto */
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1); /* Sombra más sutil */
+}
+
+/* -- Contenedor del logo y título -- */
+.header-title {
+  /* Estilo */
+  display: flex; /* Usamos flexbox para alinear el logo y el título */
+  align-items: center; /* Centrar verticalmente */
+  gap: 8px; /* Reducimos el espaciado entre el logo y el título */
+}
+
+/* -- Estilo del logo -- */
+.header-logo {
+  /* Estilo */
+  height: 50px; /* Reducimos el tamaño del logo */
+  width: auto; /* Mantén la proporción de la imagen */
+  object-fit: contain; /* Asegura que el logo no se deforme */
+}
+
+/* -- Estilo del título -- */
+.header-title h1 {
+  /* Color */
+  color: white; /* Color del título */
+
+  /* Estilo */
+  padding-top: 5px; /* Reducimos el padding superior */
+  font-size: 1.3em; /* Tamaño del texto ligeramente más pequeño */
+  font-weight: bold; /* Negritas */
+  margin: 0; /* Sin margen */
+}
+
+/* -- Contenedor del perfil del usuario -- */
+.user-profile {
+  /* Estilo */
+  display: flex; /* Flexbox para alinear la imagen y el nombre */
+  align-items: center; /* Centrar verticalmente */
+  gap: 8px; /* Reducimos el espaciado entre la imagen y el nombre */
+  margin-left: auto; /* Mueve el perfil al extremo derecho */
+  cursor: pointer; /* Indica que es interactivo */
+  position: relative; /* Necesario para la línea animada */
+}
+
+/* -- Efecto hover para la foto de perfil -- */
+.user-profile:hover .profile-circle {
+  /* Animación */
+  transform: scale(1.1); /* Agranda el círculo */
+  transition: transform 0.3s ease; /* Animación suave */
+}
+
+/* -- Círculo de fondo para la imagen de perfil -- */
+.profile-circle {
+  /* Color */
+  background-color: white; /* Fondo blanco */
+
+  /* Estilo */
+  height: 40px; /* Reducimos el tamaño del círculo */
+  width: 40px; /* Tamaño cuadrado */
+  border-radius: 50%; /* Forma circular */
+  display: flex;
+  align-items: center; /* Centrar verticalmente */
+  justify-content: center; /* Centrar horizontalmente */
+
+  /* Efecto */
+  box-shadow: 0px 3px 5px rgba(0, 0, 0, 0.15); /* Sombra más sutil */
+
+  /* Animación */
+  transition: transform 0.3s ease; /* Animación de escala */
+}
+
+/* -- Imagen de perfil -- */
+.profile-pic {
+  /* Estilo */
+  height: 35px; /* Reducimos el tamaño de la imagen */
+  width: 35px; /* Tamaño cuadrado */
+  border-radius: 50%; /* Forma circular */
+  object-fit: cover; /* Ajustar la imagen dentro del contenedor */
+}
+
+/* == Barra de opciones debajo del header == */
+.options-bar {
+  /* Colores */
+  background: linear-gradient(
+    90deg,
+    #f5f5f5,
+    #e0e0e0
+  ); /* Degradado suave de gris claro */
+  color: black;
+
+  /* Estilo */
+  height: 40px; /* Reducimos la altura de la barra */
+  padding: 0 15px; /* Reducimos el espaciado interno */
+  display: flex; /* Usamos flexbox */
+  align-items: center; /* Centrar verticalmente */
+  justify-content: center; /* Centrar las opciones horizontalmente */
+  gap: 20px; /* Reducimos el espaciado entre las opciones */
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1); /* Sombra más sutil */
+  border: 1px solid #cccccc; /* Borde fino para un efecto limpio */
+
+  /* Garantizar tamaño fijo */
+  box-sizing: border-box; /* Incluye padding y borde en el tamaño */
+  overflow: hidden; /* Evita que el contenido desborde */
+  flex-shrink: 0; /* Evita que el tamaño se reduzca en layouts flexibles */
+}
+
+/* -- Opciones dentro de la barra -- */
+.options-bar span {
+  /* Color */
+  color: #333333; /* Color gris oscuro para el texto */
+
+  /* Estilo */
+  font-size: 1em; /* Reducimos el tamaño del texto */
+  font-weight: 500; /* Peso del texto */
+  cursor: pointer;
+  display: flex; /* Usamos flexbox para alinear el ícono y el texto */
+  align-items: center; /* Alinear verticalmente ícono y texto */
+  gap: 8px; /* Reducimos el espaciado entre el ícono y el texto */
+  position: relative; /* Necesario para efectos */
+  transition: color 0.3s ease; /* Transición suave para hover */
+}
+
+/* -- Efecto para resaltar cuando pasar el ratón -- */
+.options-bar span::after {
+  /* Color */
+  background-color: #f34336; /* Color rojo */
+
+  /* Estilo */
+  content: ""; /* Elemento decorativo */
+  position: absolute;
+  bottom: -4px; /* Ajustamos la ubicación debajo del texto */
+  left: 0;
+  width: 0%; /* Ancho inicial */
+  height: 2px; /* Grosor de la línea */
+
+  /* Efecto */
+  transition: width 0.3s ease; /* Animación del ancho */
+}
+
+/* -- Linea debajo de la opcion de la barra -- */
+.options-bar span:hover::after {
+  /* Estilo */
+  width: 100%; /* Expandir la línea al 100% */
+}
+
+/* -- Cambiar color al pasar el mouse -- */
+.options-bar span:hover {
+  /* Color */
+  color: #f34336; /* Cambiar el color del texto al rojo */
+
+  /* Efecto */
+  opacity: 0.9; /* Hacer el texto un poco más opaco */
+}
+
+/* -- Estilo para los íconos de la barra de opciones -- */
+.options-bar span i {
+  /* Color */
+  font-size: 1em; /* Reducimos el tamaño del ícono */
+  transition: color 0.3s ease; /* Transición suave para hover */
+}
+
+/* -- Efecto para resaltar cuando pasar el ratón -- */
+.options-bar span:hover i {
+  /* Color */
+  color: #f34336; /* Cambiar el color del ícono al rojo */
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.fade-out {
+  animation: fadeOut 0.5s ease-in-out forwards;
+}
+
+
+/* Estilo para los enlaces en la barra de opciones */
+.options-bar a {
+  text-decoration: none; /* Elimina el subrayado */
+  color: inherit; /* Usa el color del contenedor padre */
+  font-weight: inherit; /* Hereda el peso del texto */
+}
+
+/* Cambios al pasar el ratón */
+.options-bar a:hover {
+  color: #f34336; /* Cambia el color al pasar el ratón */
+}
+
+
+
+
+/* == Cuerpo principal de la pagina == */
+.menu-body {
+  /* Estilo */
+  display: flex;
+  flex: 1;
+}
+
+/* ==== Menú lateral (Dashboard) ==== */
+
+/* -- Dashboard -- */
+.dashboard {
+  display: flex;
+  height: 100vh;
+  overflow: hidden; /* Evita desbordamientos */
+}
+
+/* -- Estilo del Dashboard -- */
+.menu-sidebar {
+  /* Colores */
+  background-color: #f7f7f7e3;
+  color: black;
+
+  /* Estilo */
+  width: 170px;
+  padding: 15px; /* Ajustamos el padding para mantener proporciones */
+
+  /* Efectos */
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+  transition: width 0.3s ease; /* Animación para abrir/cerrar */
+  overflow: hidden; /* Oculta el contenido cuando está cerrado */
+  position: relative; /* Necesario para posicionar el botón de alternar */
+}
+
+/* -- Menú cerrado -- */
+.menu-sidebar.closed {
+  width: 60px; /* Ancho reducido */
+  overflow: hidden; /* Asegura que no haya desbordamientos */
+}
+
+/* Ajustes globales para evitar scroll innecesario */
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Desactiva el scroll global */
+}
+
+html {
+  height: 100%; /* Asegura que el contenedor ocupe toda la altura */
+  overflow: hidden; /* Evita scroll en el HTML */
+}
+
+/* -- Botón para abrir o cerrar el menú (toggle) -- */
+.toggle-btn {
+  /* Colores */
+  background-color: #f34336;
+  color: white;
+
+  /* Estilo */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 20px;
+  border: none;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1em; /* Ajustamos el tamaño del ícono del botón */
+  z-index: 10; /* Asegura que el botón esté encima de otros elementos */
+
+  /* Efectos */
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease, left 0.3s ease, right 0.3s ease; /* Transición para el movimiento */
+}
+
+/* -- Ajuste del botón cuando el menú está cerrado -- */
+.menu-sidebar.closed .toggle-btn {
+  left: 50%; /* Centrar con los íconos */
+  transform: translateX(-50%); /* Mantener centrado */
+}
+
+/* -- Ajuste del botón cuando el menú está abierto -- */
+.menu-sidebar:not(.closed) .toggle-btn {
+  left: auto; /* Elimina la posición centrada */
+  right: 20px; /* Mueve el botón a la esquina derecha */
+  transform: none; /* Elimina la transformación de centrado */
+}
+
+/* -- Botón para abrir o cerrar al pasar el ratón -- */
+.toggle-btn:hover {
+  /* Color */
+  background-color: #d32f2f; /* Color más oscuro en hover */
+
+  /* Animación */
+  transform: scale(1.1) translateX(-50%); /* Agranda ligeramente el botón al pasar el ratón */
+}
+
+/* -- Lista de opciones -- */
+.menu-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 50px 0 0 0; /* Ajustamos el margen superior */
+}
+
+/* -- Opciones de la lista -- */
+.menu-sidebar .menu-link {
+  text-decoration: none; /* Quitar subrayado predeterminado de los enlaces */
+  color: #4a4a4a; /* Color de texto predeterminado */
+  display: flex; /* Alinear íconos y texto en línea */
+  align-items: center; /* Centrar íconos verticalmente */
+  padding: 10px 15px; /* Espaciado interno */
+  border-radius: 5px; /* Bordes redondeados */
+  transition: background-color 0.3s ease, color 0.3s ease; /* Transiciones suaves */
+  margin-bottom: 10px; /* Más espacio entre las opciones */
+}
+
+/* -- Cambiar color al pasar el ratón -- */
+.menu-sidebar .menu-link:hover {
+  background-color: #f34336; /* Fondo rojo al pasar el ratón */
+  color: white; /* Texto blanco al pasar el ratón */
+}
+
+/* -- Estilo activo para el enlace seleccionado -- */
+.menu-sidebar .menu-link.active {
+  background-color: #f34336; /* Fondo rojo para el enlace activo */
+  color: white; /* Texto blanco para el enlace activo */
+}
+
+/* -- Estilo de los íconos en los enlaces -- */
+.menu-sidebar .menu-icon {
+  font-size: 1.3em; /* Tamaño del ícono */
+  margin-right: 10px; /* Espaciado entre el ícono y el texto */
+}
+
+/* -- Ocultar texto cuando el menú está cerrado -- */
+.menu-sidebar.closed .menu-link span {
+  opacity: 0; /* Hacer el texto transparente */
+  visibility: hidden; /* Ocultar completamente el texto */
+  transition: opacity 0.6s ease, visibility 0.6s ease; /* Transición suave */
+}
+
+/* -- Centrar íconos cuando el menú está cerrado -- */
+.menu-sidebar.closed .menu-link {
+  justify-content: center; /* Centrar íconos */
+}
+
+/* -- Alinear íconos y texto a la izquierda cuando el menú está abierto -- */
+.menu-sidebar.open .menu-link {
+  justify-content: flex-start; /* Alinear íconos y texto a la izquierda */
+}
+
+/* == Área de contenido == */
+
+/* -- Estilo del área de contenido -- */
+.menu-content {
+  /* Estilo */
+  flex: 1;
+  padding: 20px;
+  min-height: 300px;
+  height: 100%;
+  margin: 0; /* Elimina márgenes */
+  padding: 0; /* Elimina relleno */
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center; /* Centrar contenido horizontalmente */
+  align-items: center; /* Centrar contenido verticalmente */
+
+  /* Color */
+  background-color: white;
+
+  /* Efecto */
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+
+  /* Evitar cortes de contenido */
+  overflow: hidden;
+}
+
+/* -- Imagen dentro del área de contenido -- */
+.content-image {
+  /* Estilo */
+  max-width: 50%; /* Ajustar tamaño máximo para evitar que se corte */
+  max-height: 50%; /* Ajustar altura máxima */
+  width: auto; /* Mantener proporción de la imagen */
+  height: auto; /* Mantener proporción de la imagen */
+
+  /* Centrado */
+  display: block;
+  margin: auto;
+
+  /* Efecto */
+  opacity: 0.1; /* Mantener opacidad de la imagen */
+  transform: scale(0.95); /* Comienza ligeramente más pequeña */
+  animation: fadeInTransform 0.2s ease-in-out forwards; /* Aplicar animación */
+}
+
+/* -- Definición de la animación fade in con transform -- */
+@keyframes fadeInTransform {
+  from {
+    opacity: 0; /* Comienza invisible */
+    transform: scale(0.95); /* Comienza ligeramente más pequeña */
+  }
+  to {
+    opacity: 0.1; /* Mantiene la opacidad final */
+    transform: scale(1); /* Termina en su tamaño original */
+  }
+}

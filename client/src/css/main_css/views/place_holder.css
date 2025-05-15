@@ -1,0 +1,96 @@
+
+/* == Contenedor principal de la ventana place_holder == */
+
+/* -- Propiedades de de la ventana -- */
+.place_holder-container {
+  /* Color */
+  background-color: white; /* Fondo blanco */
+
+  /* Estilo */
+  margin: 0; /* Elimina cualquier margen externo */
+  padding: 0; /* Elimina cualquier relleno externo */
+  box-sizing: border-box; /* Asegura que padding y border no afecten el tamaño */
+  display: flex;
+  flex-direction: column;
+  width: 100%; /* Ocupa todo el ancho disponible */
+  height: 100%; /* Ocupa todo el alto disponible */
+  overflow: hidden; /* Evita que el contenido desborde */
+}
+
+/* == Aspecto de la ventana == */
+
+/* -- Barra superior de la ventana place_holder -- */
+.place_holder-header {
+  background-color: #f44336; /* Rojo similar al diseño */
+  color: white; /* Texto blanco */
+  padding: 2px 15px; /* Espaciado interno */
+  display: flex;
+  justify-content: space-between; /* Espaciado entre título y botón */
+  align-items: center; /* Centrado vertical */
+  font-size: 16px; /* Tamaño del texto */
+  font-weight: bold; /* Negrita */
+  height: 50px; /* Altura fija de la barra */
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1); /* Sombra para dar efecto */
+}
+
+/* -- Título de la ventana place_holder -- */
+.place_holder-title {
+  margin: 0;
+}
+
+/* -- Botón de cierre de la ventana place_holder -- */
+.place_holder-close {
+  background: none; /* Sin fondo */
+  border: none; /* Sin bordes */
+  color: white; /* Color del ícono */
+  font-size: 20px; /* Tamaño del ícono */
+  cursor: pointer; /* Cambiar cursor al pasar */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* -- Contenido principal de la ventana place_holder -- */
+.place_holder-content {
+  flex: 1; /* Ocupa el espacio restante */
+  padding: 20px; /* Espaciado interno */
+  font-size: 14px; /* Tamaño del texto */
+  color: #333; /* Color del texto */
+  overflow-y: auto; /* Scroll si el contenido es muy largo */
+}
+
+/* == Animaciones == */
+
+/* Animación de fade-in */
+@keyframes fadeIn {
+  from {
+    opacity: 0; /* Comienza invisible */
+    transform: scale(0.95); /* Escalado inicial */
+  }
+  to {
+    opacity: 1; /* Totalmente visible */
+    transform: scale(1); /* Escala normal */
+  }
+}
+
+/* Animación de slide-out hacia abajo */
+@keyframes slideOutDown {
+  from {
+    opacity: 1; /* Comienza visible */
+    transform: translateY(0); /* Posición inicial */
+  }
+  to {
+    opacity: 0; /* Termina invisible */
+    transform: translateY(100%); /* Se desliza hacia abajo fuera de la pantalla */
+  }
+}
+
+/* Clase para aplicar fade-in */
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out forwards; /* Duración de 0.5s */
+}
+
+/* Clase para aplicar slide-out hacia abajo */
+.slide-out-down {
+  animation: slideOutDown 0.5s ease-in-out forwards; /* Duración de 0.5s */
+}

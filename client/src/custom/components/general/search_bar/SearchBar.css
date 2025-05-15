@@ -1,0 +1,102 @@
+/**
+
+  ╔════════════════════════════════════════════════════════════╗  
+  ║                                                            ║  
+  ║   ====== CSS para el componente Barra de busqueda ======   ║  
+  ║                                                            ║  
+  ╚════════════════════════════════════════════════════════════╝  
+
+**/
+
+/**
+  ╔════════════════════════════════════════════════════════════╗
+  ║        Propiedades del componente en estado normal         ║
+  ╚════════════════════════════════════════════════════════════╝
+**/
+
+/**
+  ┌────────────────────────────────────────────────────────────┐
+  │             Contenedor de la barra de busqueda             │
+  └────────────────────────────────────────────────────────────┘
+**/
+
+.searchbar-container {
+  display: flex;
+  align-items: center;
+}
+
+/**
+  ┌────────────────────────────────────────────────────────────┐
+  │             Textfield de la barra de busqueda              │
+  └────────────────────────────────────────────────────────────┘
+**/
+
+.searchbar-input {
+  color: #333;
+  padding: 8px;
+  font-size: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 200px;
+  outline: none;
+}
+
+/**
+  ┌────────────────────────────────────────────────────────────┐
+  │      Contenedor con el textfield y el boton combinados     │
+  └────────────────────────────────────────────────────────────┘
+**/
+
+.searchbar-with-button {
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+  height: 30px;
+}
+
+/**
+  ┌───────────────────────────────────────────────────────────┐
+  │        Estilo del textfield de la barra de busqueda       │
+  └───────────────────────────────────────────────────────────┘
+**/
+
+.searchbar-input {
+  /* Estilo */
+  flex: 1; /* Ocupa todo el espacio disponible */
+  padding: 0 10px;
+  font-size: 14px;
+  border: none; /* Sin bordes, ya que el contenedor tiene el borde */
+  outline: none; /* Sin borde azul al hacer clic */
+  height: 100%; /* Asegura que el input llene el contenedor */
+}
+
+/**
+  ╔════════════════════════════════════════════════════════════╗
+  ║      Propiedades del componente en estado responsivo       ║
+  ╚════════════════════════════════════════════════════════════╝
+**/
+
+/**
+  ┌───────────────────────────────────────────────────────────┐
+  │   Modificaiones del contendor, del boton y del texfield   │
+  └───────────────────────────────────────────────────────────┘
+**/
+
+@media (max-width: 768px) {
+  .searchbar-container {
+    padding: 5px; /* Reducir el padding */
+  }
+
+  .searchbar-with-button {
+    max-width: 100%; /* Permitir que ocupe todo el ancho disponible */
+    height: 35px; /* Reducir la altura */
+  }
+
+  .searchbar-input {
+    font-size: 12px; /* Reducir el tamaño de fuente */
+    padding: 5px; /* Reducir el padding interno */
+  }
+}
