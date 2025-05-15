@@ -14,11 +14,7 @@
 import React, { useState } from "react";
 
 // ? Importar Iconos ? \\
-import {
-  FaHome,
-  FaChevronLeft,
-  FaChevronRight,
-} from "react-icons/fa";
+import { FaHome, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 
 // ? Importar Iconos 2 ? \\
 import { FaChartColumn } from "react-icons/fa6";
@@ -32,6 +28,7 @@ import "../../css/main_css/main/menu.css";
 // ? Importar imágenes ? \\
 import icono_santul from "../../img/general/icono_santul.png";
 import user_pic_default from "../../img/menu/user_pic_defautl.png";
+import logo_sancedch_blanco from "../../img/general/logo_SanCed_CH.png";
 
 // ? Importar otras interfaces ? \\
 import PlaceHolder from "../views/place_holder";
@@ -89,6 +86,7 @@ const Menu = () => {
     <div className="menu-container">
       <header className="menu-header">
         <div className="header-title">
+          <img src={logo_sancedch_blanco} className="header-logo" alt="Logo" />
         </div>
         <div className="user-profile">
           <div className="profile-circle">
@@ -113,13 +111,16 @@ const Menu = () => {
             </li>
             <li className="menu-item">
               <Link to="/menu/place_holder" className="menu-link">
-                <FaChartColumn className="menu-icon" /> {isOpen && <span>Place Holder</span>}
+                <FaChartColumn className="menu-icon" />{" "}
+                {isOpen && <span>Place Holder</span>}
               </Link>
             </li>
           </ul>
         </nav>
 
-        <main className={`menu-content ${isOpen ? "menu-open" : "menu-closed"}`}>
+        <main
+          className={`menu-content ${isOpen ? "menu-open" : "menu-closed"}`}
+        >
           <Routes>
             <Route
               path="/"
