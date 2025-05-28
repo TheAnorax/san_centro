@@ -11,6 +11,7 @@
 // ? └─────────────────────────────────────────────────────┘ ? \\
 
 // ? Importar funciones necesarias ? \\
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const app = express();
@@ -22,15 +23,32 @@ app.use(express.json());
 // * ╔════════════════════════════════════════════════════════════╗ * \\
 // * ║   Iniciar el servidor para su conexion desde el frontend   ║ * \\
 // * ╚════════════════════════════════════════════════════════════╝ * \\
+// Rutas públicas
 
+app.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH"].includes(req.method)) {
+    console.log(`📦 [${req.method}] ${req.path} Body:`, req.body);
+  }
+  next();
+});
+
+const authRoutes = require("./routes/authRoutes");
+const usuarioRoutes = require('./routes/usuarioRoutes');
+const rolesRoutes = require('./routes/roles');
+const permisosRoutes = require('./routes/permisosRoutes');
+const productosRoutes = require('./routes/productoRoutes');
+
+app.use('/api/productos', productosRoutes);
+app.use('/api/usuarios', usuarioRoutes);
+app.use("/api/auth", authRoutes);
+app.use('/api/roles', rolesRoutes);
+app.use('/api/permisos', permisosRoutes)
 // ? ┌────────────────────────────────────────────────────────────┐ ? \\
 // ? │        Declarar el puerto e inicializar el servidor        │ ? \\
 // ? └────────────────────────────────────────────────────────────┘ ? \\
 
- // * Declarar el puerto del servidor * \\
-const port = 6000;
-
-// * Iniciar el servidor * \\
+// * Declarar el puerto del servidor * \\
+const port = process.env.PORT || 3001;
 app.listen(port, () => {
-  console.log(`Servidor escuchando en el puerto ${port}`);
+  console.log(`✅ Servidor backend corriendo en puerto ${port}`);
 });

@@ -12,12 +12,18 @@ import { Routes, Route, Navigate  } from "react-router-dom";
 
 // ? Importar Ventanas principales ? \\
 import Menu from "./components/main/menu"; // Ventana principal
+import Login from "./components/views/AuthForm"
+
 
 const App = () => {
   return (
     <Routes>
-         <Route path="/" element={<Navigate to="/menu" />} />
+         <Route path="/" element={<Navigate to="/login" />} />
       {/* Define Menu como un contenedor para subrutas */}
+      <Route path="/login/*" element={<Login />} />
+
+      
+      {/* ✅ Ruta para el menú principal */}
       <Route path="/menu/*" element={<Menu />} />
       <Route
         path="*"

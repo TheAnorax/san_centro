@@ -411,6 +411,8 @@ html {
   display: flex;
   justify-content: center; /* Centrar contenido horizontalmente */
   align-items: center; /* Centrar contenido verticalmente */
+  overflow-y: auto;            /* Habilita scroll vertical */
+  height: calc(100vh - 80px);  /* Resta el alto del header si es fijo */
 
   /* Color */
   background-color: white;

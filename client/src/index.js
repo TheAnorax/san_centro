@@ -19,6 +19,9 @@ import ReactDOM from 'react-dom/client';
 // ? Importar Routers ? \\
 import { BrowserRouter } from 'react-router-dom';
 
+// ? Importar Provider ? \\
+import { UserProvider } from './context/UserContext';
+
 // ? Importar archivos ? \\
 import App from './App'; // Archivo app (que va a abrir)
 
@@ -27,7 +30,9 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
+      <UserProvider>
       <App />
+    </UserProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

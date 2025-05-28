@@ -1,0 +1,26 @@
+/server
+│
+├── db.js                  ← conexión MySQL
+├── server.js              ← entrada principal
+│
+├── controllers/
+│   └── authController.js  ← lógica de login
+│
+├── routes/
+│   └── authRoutes.js      ← rutas públicas (login)
+│
+├── models/
+│   └── userModel.js       ← consultas SQL de usuarios
+│
+├── .env
+
+
+
+/client/src/
+├── components/
+│   └── AuthForm.jsx       ← Componente completo (registro + login)
+├── pages/
+│   └── Dashboard.jsx      ← Página protegida tras login
+├── App.jsx
+├── api.js                 ← Configura llamadas al backend
+
