@@ -28,7 +28,7 @@ const ModalGestionRoles = ({ open, onClose }) => {
   };
 
   const obtenerRoles = async () => {
-    const res = await fetch('http://192.168.3.23:3001/api/roles');
+    const res = await fetch('http://localhost:3001/api/roles');
     const data = await res.json();
     setRoles(data);
   };
@@ -36,14 +36,14 @@ const ModalGestionRoles = ({ open, onClose }) => {
   const guardarRol = async () => {
     try {
       if (editando !== null) {
-        await fetch(`http://192.168.3.23:3001/api/roles/${editando}`, {
+        await fetch(`http://localhost:3001/api/roles/${editando}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nombre: nuevoRol })
         });
         mostrarAlerta('Rol actualizado correctamente');
       } else {
-        await fetch('http://192.168.3.23:3001/api/roles', {
+        await fetch('http://localhost:3001/api/roles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nombre: nuevoRol })
@@ -60,7 +60,7 @@ const ModalGestionRoles = ({ open, onClose }) => {
 
   const eliminarRol = async (id) => {
     try {
-      await fetch(`http://192.168.3.23:3001/api/roles/${id}`, { method: 'DELETE' });
+      await fetch(`http://localhost:3001/api/roles/${id}`, { method: 'DELETE' });
       mostrarAlerta('Rol eliminado correctamente');
       obtenerRoles();
     } catch (err) {

@@ -37,17 +37,33 @@ const usuarioRoutes = require('./routes/usuarioRoutes');
 const rolesRoutes = require('./routes/roles');
 const permisosRoutes = require('./routes/permisosRoutes');
 const productosRoutes = require('./routes/productoRoutes');
+const insumoRoutes = require('./routes/insumoRoutes');
+const traspasoRouter = require('./routes/traspasoRouter');
+const inventarioRouter = require('./routes/inventarioRouter');
+const bahiaRouter = require('./routes/bahiaRouter');
+const pedidosRouter = require('./routes/pedidosRouter');
 
 app.use('/api/productos', productosRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use("/api/auth", authRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/permisos', permisosRoutes)
+app.use('/api/insumos', insumoRoutes);
+app.use('/api/insumos', insumoRoutes);
+app.use('/api/traspaso', traspasoRouter);
+app.use('/api/inventario', inventarioRouter);
+app.use('/api/bahia', bahiaRouter);
+app.use('/api/pedidos', pedidosRouter);
+
+
+
 // ? ┌────────────────────────────────────────────────────────────┐ ? \\
 // ? │        Declarar el puerto e inicializar el servidor        │ ? \\
 // ? └────────────────────────────────────────────────────────────┘ ? \\
 
 // * Declarar el puerto del servidor * \\
+
+
 const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log(`✅ Servidor backend corriendo en puerto ${port}`);

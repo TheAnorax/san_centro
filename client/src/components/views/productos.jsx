@@ -37,7 +37,7 @@ const Productos = ({ isSwitching }) => {
 
   const obtenerProductos = async () => {
     try {
-      const res = await fetch("http://192.168.3.23:3001/api/productos");
+      const res = await fetch("http://localhost:3001/api/productos");
       const data = await res.json();
       const productosConId = data.map((item, index) => ({ id: item.id || index, ...item }));
       setProductos(productosConId);
@@ -83,7 +83,7 @@ const Productos = ({ isSwitching }) => {
 
   const guardarProducto = async () => {
     try {
-      const res = await fetch(`http://192.168.3.23:3001/api/productos${editando ? `/${productoId}` : ""}`,
+      const res = await fetch(`http://localhost:3001/api/productos${editando ? `/${productoId}` : ""}`,
         {
           method: editando ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
@@ -102,7 +102,7 @@ const Productos = ({ isSwitching }) => {
   const eliminarProducto = async (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar este producto?")) return;
     try {
-      await fetch(`http://192.168.3.23:3001/api/productos/${id}`, { method: "DELETE" });
+      await fetch(`http://localhost:3001/api/productos/${id}`, { method: "DELETE" });
       mostrarAlerta("Producto eliminado");
       obtenerProductos();
     } catch (error) {

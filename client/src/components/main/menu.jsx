@@ -31,25 +31,39 @@ import "../../css/main_css/main/menu.css";
 import icono_santul from "../../img/general/icono_santul.png";
 import user_pic_default from "../../img/menu/user_pic_defautl.png";
 import logo_sancedch_blanco from "../../img/general/logo_SanCed_CH.png";
+import WarehouseIcon from '@mui/icons-material/Warehouse'; // o usa algún otro relacionado
+
 
 // se importan los componentes a mostr en el menu y placeholder que es la base de todos 
 // ? Importar otras interfaces ? \\
 import PlaceHolder from "../views/place_holder";
 import Usuarios from "../views/usuarios";
 import Productos from "../views/productos";
+import Insumos from "../views/Insumos";
+import Traspaso from "../views/Traspaso";
+import Inventario from "../views/inventario"; // Asegúrate de la ruta
+import Bahias from "../views/bahias";
+import Pedidos from "../views/Pedidos";
+
+
+
+
 import {
   Menu as MuiMenu,
   MenuItem,
-  Typography,
   Divider,
   ListItemIcon,
   Box,
+  Typography,
 } from "@mui/material"; // al inicio del archivo
 import PeopleIcon from "@mui/icons-material/People"; // Para Usuarios
 import Inventory2Icon from "@mui/icons-material/Inventory2"; // Para Productos
-
+import InputIcon from '@mui/icons-material/Input';
 import LogoutIcon from "@mui/icons-material/Logout";
 import BadgeIcon from "@mui/icons-material/Badge";
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import BallotIcon from '@mui/icons-material/Ballot';
 
 // ? ┌──────────────────────────────────────────────────────┐ ? \\
 // ? │                                                      │ ? \\
@@ -118,7 +132,7 @@ const Menu = () => {
 
   useEffect(() => {
     if (usuario?.rol_id) {
-      fetch(`http://192.168.3.23:3001/api/permisos/${usuario.rol_id}`)
+      fetch(`http://localhost:3001/api/permisos/${usuario.rol_id}`)
         .then(res => res.json())
         .then(data => {
           console.log("🎯 Permisos recibidos del backend:", data);
@@ -242,6 +256,54 @@ const Menu = () => {
                 </Link>
               </li>
             )}
+
+            {puedeVer("insumos") && (
+              <li className="menu-item">
+                <Link to="/menu/insumos" className="menu-link">
+                  <InputIcon className="menu-icon" />
+                  {isOpen && <span>Insumos</span>}
+                </Link>
+              </li>
+            )}
+
+            {puedeVer("traspaso") && (
+              <li className="menu-item">
+                <Link to="/menu/traspaso" className="menu-link">
+                  <FileDownloadIcon className="menu-icon" />
+                  {isOpen && <span>Traspaso</span>}
+                </Link>
+              </li>
+            )}
+
+            {puedeVer("inventario") && (
+              <li className="menu-item">
+                <Link to="/menu/inventario" className="menu-link">
+                  <WarehouseIcon className="menu-icon" />
+                  {isOpen && <span>Inventario</span>}
+                </Link>
+              </li>
+            )}
+
+            {puedeVer("bahias") && (
+              <li className="menu-item">
+                <Link to="/menu/bahias" className="menu-link">
+                  <GridOnIcon className="menu-icon" />
+                  {isOpen && <span>Bahias</span>}
+                </Link>
+              </li>
+            )}
+
+            {puedeVer("pedidos") && (
+              <li className="menu-item">
+                <Link to="/menu/pedidos" className="menu-link">
+                  <BallotIcon className="menu-icon" />
+                  {isOpen && <span>Pedidos Faltantes</span>}
+                </Link>
+              </li>
+            )}
+
+
+
           </ul>
         </nav>
 
@@ -253,6 +315,14 @@ const Menu = () => {
             {puedeVer("place_holder") && <Route path="/place_holder" element={<PlaceHolder />} />}
             {puedeVer("usuarios") && <Route path="/usuarios" element={<Usuarios />} />}
             {puedeVer("productos") && <Route path="/productos" element={<Productos />} />}
+            {puedeVer("insumos") && <Route path="/insumos" element={<Insumos />} />}
+            {puedeVer("traspaso") && (<Route path="/traspaso" element={<Traspaso />} />)}
+            {puedeVer("inventario") && (<Route path="/inventario" element={<Inventario />} />)}
+            {puedeVer("bahias") && (<Route path="/bahias" element={<Bahias />} />)}
+            {puedeVer("pedidos") && (<Route path="/pedidos" element={<Pedidos />} />
+)}
+
+
           </Routes>
         </main>
       </div>
