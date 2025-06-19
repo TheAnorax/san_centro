@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { getProductosPorOrden, obtenerTodosConProductos } = require('../controllers/pedidosController');
+const pedidosController = require('../controllers/pedidosController');
 
-// GET /api/pedidos/productos-por-orden/:no_orden
-router.get('/productos-por-orden/:no_orden', getProductosPorOrden);
+router.get('/todos-con-productos', pedidosController.obtenerTodosConProductos);
+router.get('/productos-por-orden/:no_orden', pedidosController.getProductosPorOrden);
+router.get('/bahias', pedidosController.getBahias);
+router.get('/usuarios-surtidor', pedidosController.getUsuarios);
 
-router.get('/todos-con-productos', obtenerTodosConProductos);
+// Nueva ruta:
+router.post('/agregar-pedido-surtiendo', pedidosController.agregarPedidoSurtiendo);
 
 module.exports = router;
