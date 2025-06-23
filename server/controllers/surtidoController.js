@@ -1,0 +1,33 @@
+const SurtidoModel = require('../models/SurtidoModel');
+
+const obtenerPedidosSurtiendo = async (req, res) => {
+    try {
+        const pedidos = await SurtidoModel.getPedidosSurtiendo();
+        res.json(pedidos);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ ok: false, message: "Error al obtener pedidos surtiendo" });
+    }
+};
+
+// ✅ Nueva función: finalizar y mover pedido
+const finalizarPedido = async (req, res) => {
+    const { noOrden } = req.params;
+
+    try {
+        const resultado = await SurtidoModel.moverPedidoASurtidoFinalizado(noOrden);
+        if (resultado.ok) {
+            res.status(200).json({ ok: true, message: resultado.mensaje });
+        } else {
+            res.status(400).json({ ok: false, message: resultado.mensaje });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ ok: false, message: "Error al finalizar el pedido" });
+    }
+};
+
+module.exports = {
+    obtenerPedidosSurtiendo,
+    finalizarPedido
+};

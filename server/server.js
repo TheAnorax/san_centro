@@ -42,6 +42,7 @@ const traspasoRouter = require('./routes/traspasoRouter');
 const inventarioRouter = require('./routes/inventarioRouter');
 const bahiaRouter = require('./routes/bahiaRouter');
 const pedidosRouter = require('./routes/pedidosRouter');
+const surtidoRouter = require('./routes/surtidoRoutes');
 
 app.use('/api/productos', productosRoutes);
 app.use('/api/usuarios', usuarioRoutes);
@@ -54,6 +55,7 @@ app.use('/api/traspaso', traspasoRouter);
 app.use('/api/inventario', inventarioRouter);
 app.use('/api/bahia', bahiaRouter);
 app.use('/api/pedidos', pedidosRouter);
+app.use('/api/surtido', surtidoRouter);
 
 
 

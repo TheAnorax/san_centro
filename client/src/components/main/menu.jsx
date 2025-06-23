@@ -31,10 +31,10 @@ import "../../css/main_css/main/menu.css";
 import icono_santul from "../../img/general/icono_santul.png";
 import user_pic_default from "../../img/menu/user_pic_defautl.png";
 import logo_sancedch_blanco from "../../img/general/logo_SanCed_CH.png";
-import WarehouseIcon from '@mui/icons-material/Warehouse'; // o usa algún otro relacionado
+import WarehouseIcon from '@mui/icons-material/Warehouse';
 
 
-// se importan los componentes a mostr en el menu y placeholder que es la base de todos 
+// se importan los componentes a mostr en el menu y placeholder que es la base de todos
 // ? Importar otras interfaces ? \\
 import PlaceHolder from "../views/place_holder";
 import Usuarios from "../views/usuarios";
@@ -44,6 +44,7 @@ import Traspaso from "../views/Traspaso";
 import Inventario from "../views/inventario"; // Asegúrate de la ruta
 import Bahias from "../views/bahias";
 import Pedidos from "../views/Pedidos";
+import Surtido from "../views/Surtido";
 
 
 
@@ -64,6 +65,7 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import BallotIcon from '@mui/icons-material/Ballot';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 
 // ? ┌──────────────────────────────────────────────────────┐ ? \\
 // ? │                                                      │ ? \\
@@ -302,7 +304,14 @@ const Menu = () => {
               </li>
             )}
 
-
+            {puedeVer("surtido") && (
+              <li className="menu-item">
+                <Link to="/menu/surtido" className="menu-link">
+                  <AssignmentTurnedInIcon className="menu-icon" />
+                  {isOpen && <span>Avanze de Pedidos</span>}
+                </Link>
+              </li>
+            )}
 
           </ul>
         </nav>
@@ -312,6 +321,8 @@ const Menu = () => {
             <Route path="/" element={
               <div><img src={icono_santul} className="content-image" alt="Logo Santul" /></div>
             } />
+
+
             {puedeVer("place_holder") && <Route path="/place_holder" element={<PlaceHolder />} />}
             {puedeVer("usuarios") && <Route path="/usuarios" element={<Usuarios />} />}
             {puedeVer("productos") && <Route path="/productos" element={<Productos />} />}
@@ -319,8 +330,8 @@ const Menu = () => {
             {puedeVer("traspaso") && (<Route path="/traspaso" element={<Traspaso />} />)}
             {puedeVer("inventario") && (<Route path="/inventario" element={<Inventario />} />)}
             {puedeVer("bahias") && (<Route path="/bahias" element={<Bahias />} />)}
-            {puedeVer("pedidos") && (<Route path="/pedidos" element={<Pedidos />} />
-)}
+            {puedeVer("pedidos") && (<Route path="/pedidos" element={<Pedidos />} />)}
+            {puedeVer("surtido") && (<Route path="/surtido" element={<Surtido />} />)}
 
 
           </Routes>
