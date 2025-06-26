@@ -27,7 +27,16 @@ const finalizarPedido = async (req, res) => {
     }
 };
 
+const obtenerPedidosEmbarque = async (req, res) => {
+    try {
+        const pedidos = await SurtidoModel.getPedidosEmbarque();
+        res.json(pedidos);
+    } catch (err) {
+        console.error("Error al obtener pedidos embarque:", err);
+        res.status(500).json({ ok: false, message: "Error al obtener pedidos embarque" });
+    }
+};
+
 module.exports = {
-    obtenerPedidosSurtiendo,
-    finalizarPedido
+    obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque
 };

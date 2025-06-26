@@ -61,7 +61,26 @@ const moverPedidoASurtidoFinalizado = async (noOrden) => {
     }
 };
 
+const getPedidosEmbarque = async () => {
+    const [rows] = await pool.query(`
+        SELECT 
+            pe.no_orden,
+            pe.tipo,
+            pe.ubi_bahia,
+            pe.id_usuario,
+            pe.codigo_pedido,
+            pe._pz, pe._pq, pe._inner, pe._master,
+            pe.v_pz, pe.v_pq, pe.v_inner, pe.v_master,
+            u.nombre AS nombre_usuario
+        FROM pedidos_embarques pe
+        LEFT JOIN usuarios u ON pe.id_usuario = u.id
+        ORDER BY pe.no_orden DESC
+    `);
+    return rows;
+};
+
+
+
 module.exports = {
-    getPedidosSurtiendo,
-    moverPedidoASurtidoFinalizado
+    getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque
 };
