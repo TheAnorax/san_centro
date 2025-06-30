@@ -79,8 +79,84 @@ const getPedidosEmbarque = async () => {
     return rows;
 };
 
+const moverPedidoAFinalizado = async (noOrden) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
 
+        // Obtener los productos del pedido
+        const [productos] = await connection.query(
+            `SELECT * FROM pedidos_embarques WHERE no_orden = ?`,
+            [noOrden]
+        );
 
-module.exports = {
-    getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque
+        if (productos.length === 0) {
+            throw new Error("No se encontraron productos en embarques para este pedido.");
+        }
+
+        // Insertar en tabla finalizada con estado 'F'
+        for (const p of productos) {
+            await connection.query(`
+                    INSERT INTO pedido_finalizado (
+                        no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                        um,  _pz, _pq, _inner, _master,
+                        v_pz, v_pq, v_inner, v_master,
+                        ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
+                        inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
+                        unido, registro_surtido, registro_embarque, caja, motivo,
+                        unificado, registro_fin, id_usuario_surtido,
+                        fusion, tipo_caja, cajas
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
+                p.um, p._pz, p._pq, p._inner, p._master,
+                p.v_pz, p.v_pq, p.v_inner, p.v_master,
+                p.ubi_bahia, 'F', // estado fijo
+                p.id_usuario, p.id_usuario_paqueteria, p.registro,
+                p.inicio_surtido, p.fin_surtido, p.inicio_embarque, p.fin_embarque,
+                p.unido, p.registro_surtido, p.registro_embarque, p.caja, p.motivo,
+                p.unificado, null, null, // registro_fin, id_usuario_surtido
+                p.fusion, p.tipo_caja, p.cajas
+            ]);
+
+        }
+
+        // Eliminar de embarques
+        await connection.query(`DELETE FROM pedidos_embarques WHERE no_orden = ?`, [noOrden]);
+
+        await connection.commit();
+        return { ok: true, mensaje: "Pedido finalizado correctamente." };
+    } catch (error) {
+        await connection.rollback();
+        return { ok: false, mensaje: error.message };
+    } finally {
+        connection.release();
+    }
 };
+
+const getpedidosFinalizados = async () => {
+    const [rows] = await pool.query(`
+        SELECT 
+            pf.no_orden,
+            pf.tipo,
+            pf.ubi_bahia,
+            pf.id_usuario,
+            u.nombre AS nombre_usuario,
+            pf.cantidad,
+            pf.codigo_pedido,
+            pf.cant_surtida,
+            pf.cant_no_enviada
+        FROM pedido_finalizado pf
+        LEFT JOIN usuarios u ON pf.id_usuario = u.id
+        GROUP BY pf.no_orden, pf.tipo, pf.ubi_bahia, pf.id_usuario, u.nombre
+        ORDER BY pf.no_orden DESC
+    `);
+    return rows;
+};
+
+
+
+
+
+module.exports = { getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado, getpedidosFinalizados };

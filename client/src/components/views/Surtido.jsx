@@ -134,20 +134,69 @@ function Surtiendo() {
     }, [tabActual]);
 
 
+    const finalizarPedido = async (noOrden) => {
+        try {
+            const res = await axios.post(`http://localhost:3001/api/surtido/pedido-finalizado/${noOrden}`);
+            if (res.data.ok) {
+                alert(`✅ Pedido ${noOrden} finalizado correctamente`);
+                // Actualiza la lista de embarques para quitar el pedido finalizado
+                setEmbarques(prev =>
+                    prev.filter(p => p.no_orden !== noOrden)
+                );
+            } else {
+                alert(`⚠️ Error al finalizar: ${res.data.message}`);
+            }
+        } catch (err) {
+            console.error("❌ Error al conectar al backend:", err);
+            alert('Error al finalizar el pedido');
+        }
+    };
+
+    //Mostrar los pedidos ya Finalizados
+    const [pedidosFinalizados, setPedidosFinalizados] = useState([]);
+    const [detalleExpandido, setDetalleExpandido] = useState({});
+
+
+    useEffect(() => {
+        axios.get("http://localhost:3001/api/surtido/Obtener-pedidos-finalizados")
+            .then(res => setPedidosFinalizados(res.data))
+            .catch(err => console.error("Error al cargar pedidos finalizados", err));
+    }, []);
+
 
     return (
-        <div className="place_holder-container fade-in" style={{ height: '100vh', overflow: 'hidden' }}>
-            <div className="place_holder-header" style={{ background: '#e74c3c', padding: '8px 16px' }}>
-                <span className="place_holder-title" style={{ color: '#fff', fontWeight: 600, fontSize: 20 }}>Pedidos Surtiendo</span>
-                <button
-                    className="place_holder-close"
-                    onClick={() => (window.location.href = '/menu')} >
-                    <FaTimes color="#fff" />
-                </button>
-            </div>
-
+        <div className="place_holder-container fade-in" style={{ height: '95vh', overflowY: 'auto' }}>
 
             <Box sx={{ width: '100%' }}>
+                <div
+                    className="place_holder-header"
+                    style={{
+                        background: '#e74c3c',
+                        padding: '8px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2500
+                    }}
+                >
+                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 20 }}>Progreso de Pedidos</span>
+                    <button
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer'
+                        }}
+                        onClick={() => (window.location.href = '/menu')}
+                    >
+                        <FaTimes color="#fff" size={18} />
+                    </button>
+                </div>
+
+
+
+
                 <Tabs
                     value={tabActual}
                     onChange={handleChange}
@@ -162,6 +211,8 @@ function Surtiendo() {
                 </Tabs>
 
                 <Box sx={{ p: 2 }}>
+
+
                     {tabActual === 0 && <div>
                         {/* RESUMEN POR USUARIO */}
                         <Box p={2}>
@@ -278,10 +329,12 @@ function Surtiendo() {
 
                     </div>}
 
+
+
                     {tabActual === 1 && (
                         <Box
                             sx={{
-                                height: 'calc(100vh - 150px)', // Ajusta según tu header
+                                height: 'calc(100vh - 150px)',
                                 overflowY: 'auto',
                                 paddingRight: 1,
                             }}
@@ -289,7 +342,6 @@ function Surtiendo() {
                             {embarques.length === 0 ? (
                                 <Typography color="textSecondary" align="center" mt={4}>No hay pedidos en embarques.</Typography>
                             ) : embarques.map(pedido => {
-                                // Calcular progreso con pz/pq/inner/master y v_pz/v_pq/v_inner/v_master
                                 const total = pedido.productos.reduce((sum, p) =>
                                     sum +
                                     Number(p._pz || 0) +
@@ -320,21 +372,35 @@ function Surtiendo() {
                                                         Surtido por: <b>{pedido.nombre_usuario || "?"}</b>
                                                     </Typography>
                                                 </Box>
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    onClick={() =>
-                                                        setExpanded(prev => ({
-                                                            ...prev,
-                                                            [pedido.no_orden]: !prev[pedido.no_orden]
-                                                        }))
-                                                    }
-                                                >
-                                                    {expanded[pedido.no_orden] ? "Ocultar" : "Ver productos"}
-                                                </Button>
+                                                <Box>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        onClick={() =>
+                                                            setExpanded(prev => ({
+                                                                ...prev,
+                                                                [pedido.no_orden]: !prev[pedido.no_orden]
+                                                            }))
+                                                        }
+                                                    >
+                                                        {expanded[pedido.no_orden] ? "Ocultar" : "Ver productos"}
+                                                    </Button>
+
+                                                    {progreso === 100 && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="contained"
+                                                            color="success"
+                                                            sx={{ ml: 1 }}
+                                                            onClick={() => finalizarPedido(pedido.no_orden)}
+                                                        >
+                                                            Finalizar Pedido
+                                                        </Button>
+                                                    )}
+
+                                                </Box>
                                             </Box>
 
-                                            {/* Barra de progreso */}
                                             <Box mt={1} mb={2}>
                                                 <Typography variant="body2" mb={0.5}>Progreso (Validacion de Surtido)</Typography>
                                                 <Box display="flex" alignItems="center">
@@ -356,7 +422,6 @@ function Surtiendo() {
                                                 </Box>
                                             </Box>
 
-                                            {/* Tabla de productos */}
                                             {expanded[pedido.no_orden] && (
                                                 <Table size="small" sx={{ mt: 2 }}>
                                                     <TableHead>
@@ -397,7 +462,74 @@ function Surtiendo() {
                     )}
 
 
-                    {tabActual === 2 && <div>Contenido Departamental</div>}
+                    {tabActual === 2 && (
+                        <Box p={2}>
+                            <Typography variant="h6" gutterBottom>
+                                Pedidos finalizados
+                            </Typography>
+
+                            {pedidosFinalizados.length === 0 ? (
+                                <Typography color="textSecondary">No hay pedidos finalizados.</Typography>
+                            ) : pedidosFinalizados.map((pedido) => (
+                                <Paper key={pedido.no_orden} sx={{ mb: 2, p: 2 }}>
+                                    {/* Encabezado con info principal */}
+                                    <Typography variant="subtitle1" fontWeight="bold">
+                                        {pedido.tipo} : {pedido.no_orden}
+                                    </Typography>
+
+                                    {/* Botón para mostrar u ocultar productos */}
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        sx={{ my: 1 }}
+                                        onClick={() =>
+                                            setDetalleExpandido((prev) => ({
+                                                ...prev,
+                                                [pedido.no_orden]: !prev[pedido.no_orden]
+                                            }))
+                                        }
+                                    >
+                                        {detalleExpandido[pedido.no_orden] ? "Ocultar productos" : "Ver productos"}
+                                    </Button>
+
+                                    {/* Tabla de productos con scroll */}
+                                    {detalleExpandido[pedido.no_orden] && (
+                                        <Box
+                                            sx={{
+                                                mt: 2,
+                                                maxHeight: 250,
+                                                overflowY: 'auto',
+                                                border: '1px solid #ccc',
+                                                borderRadius: 2,
+                                            }}
+                                        >
+                                            <Table size="small">
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell>Código</TableCell>
+                                                        <TableCell>Cantidad</TableCell>
+                                                        <TableCell>Cant. Surtida</TableCell>
+                                                        <TableCell>Cant. No Enviada</TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    <TableRow key={pedido.codigo_pedido}>
+                                                        <TableCell>{pedido.codigo_pedido}</TableCell>
+                                                        <TableCell>{pedido.cantidad}</TableCell>
+                                                        <TableCell>{pedido.cant_surtida}</TableCell>
+                                                        <TableCell>{pedido.cant_no_enviada}</TableCell>
+                                                    </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </Box>
+                                    )}
+
+                                </Paper>
+                            ))}
+                        </Box>
+                    )}
+
+
 
                 </Box>
             </Box>
