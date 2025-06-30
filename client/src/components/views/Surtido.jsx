@@ -181,7 +181,7 @@ function Surtiendo() {
                         zIndex: 2500
                     }}
                 >
-                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 20 }}>Progreso de Pedidos</span>
+                    <span className="place_holder-title">Progreso de Pedidos</span>
                     <button
                         style={{
                             background: 'transparent',
