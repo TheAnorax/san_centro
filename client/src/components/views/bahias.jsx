@@ -48,7 +48,7 @@ function BahiasTablero() {
     const [bahias, setBahias] = useState([]);
 
     const cargarBahias = () => {
-        fetch('http://localhost:3001/api/bahia/Obtener')
+        fetch('http://192.168.3.154:3001/api/bahia/Obtener')
             .then((res) => res.json())
             .then(setBahias);
     };
@@ -87,7 +87,7 @@ function BahiasTablero() {
             cancelButtonColor: '#d33'
         }).then(async (result) => {
             if (result.isConfirmed) {
-                await fetch('http://localhost:3001/api/bahia/liberar', {
+                await fetch('http://192.168.3.154:3001/api/bahia/liberar', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id_bahia: bahia.id_bahia })

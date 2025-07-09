@@ -116,7 +116,7 @@ const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahia, usuario }) => {
             )
             SELECT 
                 no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                um, _bl, _pz, _pq, _inner, _master, ?, 'C', avance, ?,
+                um, _bl, _pz, _pq, _inner, _master, ?, 'S', avance, ?,
                 registro, inicio_surtido, fin_surtido, unido
             FROM pedidos
             WHERE no_orden = ? AND tipo = ?

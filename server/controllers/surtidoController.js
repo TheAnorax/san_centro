@@ -27,16 +27,6 @@ const finalizarPedido = async (req, res) => {
     }
 };
 
-const obtenerPedidosEmbarque = async (req, res) => {
-    try {
-        const pedidos = await SurtidoModel.getPedidosEmbarque();
-        res.json(pedidos);
-    } catch (err) {
-        console.error("Error al obtener pedidos embarque:", err);
-        res.status(500).json({ ok: false, message: "Error al obtener pedidos embarque" });
-    }
-};
-
 const cerrarPedidoEmbarque = async (req, res) => {
     const { noOrden } = req.params;
 
@@ -64,4 +54,48 @@ const obtenerPedidosFinalizados = async (req, res) => {
 };
 
 
-module.exports = { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados };
+
+const obtenerPedidosEmbarque = async (req, res) => {
+    try {
+        const pedidos = await SurtidoModel.getPedidosEmbarque();
+        res.json(pedidos);
+    } catch (err) {
+        console.error("Error al obtener pedidos embarque:", err);
+        res.status(500).json({ ok: false, message: "Error al obtener pedidos embarque" });
+    }
+};
+
+
+const obtenerUsuariosEmbarques = async (req, res) => {
+    try {
+        const usuarios = await SurtidoModel.getUsuariosEmbarques(); // ✅ sin pasarle res
+        res.json(usuarios); // Aquí es donde haces el response
+    } catch (error) {
+        console.error('Error al obtener usuarios de embarques y paquetería:', error);
+        res.status(500).json({ error: 'Error al obtener usuarios' });
+    }
+};
+
+const asignarUsuarioPaqueteria = async (req, res) => {
+    const { no_orden, id_usuario_paqueteria } = req.body;
+
+    if (!no_orden || !id_usuario_paqueteria) {
+        return res.status(400).json({ error: 'Faltan datos' });
+    }
+
+    try {
+        const result = await SurtidoModel.actualizarUsuarioPaqueteria(no_orden, id_usuario_paqueteria);
+        res.json({ ok: true, result });
+    } catch (error) {
+        console.error("❌ Error en asignarUsuarioPaqueteria:", error);
+        res.status(500).json({ error: 'Error interno al asignar usuario' });
+    }
+};
+
+
+
+module.exports = {
+    obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque,
+    cerrarPedidoEmbarque, obtenerPedidosFinalizados, obtenerUsuariosEmbarques,
+    asignarUsuarioPaqueteria
+};

@@ -1,5 +1,5 @@
 // Productos.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaTimes } from "react-icons/fa";
 import {
@@ -10,6 +10,8 @@ import { DataGrid } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import JsBarcode from "jsbarcode";
+
 
 const Productos = ({ isSwitching }) => {
   const navigate = useNavigate();
@@ -37,7 +39,7 @@ const Productos = ({ isSwitching }) => {
 
   const obtenerProductos = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/productos");
+      const res = await fetch("http://192.168.3.154:3001/api/productos");
       const data = await res.json();
       const productosConId = data.map((item, index) => ({ id: item.id || index, ...item }));
       setProductos(productosConId);
@@ -65,7 +67,7 @@ const Productos = ({ isSwitching }) => {
       setProductoActual(producto);
       setProductoId(producto.id);
       setEditando(true);
-       setModoEdicion(false);
+      setModoEdicion(false);
     } else {
       setProductoActual({
         codigo: "", um: "", clave: "", descripcion: "", barcode_pz: "",
@@ -83,7 +85,7 @@ const Productos = ({ isSwitching }) => {
 
   const guardarProducto = async () => {
     try {
-      const res = await fetch(`http://localhost:3001/api/productos${editando ? `/${productoId}` : ""}`,
+      const res = await fetch(`http://192.168.3.154:3001/api/productos${editando ? `/${productoId}` : ""}`,
         {
           method: editando ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
@@ -102,7 +104,7 @@ const Productos = ({ isSwitching }) => {
   const eliminarProducto = async (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar este producto?")) return;
     try {
-      await fetch(`http://localhost:3001/api/productos/${id}`, { method: "DELETE" });
+      await fetch(`http://192.168.3.154:3001/api/productos/${id}`, { method: "DELETE" });
       mostrarAlerta("Producto eliminado");
       obtenerProductos();
     } catch (error) {
@@ -135,6 +137,34 @@ const Productos = ({ isSwitching }) => {
       )
     }
   ];
+
+
+  // 2. DECLARA ESTA FUNCIÓN ANTES del useEffect que la usa
+  const generarCodigosBarras = useCallback(() => {
+    const campos = ["barcode_pz", "barcode_inner", "barcode_master", "barcode_palet"];
+    campos.forEach((campo) => {
+      const valor = productoActual[campo];
+      if (valor && document.getElementById(`${campo}-barcode`)) {
+        JsBarcode(`#${campo}-barcode`, valor, {
+          format: "CODE128",
+          displayValue: true,
+          fontSize: 14,
+          height: 40,
+        });
+      }
+    });
+  }, [productoActual]);
+
+  useEffect(() => {
+    if (openDialog) {
+      setTimeout(() => {
+        generarCodigosBarras();
+      }, 100); // ⚠️ Tiempo suficiente para que se monte el DOM
+    }
+  }, [openDialog, generarCodigosBarras]);
+
+
+
 
   return (
     <div className={`place_holder-container ${animationClass}`}>
@@ -205,12 +235,12 @@ const Productos = ({ isSwitching }) => {
           }}
         >
           {!modoEdicion && (
-  <Box display="flex" justifyContent="flex-end" mt={2}>
-    <Button variant="outlined" color="warning" onClick={() => setModoEdicion(true)}>
-      Habilitar edición
-    </Button>
-  </Box>
-)}
+            <Box display="flex" justifyContent="flex-end" mt={2}>
+              <Button variant="outlined" color="warning" onClick={() => setModoEdicion(true)}>
+                Habilitar edición
+              </Button>
+            </Box>
+          )}
 
 
           <Divider sx={{ mt: 1, mb: 1 }}>General</Divider>
@@ -230,7 +260,7 @@ const Productos = ({ isSwitching }) => {
             />
 
             {/* Código y Clave en dos columnas */}
-            <Box sx={{ display: 'flex', gap: 3}}>
+            <Box sx={{ display: 'flex', gap: 3 }}>
               <TextField
                 label="Código"
                 fullWidth
@@ -252,39 +282,65 @@ const Productos = ({ isSwitching }) => {
                 }
               />
               <TextField
-              label="UM"
-              fullWidth
-              margin="dense"
-              disabled={!modoEdicion}
-              value={productoActual.um || ""}
-              onChange={(e) =>
-                setProductoActual({ ...productoActual, um: e.target.value })
-              }
-            />
+                label="UM"
+                fullWidth
+                margin="dense"
+                disabled={!modoEdicion}
+                value={productoActual.um || ""}
+                onChange={(e) =>
+                  setProductoActual({ ...productoActual, um: e.target.value })
+                }
+              />
             </Box>
 
 
           </Box>
 
 
-          {/* Contenedor principal horizontal */}
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2 }}>
 
             {/* PIEZA */}
             <Box sx={{ flex: 1, minWidth: '250px' }}>
               <Divider sx={{ mb: 1 }}>Pieza</Divider>
               {["barcode_pz", "_pz", "img_pz"].map((key) => (
-                <TextField
-                  key={key}
-                  label={key}
-                  fullWidth
-                  margin="dense"
-                  disabled={!modoEdicion}
-                  value={productoActual[key] || ""}
-                  onChange={(e) =>
-                    setProductoActual({ ...productoActual, [key]: e.target.value })
-                  }
-                />
+                <React.Fragment key={key}>
+                  <TextField
+                    label={key}
+                    fullWidth
+                    margin="dense"
+                    disabled={!modoEdicion}
+                    value={productoActual[key] || ""}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setProductoActual((prev) => {
+                        const updated = { ...prev, [key]: newValue };
+
+                        if (key.includes("barcode") && newValue && newValue !== "NULL") {
+                          setTimeout(() => {
+                            if (document.getElementById(`${key}-barcode`)) {
+                              JsBarcode(`#${key}-barcode`, newValue, {
+                                format: "CODE128",
+                                displayValue: true,
+                                fontSize: 14,
+                                height: 40,
+                              });
+                            }
+                          }, 50);
+                        }
+
+                        return updated;
+                      });
+                    }}
+                  />
+                  {key.includes("barcode") && productoActual[key] && productoActual[key] !== "NULL" && (
+                    <Box display="flex" justifyContent="center" mt={1}>
+                      <svg
+                        id={`${key}-barcode`}
+                        style={{ height: 40, backgroundColor: "#fff" }}
+                      />
+                    </Box>
+                  )}
+                </React.Fragment>
               ))}
             </Box>
 
@@ -292,17 +348,44 @@ const Productos = ({ isSwitching }) => {
             <Box sx={{ flex: 1, minWidth: '250px' }}>
               <Divider sx={{ mb: 1 }}>Inner</Divider>
               {["barcode_inner", "_inner", "img_inner"].map((key) => (
-                <TextField
-                  key={key}
-                  label={key}
-                  fullWidth
-                  margin="dense"
-                  disabled={!modoEdicion}
-                  value={productoActual[key] || ""}
-                  onChange={(e) =>
-                    setProductoActual({ ...productoActual, [key]: e.target.value })
-                  }
-                />
+                <React.Fragment key={key}>
+                  <TextField
+                    label={key}
+                    fullWidth
+                    margin="dense"
+                    disabled={!modoEdicion}
+                    value={productoActual[key] || ""}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setProductoActual((prev) => {
+                        const updated = { ...prev, [key]: newValue };
+
+                        if (key.includes("barcode") && newValue && newValue !== "NULL") {
+                          setTimeout(() => {
+                            if (document.getElementById(`${key}-barcode`)) {
+                              JsBarcode(`#${key}-barcode`, newValue, {
+                                format: "CODE128",
+                                displayValue: true,
+                                fontSize: 14,
+                                height: 40,
+                              });
+                            }
+                          }, 50);
+                        }
+
+                        return updated;
+                      });
+                    }}
+                  />
+                  {key.includes("barcode") && productoActual[key] && productoActual[key] !== "NULL" && (
+                    <Box display="flex" justifyContent="center" mt={1}>
+                      <svg
+                        id={`${key}-barcode`}
+                        style={{ height: 40, backgroundColor: "#fff" }}
+                      />
+                    </Box>
+                  )}
+                </React.Fragment>
               ))}
             </Box>
 
@@ -310,17 +393,44 @@ const Productos = ({ isSwitching }) => {
             <Box sx={{ flex: 1, minWidth: '250px' }}>
               <Divider sx={{ mb: 1 }}>Master</Divider>
               {["barcode_master", "_master", "img_master"].map((key) => (
-                <TextField
-                  key={key}
-                  label={key}
-                  fullWidth
-                  margin="dense"
-                  disabled={!modoEdicion}
-                  value={productoActual[key] || ""}
-                  onChange={(e) =>
-                    setProductoActual({ ...productoActual, [key]: e.target.value })
-                  }
-                />
+                <React.Fragment key={key}>
+                  <TextField
+                    label={key}
+                    fullWidth
+                    margin="dense"
+                    disabled={!modoEdicion}
+                    value={productoActual[key] || ""}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setProductoActual((prev) => {
+                        const updated = { ...prev, [key]: newValue };
+
+                        if (key.includes("barcode") && newValue && newValue !== "NULL") {
+                          setTimeout(() => {
+                            if (document.getElementById(`${key}-barcode`)) {
+                              JsBarcode(`#${key}-barcode`, newValue, {
+                                format: "CODE128",
+                                displayValue: true,
+                                fontSize: 14,
+                                height: 40,
+                              });
+                            }
+                          }, 50);
+                        }
+
+                        return updated;
+                      });
+                    }}
+                  />
+                  {key.includes("barcode") && productoActual[key] && productoActual[key] !== "NULL" && (
+                    <Box display="flex" justifyContent="center" mt={1}>
+                      <svg
+                        id={`${key}-barcode`}
+                        style={{ height: 40, backgroundColor: "#fff" }}
+                      />
+                    </Box>
+                  )}
+                </React.Fragment>
               ))}
             </Box>
 
@@ -328,34 +438,64 @@ const Productos = ({ isSwitching }) => {
             <Box sx={{ flex: 1, minWidth: '250px' }}>
               <Divider sx={{ mb: 1 }}>Palet</Divider>
               {["barcode_palet", "_palet"].map((key) => (
-                <TextField
-                  key={key}
-                  label={key}
-                  fullWidth
-                  margin="dense"
-                  disabled={!modoEdicion}
-                  value={productoActual[key] || ""}
-                  onChange={(e) =>
-                    setProductoActual({ ...productoActual, [key]: e.target.value })
-                  }
-                />
+                <React.Fragment key={key}>
+                  <TextField
+                    label={key}
+                    fullWidth
+                    margin="dense"
+                    disabled={!modoEdicion}
+                    value={productoActual[key] || ""}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setProductoActual((prev) => {
+                        const updated = { ...prev, [key]: newValue };
+
+                        if (key.includes("barcode") && newValue && newValue !== "NULL") {
+                          setTimeout(() => {
+                            if (document.getElementById(`${key}-barcode`)) {
+                              JsBarcode(`#${key}-barcode`, newValue, {
+                                format: "CODE128",
+                                displayValue: true,
+                                fontSize: 14,
+                                height: 40,
+                              });
+                            }
+                          }, 50);
+                        }
+
+                        return updated;
+                      });
+                    }}
+                  />
+                  {key.includes("barcode") && productoActual[key] && productoActual[key] !== "NULL" && (
+                    <Box display="flex" justifyContent="center" mt={1}>
+                      <svg
+                        id={`${key}-barcode`}
+                        style={{ height: 40, backgroundColor: "#fff" }}
+                      />
+                    </Box>
+                  )}
+                </React.Fragment>
               ))}
             </Box>
 
           </Box>
+
+
+
         </DialogContent>
         <DialogActions>
-  <Button onClick={cerrarDialog}>Cerrar</Button>
-  {modoEdicion && (
-    <Button
-      onClick={guardarProducto}
-      variant="contained"
-      color="primary"
-    >
-      Guardar
-    </Button>
-  )}
-</DialogActions>
+          <Button onClick={cerrarDialog}>Cerrar</Button>
+          {modoEdicion && (
+            <Button
+              onClick={guardarProducto}
+              variant="contained"
+              color="primary"
+            >
+              Guardar
+            </Button>
+          )}
+        </DialogActions>
 
       </Dialog>
 

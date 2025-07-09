@@ -134,7 +134,7 @@ const Menu = () => {
 
   useEffect(() => {
     if (usuario?.rol_id) {
-      fetch(`http://localhost:3001/api/permisos/${usuario.rol_id}`)
+      fetch(`http://192.168.3.154:3001/api/permisos/${usuario.rol_id}`)
         .then(res => res.json())
         .then(data => {
           console.log("🎯 Permisos recibidos del backend:", data);

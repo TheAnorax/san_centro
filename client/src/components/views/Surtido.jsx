@@ -30,7 +30,7 @@ function Surtiendo() {
 
     const cargarPedidosSurtiendo = async () => {
         try {
-            const res = await axios.get('http://localhost:3001/api/surtido/pedidos/pedidos-surtiendo');
+            const res = await axios.get('http://192.168.3.154:3001/api/surtido/pedidos/pedidos-surtiendo');
             // Agrupar por no_orden + tipo
             const pedidosAgrupados = {};
             // Para el resumen
@@ -86,27 +86,14 @@ function Surtiendo() {
         }
     };
 
-    const liberarPedido = async (noOrden) => {
-        try {
-            const res = await axios.post(`http://localhost:3001/api/surtido/finalizar/${noOrden}`);
-            if (res.data.ok) {
-                alert(`Pedido ${noOrden} liberado con éxito`);
-                cargarPedidosSurtiendo(); // Recargar la lista
-            } else {
-                alert(`Error al liberar: ${res.data.message}`);
-            }
-        } catch (err) {
-            console.error(err);
-            alert('Error al liberar el pedido');
-        }
-    };
+
 
     //funcionamiento de embarques 
     const [embarques, setEmbarques] = useState([]);
 
     const cargarPedidosEmbarques = async () => {
         try {
-            const res = await axios.get('http://localhost:3001/api/surtido/embarque');
+            const res = await axios.get('http://192.168.3.154:3001/api/surtido/embarque');
             const pedidosAgrupados = {};
             res.data.forEach(item => {
                 const key = `${item.no_orden}_${item.tipo}`;
@@ -130,13 +117,15 @@ function Surtiendo() {
     useEffect(() => {
         if (tabActual === 1) {
             cargarPedidosEmbarques();
+            cargarUsuariosPaqueteria(); // <-- ESTA LÍNEA FALTA
         }
     }, [tabActual]);
 
 
+
     const finalizarPedido = async (noOrden) => {
         try {
-            const res = await axios.post(`http://localhost:3001/api/surtido/pedido-finalizado/${noOrden}`);
+            const res = await axios.post(`http://192.168.3.154:3001/api/surtido/pedido-finalizado/${noOrden}`);
             if (res.data.ok) {
                 alert(`✅ Pedido ${noOrden} finalizado correctamente`);
                 // Actualiza la lista de embarques para quitar el pedido finalizado
@@ -158,10 +147,26 @@ function Surtiendo() {
 
 
     useEffect(() => {
-        axios.get("http://localhost:3001/api/surtido/Obtener-pedidos-finalizados")
+        axios.get("http://192.168.3.154:3001/api/surtido/Obtener-pedidos-finalizados")
             .then(res => setPedidosFinalizados(res.data))
             .catch(err => console.error("Error al cargar pedidos finalizados", err));
     }, []);
+
+
+    const [usuariosPaqueteria, setUsuariosPaqueteria] = useState([]);
+
+
+    const cargarUsuariosPaqueteria = async () => {
+        try {
+            const res = await axios.get('http://192.168.3.154:3001/api/surtido/Obtener-usuarios'); // ✅ CORRECTO
+            setUsuariosPaqueteria(res.data);
+        } catch (error) {
+            console.error("Error al cargar usuarios de paquetería", error);
+            setUsuariosPaqueteria([]);
+        }
+    };
+
+
 
 
     return (
@@ -266,17 +271,20 @@ function Surtiendo() {
                                                     {expanded[pedido.no_orden] ? "Ocultar" : "Ver productos"}
                                                 </Button>
 
-                                                {progreso === 100 && (
-                                                    <Button
-                                                        size="small"
-                                                        variant="contained"
-                                                        color="success"
-                                                        sx={{ ml: 1 }}
-                                                        onClick={() => liberarPedido(pedido.no_orden)}
-                                                    >
-                                                        Liberar
-                                                    </Button>
-                                                )}
+                                                <>
+                                                    {progreso === 100 && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="contained"
+                                                            color="success"
+                                                            sx={{ ml: 1 }}
+                                                            onClick={() => finalizarPedido(pedido.no_orden)}
+                                                        >
+                                                            Finalizar Pedido
+                                                        </Button>
+                                                    )}
+                                                </>
+
                                             </Box>
                                             {/* Barra de progreso por pedido */}
                                             <Box mt={1} mb={2}>
@@ -385,6 +393,50 @@ function Surtiendo() {
                                                     >
                                                         {expanded[pedido.no_orden] ? "Ocultar" : "Ver productos"}
                                                     </Button>
+
+
+                                                    {!pedido.productos[0]?.id_usuario_paqueteria ? (
+                                                        <Box mt={1}>
+                                                            <Typography variant="body2">Asignar usuario:</Typography>
+                                                            <select
+                                                                value=""
+                                                                onChange={async (e) => {
+                                                                    const id_usuario = e.target.value;
+                                                                    if (!id_usuario) return;
+
+                                                                    try {
+                                                                        const res = await axios.put(`http://192.168.3.154:3001/api/surtido/asignar-usuario-paqueteria`, {
+                                                                            no_orden: pedido.no_orden,
+                                                                            id_usuario_paqueteria: id_usuario
+                                                                        });
+
+                                                                        if (res.data.ok) {
+                                                                            alert("✅ Usuario asignado correctamente");
+                                                                            cargarPedidosEmbarques(); // refresca
+                                                                        } else {
+                                                                            alert("⚠️ Error: " + (res.data.error || res.data.mensaje));
+                                                                        }
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        alert("❌ Error al asignar el usuario");
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <option value="">-- Selecciona --</option>
+                                                                {usuariosPaqueteria.map((u) => (
+                                                                    <option key={u.id} value={u.id}>
+                                                                        {u.nombre}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </Box>
+                                                    ) : (
+                                                        <Typography variant="body2" sx={{ mt: 1 }}>
+                                                            Usuario asignado: <b>{pedido.productos[0].nombre_usuario_paqueteria || "?"}</b>
+                                                        </Typography>
+                                                    )}
+
+
 
                                                     {progreso === 100 && (
                                                         <Button
