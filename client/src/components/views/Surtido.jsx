@@ -30,7 +30,7 @@ function Surtiendo() {
 
     const cargarPedidosSurtiendo = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/pedidos/pedidos-surtiendo');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/pedidos/pedidos-surtiendo');
             // Agrupar por no_orden + tipo
             const pedidosAgrupados = {};
             // Para el resumen
@@ -93,7 +93,7 @@ function Surtiendo() {
 
     const cargarPedidosEmbarques = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/embarque');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/embarque');
             const pedidosAgrupados = {};
             res.data.forEach(item => {
                 const key = `${item.no_orden}_${item.tipo}`;
@@ -125,7 +125,7 @@ function Surtiendo() {
 
     const finalizarPedido = async (noOrden) => {
         try {
-            const res = await axios.post(`http://192.168.3.154:3001/api/surtido/pedido-finalizado/${noOrden}`);
+            const res = await axios.post(`http://66.232.105.107:3001/api/surtido/pedido-finalizado/${noOrden}`);
             if (res.data.ok) {
                 alert(`✅ Pedido ${noOrden} finalizado correctamente`);
                 // Actualiza la lista de embarques para quitar el pedido finalizado
@@ -147,7 +147,7 @@ function Surtiendo() {
 
 
     useEffect(() => {
-        axios.get("http://192.168.3.154:3001/api/surtido/Obtener-pedidos-finalizados")
+        axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados")
             .then(res => setPedidosFinalizados(res.data))
             .catch(err => console.error("Error al cargar pedidos finalizados", err));
     }, []);
@@ -158,7 +158,7 @@ function Surtiendo() {
 
     const cargarUsuariosPaqueteria = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/Obtener-usuarios'); // ✅ CORRECTO
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/Obtener-usuarios'); // ✅ CORRECTO
             setUsuariosPaqueteria(res.data);
         } catch (error) {
             console.error("Error al cargar usuarios de paquetería", error);
@@ -405,7 +405,7 @@ function Surtiendo() {
                                                                     if (!id_usuario) return;
 
                                                                     try {
-                                                                        const res = await axios.put(`http://192.168.3.154:3001/api/surtido/asignar-usuario-paqueteria`, {
+                                                                        const res = await axios.put(`http://66.232.105.107:3001/api/surtido/asignar-usuario-paqueteria`, {
                                                                             no_orden: pedido.no_orden,
                                                                             id_usuario_paqueteria: id_usuario
                                                                         });

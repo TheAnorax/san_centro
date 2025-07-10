@@ -29,13 +29,13 @@ const AdminPermisos = ({ open, onClose, onGuardado }) => {
   };
 
   const obtenerRoles = async () => {
-    const res = await fetch('http://192.168.3.154:3001/api/roles');
+    const res = await fetch('http://66.232.105.107:3001/api/roles');
     const data = await res.json();
     setRoles(data);
   };
 
   const obtenerPermisos = async (rol_id) => {
-    const res = await fetch(`http://192.168.3.154:3001/api/permisos/${rol_id}`);
+    const res = await fetch(`http://66.232.105.107:3001/api/permisos/${rol_id}`);
     const data = await res.json();
     const permisosActivos = {};
     SECCIONES.forEach(sec => {
@@ -49,7 +49,7 @@ const AdminPermisos = ({ open, onClose, onGuardado }) => {
       seccion: sec.id,
       permitido: permisos[sec.id] || false
     }));
-    await fetch('http://192.168.3.154:3001/api/permisos', {
+    await fetch('http://66.232.105.107:3001/api/permisos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rol_id: rolSeleccionado, permisos: permisosArray })

@@ -56,7 +56,7 @@ function Traspaso() {
       const resPendientes = await axios.get('http://66.232.105.87:3007/api/RH/ObtenerTraspaso');
       const listaPendientes = resPendientes.data;
 
-      const resRecibidos = await axios.get('http://192.168.3.154:3001/api/traspaso/recibidos');
+      const resRecibidos = await axios.get('http://66.232.105.107:3001/api/traspaso/recibidos');
       const listaRecibidos = resRecibidos.data;
 
       const ubicacionMap = new Map(
@@ -117,7 +117,7 @@ function Traspaso() {
 
     try {
       const datos = traspasoSeleccionado;
-      await axios.post('http://192.168.3.154:3001/api/traspaso/guardarTraspaso', {
+      await axios.post('http://66.232.105.107:3001/api/traspaso/guardarTraspaso', {
         Codigo: datos.Codigo,
         Descripcion: datos.Descripcion,
         Clave: datos.Clave,
@@ -158,9 +158,9 @@ function Traspaso() {
     setLoadingFetch(true);
     setErrorFetch('');
     try {
-      const resPendientes = await axios.get('http://192.168.3.154:3007/api/RH/ObtenerTraspaso');
+      const resPendientes = await axios.get('http://66.232.105.107:3007/api/RH/ObtenerTraspaso');
       const listaPend = resPendientes.data;
-      const resRec = await axios.get('http://192.168.3.154:3001/api/traspaso/recibidos');
+      const resRec = await axios.get('http://66.232.105.107:3001/api/traspaso/recibidos');
       const listaRec = resRec.data;
       const setRecibidosKey = new Set(listaRec.map(r => `${r.Codigo}|${r.Cantidad}`));
       const fusionado = listaPend.map(r => {

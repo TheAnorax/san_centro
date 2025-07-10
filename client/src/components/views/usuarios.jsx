@@ -57,7 +57,7 @@ const Usuarios = ({ isSwitching }) => {
 
     const obtenerUsuarios = () => {
         setLoading(true);
-        fetch("http://192.168.3.154:3001/api/usuarios")
+        fetch("http://66.232.105.107:3001/api/usuarios")
             .then((res) => res.json())
             .then((data) => {
                 setUsuarios(data);
@@ -99,8 +99,8 @@ const Usuarios = ({ isSwitching }) => {
 
     const handleGuardarUsuario = () => {
         const url = editando
-            ? `http://192.168.3.154:3001/api/usuarios/${usuarioSeleccionado.id}`
-            : "http://192.168.3.154:3001/api/usuarios";
+            ? `http://66.232.105.107:3001/api/usuarios/${usuarioSeleccionado.id}`
+            : "http://66.232.105.107:3001/api/usuarios";
 
         const method = editando ? "PUT" : "POST";
         const body = editando
@@ -126,7 +126,7 @@ const Usuarios = ({ isSwitching }) => {
     };
 
     const confirmarEliminacion = () => {
-        fetch(`http://192.168.3.154:3001/api/usuarios/${confirmarEliminar.id}`, {
+        fetch(`http://66.232.105.107:3001/api/usuarios/${confirmarEliminar.id}`, {
             method: "DELETE"
         })
             .then(res => res.json())
@@ -144,7 +144,7 @@ const Usuarios = ({ isSwitching }) => {
     };
 
     const obtenerRoles = () => {
-        fetch("http://192.168.3.154:3001/api/usuarios/roles")
+        fetch("http://66.232.105.107:3001/api/usuarios/roles")
             .then(res => res.json())
             .then(data => {
                 console.log("✅ Roles recibidos:", data);
