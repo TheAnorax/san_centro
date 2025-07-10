@@ -1,9 +1,13 @@
 const pool = require('../db'); // Importa la configuración de la base de datos
 
 // Controlador para obtener datos de embarques
-
-
 const obtenerEmbarques = async (req, res) => {
+  const idUsuario = req.query.idUsu;
+
+  if (!idUsuario) {
+    return res.status(400).json({ error: 'Falta el parámetro idUsu' });
+  }
+
   const query = `
     SELECT
       p.id_pedi,
@@ -39,7 +43,6 @@ const obtenerEmbarques = async (req, res) => {
       caja_info.total_cajas
     FROM pedidos_embarques p
     LEFT JOIN productos prod ON CAST(p.codigo_pedido AS UNSIGNED) = prod.codigo
-
     LEFT JOIN usuarios us ON p.id_usuario_paqueteria = us.id
     LEFT JOIN roles r ON us.rol_id = r.id
     LEFT JOIN prints prin ON p.id_usuario_paqueteria = prin.id_usu
@@ -49,11 +52,11 @@ const obtenerEmbarques = async (req, res) => {
       WHERE caja IS NOT NULL
       GROUP BY no_orden
     ) AS caja_info ON p.no_orden = caja_info.no_orden
-    WHERE p.estado = 'E';
+    WHERE p.estado = 'E' AND p.id_usuario_paqueteria = ?;
   `;
 
   try {
-    const [results] = await pool.query(query);
+    const [results] = await pool.query(query, [idUsuario]);
 
     const groupedResults = results.reduce((acc, row) => {
       if (!acc[row.pedido]) {
@@ -108,6 +111,7 @@ const obtenerEmbarques = async (req, res) => {
 };
 
 
+
 const obtenerEmbarquesNew = async (req, res) => {
   const idUsu = req.params.idUsu;
 
@@ -156,7 +160,7 @@ const obtenerEmbarquesNew = async (req, res) => {
       WHERE caja IS NOT NULL
       GROUP BY pedido
     ) AS caja_info ON p.pedido = caja_info.pedido
-    WHERE p.estado = 'E' AND p.id_usuario_paqueteria = ?;
+    WHERE p.estado = 'E' AND (p.id_usuario_paqueteria IS NULL OR p.id_usuario_paqueteria = ?);
   `;
 
   try {
@@ -206,7 +210,6 @@ const obtenerEmbarquesNew = async (req, res) => {
       return acc;
     }, {});
 
-    console.log("Pedidos detectados:", Object.keys(groupedResults));
     const response = Object.values(groupedResults);
     res.json(response);
   } catch (error) {
@@ -214,6 +217,7 @@ const obtenerEmbarquesNew = async (req, res) => {
     res.status(500).json({ error: 'Error al obtener los datos de embarques' });
   }
 };
+
 
 
 const actualizarBahiaEmbarque = async (req, res) => {

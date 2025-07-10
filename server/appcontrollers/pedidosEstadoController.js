@@ -5,7 +5,7 @@ const actualizarEstadoPedido = async (req, res) => {
   const { pedido } = req.body;
   const pedidoId = pedido;
 
-  const nuevoEstado = "B";
+  const nuevoEstado = "E";
 
   let connection;
   try {

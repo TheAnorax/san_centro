@@ -53,7 +53,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden) => {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
-                p.um, p._bl, p._pz, p._pq, p._inner, p._master, p.ubi_bahia, 'B', p.id_usuario,
+                p.um, p._bl, p._pz, p._pq, p._inner, p._master, p.ubi_bahia, 'E', p.id_usuario,
                 p.id_usuario_paqueteria, p.registro, p.inicio_surtido, p.fin_surtido
             ]);
         }
@@ -87,10 +87,10 @@ const verificarYFinalizarPedido = async (noOrden) => {
             Number(p.cantidad) !== Number(p.cant_surtida) + Number(p.cant_no_enviada)
         );
 
-        const noEnEstadoB = productos.filter(p => p.estado !== 'B');
+        const noEnEstadoB = productos.filter(p => p.estado !== 'E');
 
         if (incompletos.length === 0 && noEnEstadoB.length === 0) {
-            console.log(`🚛 Pedido ${noOrden} completamente surtido y con estado 'B'. Moviendo a embarques...`);
+            console.log(`🚛 Pedido ${noOrden} completamente surtido y con estado 'E'. Moviendo a embarques...`);
             const resultado = await moverPedidoASurtidoFinalizado(noOrden);
             console.log(`✅ Resultado: ${resultado.mensaje}`);
             return true;
@@ -106,7 +106,7 @@ const verificarYFinalizarPedido = async (noOrden) => {
 };
 
 
-cron.schedule('*/10 * * * *', async () => {
+cron.schedule('*/2 * * * *', async () => {
     console.log("⏰ Verificando pedidos surtiendo...");
     const pedidos = await getPedidosSurtiendo();
     const unicos = [...new Set(pedidos.map(p => p.no_orden))];
