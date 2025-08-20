@@ -1,12 +1,13 @@
 const pool = require('../db');
 
+
 async function insertTraspasoRecibido(datos) {
   const sql = `
     INSERT INTO recibir_traspasos
       (Codigo, Descripcion, Clave, um, _pz, Cantidad,
        dia_envio, almacen_envio, tiempo_llegada_estimado,
-       estado, ubicacion)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       estado, ubicacion, usuario_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   const params = [
     datos.Codigo,
@@ -19,7 +20,8 @@ async function insertTraspasoRecibido(datos) {
     datos.almacen_envio || null,
     new Date(datos.tiempo_llegada_estimado),
     datos.estado,
-    datos.ubicacion
+    datos.ubicacion,
+    datos.usuario_id || null   // 👈 aquí agregamos el ID del usuario que lo ingresó
   ];
 
   const [result] = await pool.query(sql, params);
@@ -50,13 +52,19 @@ async function insertTraspasoRecibido(datos) {
 
 async function handleObtenerRecibidos(req, res) {
   try {
-    const [rows] = await pool.query('SELECT Codigo, Cantidad, estado, ubicacion  FROM recibir_traspasos');
+    const [rows] = await pool.query(`
+      SELECT rt.Codigo, rt.Cantidad, rt.estado, rt.ubicacion,
+             rt.usuario_id, u.nombre AS nombre_usuario
+      FROM recibir_traspasos rt
+      LEFT JOIN usuarios u ON rt.usuario_id = u.id
+    `);
     return res.status(200).json(rows);
   } catch (err) {
     console.error('Error al obtener recibidos:', err);
     return res.status(500).json({ message: 'Error en el servidor' });
   }
 }
+
 
 
 

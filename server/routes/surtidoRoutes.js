@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques } = require('../controllers/surtidoController');
+const { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking } = require('../controllers/surtidoController');
 
 router.get('/pedidos/pedidos-surtiendo', obtenerPedidosSurtiendo);
 
@@ -16,5 +16,7 @@ router.get('/Obtener-usuarios', obtenerUsuariosEmbarques);
 
 router.put('/asignar-usuario-paqueteria', asignarUsuarioPaqueteria);
 
+
+router.get('/packing/:tipo/:no_orden', getPedidosEmbarquePacking); // <-- para packing
 
 module.exports = router;

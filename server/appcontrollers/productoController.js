@@ -1,15 +1,13 @@
-const pool = require('../db'); // Importa la configuración de la base de datos
+const pool = require('../db');
 
-// ✅ Actualiza producto en pedidos_embarques y registra caja
 const actualizarProducto = async (req, res) => {
-  const { idPedi, scannedPz, scannedPq, scannedInner, scannedMaster, caja } = req.body;
+  const { idPedi, scannedPz, scannedPq, scannedInner, scannedMaster, caja, tipoCaja } = req.body;
   console.log("📦 Entrada a actualizarProducto:", req.body);
 
   let connection;
   try {
     connection = await pool.getConnection();
 
-    // 🔍 Consultar valor actual de `cajas`
     const [rows] = await connection.query(
       'SELECT cajas FROM pedidos_embarques WHERE id_pedi = ?',
       [idPedi]
@@ -28,13 +26,12 @@ const actualizarProducto = async (req, res) => {
       ? cajasActual
       : cajasActual
         ? `${cajasActual},${caja}`
-        : caja.toString(); // asegúrate de que sea string
+        : caja.toString();
 
     console.log(`📦 Caja actual: "${cajasActual}"`);
     console.log(`🆕 Caja nueva: "${nuevaCajas}"`);
 
-    // ✅ Aquí usamos `caja` como `tipo_caja`
-    const tipoCaja = caja;
+    const tipoCajaTexto = tipoCaja?.toUpperCase() || null;
 
     const updateQuery = `
       UPDATE pedidos_embarques
@@ -57,7 +54,7 @@ const actualizarProducto = async (req, res) => {
       scannedMaster,
       caja,
       nuevaCajas,
-      tipoCaja,
+      tipoCajaTexto,
       idPedi
     ]);
 

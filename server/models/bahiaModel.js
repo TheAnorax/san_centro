@@ -7,14 +7,22 @@ const BahiaModel = {
         const [rows] = await pool.query("SELECT * FROM bahias ORDER BY bahia");
         return rows;
     },
-    // Liberar bahía (setear en NULL los campos)
-    liberar: async (id_bahia) => {
+
+    // Liberar bahía por ID (ej: 309)
+    liberarPorId: async (id_bahia) => {
         await pool.query(
             "UPDATE bahias SET estado = NULL, id_pdi = NULL, ingreso = NULL WHERE id_bahia = ?",
             [id_bahia]
         );
     },
-    // Si quieres agregar crear, actualizar, etc., aquí los metes.
+
+    // Liberar bahía por nombre (ej: 'A-01')
+    liberar: async (bahiaNombre) => {
+        await pool.query(
+            "UPDATE bahias SET estado = NULL, id_pdi = NULL, ingreso = NULL WHERE bahia = ?",
+            [bahiaNombre]
+        );
+    },
 };
 
 module.exports = BahiaModel;

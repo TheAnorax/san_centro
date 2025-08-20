@@ -50,7 +50,6 @@ app.use("/api/auth", authRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/permisos', permisosRoutes)
 app.use('/api/insumos', insumoRoutes);
-app.use('/api/insumos', insumoRoutes);
 app.use('/api/traspaso', traspasoRouter);
 app.use('/api/inventario', inventarioRouter);
 app.use('/api/bahia', bahiaRouter);

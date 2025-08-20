@@ -15,7 +15,7 @@ function InventarioListado() {
 
     useEffect(() => {
         setLoading(true);
-        axios.get('http://192.168.3.154:3001/api/inventario/Obtenerinventario')
+        axios.get('http://66.232.105.107:3001/api/inventario/Obtenerinventario')
             .then(res => {
                 setInventario(res.data);
                 setLoading(false);

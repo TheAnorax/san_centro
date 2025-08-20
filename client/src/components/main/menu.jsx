@@ -134,7 +134,7 @@ const Menu = () => {
 
   useEffect(() => {
     if (usuario?.rol_id) {
-      fetch(`http://192.168.3.154:3001/api/permisos/${usuario.rol_id}`)
+      fetch(`http://66.232.105.107:3001/api/permisos/${usuario.rol_id}`)
         .then(res => res.json())
         .then(data => {
           console.log("🎯 Permisos recibidos del backend:", data);
@@ -308,7 +308,7 @@ const Menu = () => {
               <li className="menu-item">
                 <Link to="/menu/surtido" className="menu-link">
                   <AssignmentTurnedInIcon className="menu-icon" />
-                  {isOpen && <span>Avanze de Pedidos</span>}
+                  {isOpen && <span>Avance de Pedidos</span>}
                 </Link>
               </li>
             )}

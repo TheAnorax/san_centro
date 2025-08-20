@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, Typography, Box, Button, Table, TableBody, TableCell, TableHead, TableRow, LinearProgress, Grid, Paper, Tabs, Tab } from '@mui/material';
 import { FaTimes } from "react-icons/fa";
 import axios from 'axios';
+import Pagination from '@mui/material/Pagination';
+
 
 function calcularProgreso(productos) {
     const total = productos.reduce((sum, prod) => sum + Number(prod.cantidad || 0), 0);
@@ -28,54 +30,54 @@ function Surtiendo() {
         cargarPedidosSurtiendo();
     }, []);
 
+
+
     const cargarPedidosSurtiendo = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/pedidos/pedidos-surtiendo');
-            // Agrupar por no_orden + tipo
+            const { data } = await axios.get('http://66.232.105.107:3001/api/surtido/pedidos/pedidos-surtiendo');
+
             const pedidosAgrupados = {};
-            // Para el resumen
             const resumenUsuarios = {};
-            // Para evitar duplicados de pedidos por usuario
             const pedidosPorUsuario = {};
 
-            res.data.forEach(item => {
-                const key = `${item.no_orden}_${item.tipo}`;
-                // Agrupar pedidos
+            data.forEach(item => {
+                const noOrden = String(item.no_orden ?? '').trim();
+                const tipoNorm = String(item.tipo ?? '').trim().toUpperCase(); // <-- normaliza
+                const key = `${noOrden}__${tipoNorm}`;                         // <-- clave única estable
+
                 if (!pedidosAgrupados[key]) {
                     pedidosAgrupados[key] = {
-                        no_orden: item.no_orden,
-                        tipo: item.tipo,
-                        bahia: item.ubi_bahia,
-                        nombre_usuario: item.nombre_usuario,
+                        key,                         // guarda la clave para reusar en UI
+                        no_orden: noOrden,
+                        tipo: tipoNorm,              // muestra siempre normalizado
+                        bahia: item.ubi_bahia ?? '',
+                        nombre_usuario: item.nombre_usuario ?? '',
                         productos: []
                     };
                 }
                 pedidosAgrupados[key].productos.push(item);
 
                 // --- RESUMEN USUARIOS ---
-                // Inicializa usuario si no existe
-                if (!resumenUsuarios[item.nombre_usuario]) {
-                    resumenUsuarios[item.nombre_usuario] = {
-                        nombre: item.nombre_usuario,
+                const uname = item.nombre_usuario ?? 'SIN NOMBRE';
+                if (!resumenUsuarios[uname]) {
+                    resumenUsuarios[uname] = {
+                        nombre: uname,
                         pedidos: 0,
                         piezas: 0,
                         piezas_surtidas: 0,
                         piezas_no_enviadas: 0,
                     };
-                    pedidosPorUsuario[item.nombre_usuario] = new Set();
+                    pedidosPorUsuario[uname] = new Set();
                 }
-                // Solo cuenta pedidos únicos (por usuario)
-                pedidosPorUsuario[item.nombre_usuario].add(key);
+                pedidosPorUsuario[uname].add(key);
 
-                // Suma piezas y demás (total de productos asignados)
-                resumenUsuarios[item.nombre_usuario].piezas += Number(item.cantidad || 0);
-                resumenUsuarios[item.nombre_usuario].piezas_surtidas += Number(item.cant_surtida || 0);
-                resumenUsuarios[item.nombre_usuario].piezas_no_enviadas += Number(item.cant_no_enviada || 0);
+                resumenUsuarios[uname].piezas += Number(item.cantidad || 0);
+                resumenUsuarios[uname].piezas_surtidas += Number(item.cant_surtida || 0);
+                resumenUsuarios[uname].piezas_no_enviadas += Number(item.cant_no_enviada || 0);
             });
 
-            // Ahora sí, asigna el número real de pedidos únicos:
-            Object.keys(resumenUsuarios).forEach(nombre => {
-                resumenUsuarios[nombre].pedidos = pedidosPorUsuario[nombre].size;
+            Object.keys(resumenUsuarios).forEach(n => {
+                resumenUsuarios[n].pedidos = pedidosPorUsuario[n].size;
             });
 
             setPedidos(Object.values(pedidosAgrupados));
@@ -88,12 +90,13 @@ function Surtiendo() {
 
 
 
+
     //funcionamiento de embarques 
     const [embarques, setEmbarques] = useState([]);
 
     const cargarPedidosEmbarques = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/embarque');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/embarque');
             const pedidosAgrupados = {};
             res.data.forEach(item => {
                 const key = `${item.no_orden}_${item.tipo}`;
@@ -117,7 +120,7 @@ function Surtiendo() {
     useEffect(() => {
         if (tabActual === 1) {
             cargarPedidosEmbarques();
-            cargarUsuariosPaqueteria(); // <-- ESTA LÍNEA FALTA
+            cargarUsuariosPaqueteria();
         }
     }, [tabActual]);
 
@@ -125,7 +128,7 @@ function Surtiendo() {
 
     const finalizarPedido = async (noOrden) => {
         try {
-            const res = await axios.post(`http://192.168.3.154:3001/api/surtido/pedido-finalizado/${noOrden}`);
+            const res = await axios.post(`http://66.232.105.107:3001/api/surtido/pedido-finalizado/${noOrden}`);
             if (res.data.ok) {
                 alert(`✅ Pedido ${noOrden} finalizado correctamente`);
                 // Actualiza la lista de embarques para quitar el pedido finalizado
@@ -147,10 +150,37 @@ function Surtiendo() {
 
 
     useEffect(() => {
-        axios.get("http://192.168.3.154:3001/api/surtido/Obtener-pedidos-finalizados")
-            .then(res => setPedidosFinalizados(res.data))
-            .catch(err => console.error("Error al cargar pedidos finalizados", err));
+        const cargarFinalizados = async () => {
+            try {
+                const { data } = await axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados");
+
+                const agrupados = {};
+                data.forEach(item => {
+                    const noOrden = String(item.no_orden ?? '').trim();
+                    const tipoNorm = String(item.tipo ?? '').trim().toUpperCase();
+                    const key = `${noOrden}__${tipoNorm}`;
+
+                    if (!agrupados[key]) {
+                        agrupados[key] = {
+                            key,
+                            no_orden: noOrden,
+                            tipo: tipoNorm,
+                            productos: []
+                        };
+                    }
+                    agrupados[key].productos.push(item);
+                });
+
+                setPedidosFinalizados(Object.values(agrupados));
+            } catch (err) {
+                console.error("Error al cargar pedidos finalizados", err);
+                setPedidosFinalizados([]);
+            }
+        };
+
+        cargarFinalizados();
     }, []);
+
 
 
     const [usuariosPaqueteria, setUsuariosPaqueteria] = useState([]);
@@ -158,13 +188,25 @@ function Surtiendo() {
 
     const cargarUsuariosPaqueteria = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/Obtener-usuarios'); // ✅ CORRECTO
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/Obtener-usuarios'); // ✅ CORRECTO
             setUsuariosPaqueteria(res.data);
         } catch (error) {
             console.error("Error al cargar usuarios de paquetería", error);
             setUsuariosPaqueteria([]);
         }
     };
+
+    // al inicio del componente
+    const PAGE_SIZE_FIN = 5;
+    const [pageFin, setPageFin] = React.useState(1);
+
+    // cada vez que cambie la fuente, asegúrate de resetear la página (opcional)
+    React.useEffect(() => { setPageFin(1); }, [pedidosFinalizados]);
+
+    const totalPagesFin = Math.ceil(pedidosFinalizados.length / PAGE_SIZE_FIN) || 1;
+    const startIdxFin = (pageFin - 1) * PAGE_SIZE_FIN;
+    const endIdxFin = startIdxFin + PAGE_SIZE_FIN;
+    const pedidosFinPagina = pedidosFinalizados.slice(startIdxFin, endIdxFin);
 
 
 
@@ -198,8 +240,6 @@ function Surtiendo() {
                         <FaTimes color="#fff" size={18} />
                     </button>
                 </div>
-
-
 
 
                 <Tabs
@@ -405,7 +445,7 @@ function Surtiendo() {
                                                                     if (!id_usuario) return;
 
                                                                     try {
-                                                                        const res = await axios.put(`http://192.168.3.154:3001/api/surtido/asignar-usuario-paqueteria`, {
+                                                                        const res = await axios.put(`http://66.232.105.107:3001/api/surtido/asignar-usuario-paqueteria`, {
                                                                             no_orden: pedido.no_orden,
                                                                             id_usuario_paqueteria: id_usuario
                                                                         });
@@ -516,68 +556,140 @@ function Surtiendo() {
 
                     {tabActual === 2 && (
                         <Box p={2}>
-                            <Typography variant="h6" gutterBottom>
-                                Pedidos finalizados
-                            </Typography>
+                            <Typography variant="h6" gutterBottom>Pedidos finalizados</Typography>
 
                             {pedidosFinalizados.length === 0 ? (
                                 <Typography color="textSecondary">No hay pedidos finalizados.</Typography>
-                            ) : pedidosFinalizados.map((pedido) => (
-                                <Paper key={pedido.no_orden} sx={{ mb: 2, p: 2 }}>
-                                    {/* Encabezado con info principal */}
-                                    <Typography variant="subtitle1" fontWeight="bold">
-                                        {pedido.tipo} : {pedido.no_orden}
-                                    </Typography>
-
-                                    {/* Botón para mostrar u ocultar productos */}
-                                    <Button
-                                        variant="outlined"
-                                        size="small"
-                                        sx={{ my: 1 }}
-                                        onClick={() =>
-                                            setDetalleExpandido((prev) => ({
-                                                ...prev,
-                                                [pedido.no_orden]: !prev[pedido.no_orden]
-                                            }))
-                                        }
-                                    >
-                                        {detalleExpandido[pedido.no_orden] ? "Ocultar productos" : "Ver productos"}
-                                    </Button>
-
-                                    {/* Tabla de productos con scroll */}
-                                    {detalleExpandido[pedido.no_orden] && (
-                                        <Box
-                                            sx={{
-                                                mt: 2,
-                                                maxHeight: 250,
-                                                overflowY: 'auto',
-                                                border: '1px solid #ccc',
-                                                borderRadius: 2,
+                            ) : (
+                                <>
+                                    {/* Controles arriba */}
+                                    <Box display="flex" justifyContent="flex-end" mb={1}>
+                                        <Pagination
+                                            count={totalPagesFin}
+                                            page={pageFin}
+                                            onChange={(_, p) => {
+                                                setPageFin(p);
+                                                // opcional: scroll al inicio de la lista
+                                                document.querySelector('#lista-finalizados')?.scrollTo({ top: 0, behavior: 'smooth' });
                                             }}
-                                        >
-                                            <Table size="small">
-                                                <TableHead>
-                                                    <TableRow>
-                                                        <TableCell>Código</TableCell>
-                                                        <TableCell>Cantidad</TableCell>
-                                                        <TableCell>Cant. Surtida</TableCell>
-                                                        <TableCell>Cant. No Enviada</TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    <TableRow key={pedido.codigo_pedido}>
-                                                        <TableCell>{pedido.codigo_pedido}</TableCell>
-                                                        <TableCell>{pedido.cantidad}</TableCell>
-                                                        <TableCell>{pedido.cant_surtida}</TableCell>
-                                                        <TableCell>{pedido.cant_no_enviada}</TableCell>
-                                                    </TableRow>
-                                                </TableBody>
-                                            </Table>
-                                        </Box>
-                                    )}
+                                            size="small"
+                                            color="primary"
+                                            showFirstButton
+                                            showLastButton
+                                        />
+                                    </Box>
 
-                                </Paper>
-                            ))}
+                                    <Box id="lista-finalizados">
+                                        {pedidosFinPagina.map((pedido) => {
+                                            const rowKey = pedido.key; // clave estable compuesta que ya usas
+
+                                            const total = pedido.productos.reduce((s, p) => s + Number(p.cantidad || 0), 0);
+                                            const surtida = pedido.productos.reduce((s, p) => s + Number(p.cant_surtida || 0), 0);
+                                            const noEnviada = pedido.productos.reduce((s, p) => s + Number(p.cant_no_enviada || 0), 0);
+
+                                            return (
+                                                <Paper key={rowKey} sx={{ mb: 2, p: 2 }}>
+                                                    <Typography variant="subtitle1" fontWeight="bold">
+                                                        {pedido.tipo} : {pedido.no_orden}
+                                                    </Typography>
+
+                                                    <Typography variant="body2" sx={{ mb: 1 }}>
+                                                        Total: <b>{total}</b> &nbsp;|&nbsp; Surtida: <b>{surtida}</b> &nbsp;|&nbsp; No enviada: <b>{noEnviada}</b>
+                                                    </Typography>
+
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        sx={{ my: 1 }}
+                                                        onClick={() =>
+                                                            setDetalleExpandido(prev => ({
+                                                                ...prev,
+                                                                [rowKey]: !prev[rowKey],
+                                                            }))
+                                                        }
+                                                    >
+                                                        {detalleExpandido[rowKey] ? "Ocultar productos" : "Ver productos"}
+                                                    </Button>
+
+                                                    {detalleExpandido[rowKey] && (
+                                                        <Box sx={{ mt: 2, maxHeight: 250, overflowY: 'auto', border: '1px solid #ccc', borderRadius: 2 }}>
+                                                            <Table size="small">
+                                                                <TableHead>
+                                                                    <TableRow>
+                                                                        <TableCell>Código</TableCell>
+                                                                        <TableCell>Cantidad</TableCell>
+                                                                        <TableCell>Cant. Surtida</TableCell>
+                                                                        <TableCell>Cant. No Enviada</TableCell>
+                                                                        <TableCell>Bahia</TableCell>
+                                                                        <TableCell>Nombre Surtidor</TableCell>
+                                                                        <TableCell>Cant pz</TableCell>
+                                                                        <TableCell>Cant Inner</TableCell>
+                                                                        <TableCell>Cant Master</TableCell>
+                                                                        <TableCell>Inicio - Fin de Surtido</TableCell>
+                                                                        <TableCell>Nombre Embarques / Paqueteria</TableCell>
+                                                                        <TableCell>Validar pz</TableCell>
+                                                                        <TableCell>Validar Inner</TableCell>
+                                                                        <TableCell>Validar Master</TableCell>
+                                                                        <TableCell>Inicio - Fin de Embarque</TableCell>
+                                                                    </TableRow>
+                                                                </TableHead>
+                                                                <TableBody>
+                                                                    {pedido.productos.map((prod, idx) => (
+                                                                        <TableRow
+                                                                            key={`${prod.codigo_pedido || idx}_${idx}`}
+                                                                            sx={{
+                                                                                backgroundColor: prod.cant_no_enviada > 0 ? "#ff0026ff" : "inherit" // rojo claro si hay no enviada
+                                                                            }}
+                                                                        >
+                                                                            <TableCell>{prod.codigo_pedido}</TableCell>
+                                                                            <TableCell>{prod.cantidad}</TableCell>
+                                                                            <TableCell>{prod.cant_surtida}</TableCell>
+                                                                            <TableCell>{prod.cant_no_enviada}</TableCell>
+                                                                            <TableCell>{prod.ubi_bahia}</TableCell>
+                                                                            <TableCell>{prod.nombre_usuario}</TableCell>
+                                                                            <TableCell>{prod._pz}</TableCell>
+                                                                            <TableCell>{prod._inner}</TableCell>
+                                                                            <TableCell>{prod._master}</TableCell>
+                                                                            <TableCell>
+                                                                                <b>Inicio:</b> {new Date(prod.inicio_surtido).toLocaleString("es-MX", {
+                                                                                    dateStyle: "short",
+                                                                                    timeStyle: "medium"
+                                                                                })}
+                                                                                <br />
+                                                                                <b>Fin:</b> {new Date(prod.fin_surtido).toLocaleString("es-MX", {
+                                                                                    dateStyle: "short",
+                                                                                    timeStyle: "medium"
+                                                                                })}
+                                                                            </TableCell>
+                                                                            <TableCell>{prod.nombre_paqueteria}</TableCell>
+                                                                            <TableCell>{prod.v_pz}</TableCell>
+                                                                            <TableCell>{prod.v_inner}</TableCell>
+                                                                            <TableCell>{prod.v_master}</TableCell>
+                                                                            <TableCell>
+                                                                                <b>Inicio:</b> {new Date(prod.inicio_embarque).toLocaleString("es-MX", {
+                                                                                    dateStyle: "short",
+                                                                                    timeStyle: "medium"
+                                                                                })}
+                                                                                <br />
+                                                                                <b>Fin:</b> {new Date(prod.fin_embarque).toLocaleString("es-MX", {
+                                                                                    dateStyle: "short",
+                                                                                    timeStyle: "medium"
+                                                                                })}
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    ))}
+                                                                </TableBody>
+
+                                                            </Table>
+                                                        </Box>
+                                                    )}
+                                                </Paper>
+                                            );
+                                        })}
+                                    </Box>
+
+                                </>
+                            )}
                         </Box>
                     )}
 

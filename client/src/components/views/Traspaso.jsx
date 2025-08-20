@@ -1,32 +1,18 @@
 // src/components/views/TraspasoListado.jsx
-
 import React, { useState, useEffect } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import {
-  Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  CircularProgress,
-  Alert,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Grid,
+  Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Paper, CircularProgress, Alert, Typography, Button, Dialog, DialogTitle,
+  DialogContent, DialogActions, TextField, Grid
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import TablePagination from '@mui/material/TablePagination';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+
+const API_TRASPASO = 'http://66.232.105.107:3001/api/traspaso';
 
 function Traspaso() {
   const [registros, setRegistros] = useState([]);
@@ -53,10 +39,13 @@ function Traspaso() {
     setLoadingFetch(true);
     setErrorFetch('');
     try {
-      const resPendientes = await axios.get('http://66.232.105.87:3007/api/RH/ObtenerTraspaso');
-      const listaPendientes = resPendientes.data;
+      // 🔁 Llamadas en paralelo al backend 3001 (proxy + recibidos)
+      const [resPendientes, resRecibidos] = await Promise.all([
+        axios.get(`${API_TRASPASO}/pendientes`), // <- PROXY a 3007
+        axios.get(`${API_TRASPASO}/recibidos`),
+      ]);
 
-      const resRecibidos = await axios.get('http://192.168.3.154:3001/api/traspaso/recibidos');
+      const listaPendientes = resPendientes.data;
       const listaRecibidos = resRecibidos.data;
 
       const ubicacionMap = new Map(
@@ -69,17 +58,9 @@ function Traspaso() {
       const fusionado = listaPendientes.map(r => {
         const key = `${r.Codigo}|${r.Cantidad}`;
         if (setRecibidosKey.has(key)) {
-          return {
-            ...r,
-            estado: 'F',
-            ubicacion: ubicacionMap.get(key) || ''
-          };
-        } else {
-          return {
-            ...r,
-            ubicacion: ''
-          };
+          return { ...r, estado: 'F', ubicacion: ubicacionMap.get(key) || '' };
         }
+        return { ...r, ubicacion: '' };
       });
 
       setRegistros(fusionado);
@@ -116,21 +97,24 @@ function Traspaso() {
     setSaving(true);
 
     try {
-      const datos = traspasoSeleccionado;
-      await axios.post('http://192.168.3.154:3001/api/traspaso/guardarTraspaso', {
-        Codigo: datos.Codigo,
-        Descripcion: datos.Descripcion,
-        Clave: datos.Clave,
-        um: datos.um,
-        _pz: datos._pz,
-        Cantidad: modificarCantidad ? Number(cantidadModificada) : datos.Cantidad,
-        dia_envio: new Date(datos.dia_envio).toISOString(),
-        almacen_envio: datos.almacen_envio,
-        tiempo_llegada_estimado: new Date(datos.tiempo_llegada_estimado).toISOString(),
-        estado: 'F',
-        ubicacion: ubicacionInput.trim()
-      });
+      const userData = JSON.parse(localStorage.getItem('user'));
+      const usuarioId = userData?.id || null;
 
+      const d = traspasoSeleccionado;
+      await axios.post(`${API_TRASPASO}/guardarTraspaso`, {
+        Codigo: d.Codigo,
+        Descripcion: d.Descripcion,
+        Clave: d.Clave,
+        um: d.um,
+        _pz: d._pz,
+        Cantidad: modificarCantidad ? Number(cantidadModificada) : d.Cantidad,
+        dia_envio: new Date(d.dia_envio).toISOString(),
+        almacen_envio: d.almacen_envio,
+        tiempo_llegada_estimado: new Date(d.tiempo_llegada_estimado).toISOString(),
+        estado: 'F',
+        ubicacion: ubicacionInput.trim(),
+        usuario_id: usuarioId
+      });
 
       Swal.fire({
         icon: 'success',
@@ -144,11 +128,7 @@ function Traspaso() {
       handleCloseDialog();
     } catch (err) {
       console.error('Error al guardar traspaso:', err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo guardar el traspaso. Intenta nuevamente.',
-      });
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo guardar el traspaso. Intenta nuevamente.' });
     } finally {
       setSaving(false);
     }
@@ -158,18 +138,17 @@ function Traspaso() {
     setLoadingFetch(true);
     setErrorFetch('');
     try {
-      const resPendientes = await axios.get('http://192.168.3.154:3007/api/RH/ObtenerTraspaso');
-      const listaPend = resPendientes.data;
-      const resRec = await axios.get('http://192.168.3.154:3001/api/traspaso/recibidos');
+      const [resPend, resRec] = await Promise.all([
+        axios.get(`${API_TRASPASO}/pendientes`),
+        axios.get(`${API_TRASPASO}/recibidos`),
+      ]);
+      const listaPend = resPend.data;
       const listaRec = resRec.data;
+
       const setRecibidosKey = new Set(listaRec.map(r => `${r.Codigo}|${r.Cantidad}`));
       const fusionado = listaPend.map(r => {
         const key = `${r.Codigo}|${r.Cantidad}`;
-        if (setRecibidosKey.has(key)) {
-          return { ...r, estado: 'F' };
-        } else {
-          return r;
-        }
+        return setRecibidosKey.has(key) ? { ...r, estado: 'F' } : r;
       });
       setRegistros(fusionado);
     } catch (err) {
@@ -189,13 +168,10 @@ function Traspaso() {
   });
 
   return (
-    
     <div className="place_holder-container fade-in">
       <div className="place_holder-header">
         <span className="place_holder-title">Traspasos</span>
-        <button
-          className="place_holder-close"
-          onClick={() => (window.location.href = '/menu')} >
+        <button className="place_holder-close" onClick={() => (window.location.href = '/menu')}>
           <FaTimes />
         </button>
       </div>
@@ -214,7 +190,6 @@ function Traspaso() {
         )}
 
         {!loadingFetch && !errorFetch && (
-
           <TableContainer component={Paper} sx={{ mt: 2 }}>
             <Table>
               <TableHead>
@@ -229,42 +204,27 @@ function Traspaso() {
                   <TableCell>Almacén Envío</TableCell>
                   <TableCell>Llegada Estimada</TableCell>
                   <TableCell>Estado</TableCell>
-                  <TableCell>Ubicaccion Destino</TableCell>
+                  <TableCell>Ubicación Destino</TableCell>
                   <TableCell>Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {registrosOrdenados
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((r) => {
-                    const estadoUpper = (r.estado || '').toUpperCase();
-                    const yaRecibido = estadoUpper === 'F';
+                  .map((r, i) => {
+                    const yaRecibido = (r.estado || '').toUpperCase() === 'F';
                     return (
-                      <TableRow key={`${r.Codigo}-${r.Cantidad}`}>
+                      <TableRow key={`${r.Codigo}-${r.Cantidad}-${i}`}>
                         <TableCell>{r.Codigo}</TableCell>
                         <TableCell>{r.Descripcion}</TableCell>
                         <TableCell>{r.Clave}</TableCell>
                         <TableCell>{r.um || '—'}</TableCell>
                         <TableCell>{r._pz != null ? r._pz : '—'}</TableCell>
                         <TableCell>{r.Cantidad}</TableCell>
-                        <TableCell>
-                          {r.dia_envio
-                            ? new Date(r.dia_envio).toLocaleString()
-                            : '—'}
-                        </TableCell>
+                        <TableCell>{r.dia_envio ? new Date(r.dia_envio).toLocaleString() : '—'}</TableCell>
                         <TableCell>{r.almacen_envio || '—'}</TableCell>
-                        <TableCell>
-                          {r.tiempo_llegada_estimado
-                            ? new Date(r.tiempo_llegada_estimado).toLocaleString()
-                            : '—'}
-                        </TableCell>
-                        <TableCell>
-                          {yaRecibido ? (
-                            <CheckCircleIcon sx={{ color: 'green' }} />
-                          ) : (
-                            <RadioButtonUncheckedIcon sx={{ color: 'gray' }} />
-                          )}
-                        </TableCell>
+                        <TableCell>{r.tiempo_llegada_estimado ? new Date(r.tiempo_llegada_estimado).toLocaleString() : '—'}</TableCell>
+                        <TableCell>{yaRecibido ? <CheckCircleIcon sx={{ color: 'green' }} /> : <RadioButtonUncheckedIcon sx={{ color: 'gray' }} />}</TableCell>
                         <TableCell>{r.ubicacion}</TableCell>
                         <TableCell>
                           <Button
@@ -289,7 +249,7 @@ function Traspaso() {
                 )}
               </TableBody>
             </Table>
-            {/* ← PAGINADOR AQUÍ ABAJO */}
+
             <TablePagination
               component="div"
               count={registrosOrdenados.length}
@@ -301,21 +261,13 @@ function Traspaso() {
                 setPage(0);
               }}
               rowsPerPageOptions={[5]}
-              labelRowsPerPage="" // Oculta el label, solo deja el paginador
+              labelRowsPerPage=""
             />
           </TableContainer>
-
-
         )}
       </Box>
 
-      {/* Modal para Guardar Traspaso */}
-      <Dialog
-        open={dialogOpen}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Guardar Traspaso</DialogTitle>
         <DialogContent dividers>
           {errorSave && (
@@ -326,64 +278,32 @@ function Traspaso() {
           <Typography variant="subtitle1" sx={{ mb: 2 }}>
             Datos del registro seleccionado:
           </Typography>
+
           <Grid container spacing={1}>
             <Grid item xs={6} md={3}>
-              <TextField
-                label="Código"
-                fullWidth
-                value={registroActual.Codigo || ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
+              <TextField label="Código" fullWidth value={registroActual.Codigo || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={5}>
-              <TextField
-                label="Descripción"
-                fullWidth
-                value={registroActual.Descripcion || ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
+              <TextField label="Descripción" fullWidth value={registroActual.Descripcion || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={2}>
-              <TextField
-                label="Clave"
-                fullWidth
-                value={registroActual.Clave || ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
+              <TextField label="Clave" fullWidth value={registroActual.Clave || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={2}>
-              <TextField
-                label="UM"
-                fullWidth
-                value={registroActual.um || ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
+              <TextField label="UM" fullWidth value={registroActual.um || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={2}>
-              <TextField
-                label="_pz"
-                fullWidth
-                value={registroActual._pz != null ? registroActual._pz : ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
+              <TextField label="_pz" fullWidth value={registroActual._pz != null ? registroActual._pz : ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={2}>
               <TextField
                 label="Cantidad"
                 fullWidth
                 value={modificarCantidad ? cantidadModificada : registroActual.Cantidad || ''}
-                InputProps={{
-                  readOnly: !modificarCantidad
-                }}
+                InputProps={{ readOnly: !modificarCantidad }}
                 onChange={(e) => setCantidadModificada(e.target.value.replace(/[^0-9]/g, ''))}
                 size="small"
               />
-              {/* Checkbox para activar la edición */}
               <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                 <input
                   type="checkbox"
@@ -402,66 +322,40 @@ function Traspaso() {
               <TextField
                 label="Día de Envío"
                 fullWidth
-                value={
-                  registroActual.dia_envio
-                    ? new Date(registroActual.dia_envio).toLocaleString()
-                    : ''
-                }
+                value={registroActual.dia_envio ? new Date(registroActual.dia_envio).toLocaleString() : ''}
                 InputProps={{ readOnly: true }}
                 size="small"
               />
             </Grid>
             <Grid item xs={6} md={4}>
-              <TextField
-                label="Almacén Envío"
-                fullWidth
-                value={registroActual.almacen_envio || ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
+              <TextField label="Almacén Envío" fullWidth value={registroActual.almacen_envio || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={4}>
               <TextField
                 label="Llegada Estimada"
                 fullWidth
-                value={
-                  registroActual.tiempo_llegada_estimado
-                    ? new Date(registroActual.tiempo_llegada_estimado).toLocaleString()
-                    : ''
-                }
+                value={registroActual.tiempo_llegada_estimado ? new Date(registroActual.tiempo_llegada_estimado).toLocaleString() : ''}
                 InputProps={{ readOnly: true }}
                 size="small"
               />
             </Grid>
           </Grid>
+
           <Box sx={{ mt: 3 }}>
             <Typography variant="body2" sx={{ mb: 1 }}>
               Ingresa la ubicación donde se guardó este traspaso:
             </Typography>
-            <TextField
-              label="Ubicación"
-              fullWidth
-              value={ubicacionInput}
-              onChange={(e) => setUbicacionInput(e.target.value)}
-              disabled={saving}
-            />
+            <TextField label="Ubicación" fullWidth value={ubicacionInput} onChange={(e) => setUbicacionInput(e.target.value)} disabled={saving} />
           </Box>
         </DialogContent>
+
         <DialogActions sx={{ pr: 2, pb: 2 }}>
-          <Button onClick={handleCloseDialog} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleGuardarUbicacion}
-            variant="contained"
-            color="primary"
-            disabled={saving || !ubicacionInput.trim()}
-          >
+          <Button onClick={handleCloseDialog} disabled={saving}>Cancelar</Button>
+          <Button onClick={handleGuardarUbicacion} variant="contained" color="primary" disabled={saving || !ubicacionInput.trim()}>
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>
-
     </div>
   );
 }

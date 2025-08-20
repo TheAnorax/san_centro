@@ -39,7 +39,7 @@ const Productos = ({ isSwitching }) => {
 
   const obtenerProductos = async () => {
     try {
-      const res = await fetch("http://192.168.3.154:3001/api/productos");
+      const res = await fetch("http://66.232.105.107:3001/api/productos");
       const data = await res.json();
       const productosConId = data.map((item, index) => ({ id: item.id || index, ...item }));
       setProductos(productosConId);
@@ -85,7 +85,7 @@ const Productos = ({ isSwitching }) => {
 
   const guardarProducto = async () => {
     try {
-      const res = await fetch(`http://192.168.3.154:3001/api/productos${editando ? `/${productoId}` : ""}`,
+      const res = await fetch(`http://66.232.105.107:3001/api/productos${editando ? `/${productoId}` : ""}`,
         {
           method: editando ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
@@ -104,7 +104,7 @@ const Productos = ({ isSwitching }) => {
   const eliminarProducto = async (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar este producto?")) return;
     try {
-      await fetch(`http://192.168.3.154:3001/api/productos/${id}`, { method: "DELETE" });
+      await fetch(`http://66.232.105.107:3001/api/productos/${id}`, { method: "DELETE" });
       mostrarAlerta("Producto eliminado");
       obtenerProductos();
     } catch (error) {
@@ -119,24 +119,48 @@ const Productos = ({ isSwitching }) => {
 
   const columnas = [
     { field: "codigo", headerName: "Código", width: 100 },
+
+    // ✅ Columna nueva para mostrar imagen (usa otro nombre de campo)
+    {
+      field: "imagen",
+      headerName: "Imagen",
+      width: 100,
+      sortable: false,
+      renderCell: (params) => (
+        <img
+          src={`http://66.232.105.87:3011/imagenes/img_pz/${params.row.codigo}.jpg`}
+          alt={`Imagen de ${params.row.codigo}`}
+          style={{ width: 40, height: 40, objectFit: "contain" }}
+          onError={(e) => { e.target.style.display = "none"; }} // Oculta si no existe
+        />
+      ),
+    },
+
+    // 👇 Las demás columnas
     { field: "descripcion", headerName: "Descripción", width: 250 },
     { field: "um", headerName: "UM", width: 80 },
     { field: "clave", headerName: "Clave", width: 150 },
-    { field: "_pz", headerName: "Cantida en Pieza", width: 100 },
-    { field: "_inner", headerName: "Cantida en INNER", width: 100 },
-    { field: "_master", headerName: "Cantida en MASTER", width: 100 },
+    { field: "_pz", headerName: "Cantidad en Pieza", width: 100 },
+    { field: "_inner", headerName: "Cantidad en INNER", width: 100 },
+    { field: "_master", headerName: "Cantidad en MASTER", width: 100 },
+
     {
       field: "acciones",
       headerName: "Acciones",
       width: 160,
       renderCell: (params) => (
         <>
-          <Button size="small" color="primary" onClick={() => abrirDialog(params.row)}><EditIcon fontSize="small" /></Button>
-          <Button size="small" color="error" onClick={() => eliminarProducto(params.row.id)}><DeleteIcon fontSize="small" /></Button>
+          <Button size="small" color="primary" onClick={() => abrirDialog(params.row)}>
+            <EditIcon fontSize="small" />
+          </Button>
+          <Button size="small" color="error" onClick={() => eliminarProducto(params.row.id)}>
+            <DeleteIcon fontSize="small" />
+          </Button>
         </>
-      )
+      ),
     }
   ];
+
 
 
   // 2. DECLARA ESTA FUNCIÓN ANTES del useEffect que la usa
@@ -228,6 +252,27 @@ const Productos = ({ isSwitching }) => {
         }}
       >
         <DialogTitle>{editando ? "Editar Producto" : "Nuevo Producto"}</DialogTitle>
+
+        {productoActual.codigo && (
+          <Box display="flex" justifyContent="center" mt={1}>
+            <img
+              src={`http://66.232.105.87:3011/imagenes/img_pz/${productoActual.codigo}.jpg`}
+              alt={`Imagen de producto ${productoActual.codigo}`}
+              style={{
+                width: "150px",
+                height: "150px",
+                objectFit: "contain",
+                borderRadius: "8px",
+                border: "1px solid #ccc",
+                backgroundColor: "#f9f9f9",
+              }}
+              onError={(e) => {
+                e.target.style.display = "none"; // Oculta si no se encuentra la imagen
+              }}
+            />
+          </Box>
+        )}
+
         <DialogContent
           sx={{
             overflow: 'unset', // 🔄 importante para evitar scroll interno

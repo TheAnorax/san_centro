@@ -10,7 +10,7 @@ def surtido():
     url = "http://66.232.105.79:8080/sava/pedi/Service/services.php"
     continua = 1
     conexion = mysql.connector.connect(
-        host="192.168.3.154",
+        host="66.232.105.107",
         user="root",
         password="",
         database="san_centro"  # si es necesario
