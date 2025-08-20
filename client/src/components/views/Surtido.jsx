@@ -17,6 +17,7 @@ function calcularProgreso(productos) {
 function Surtiendo() {
 
     const [tabActual, setTabActual] = useState(0);
+    const [data, setData] = useState([]);
 
     const handleChange = (event, newValue) => {
         setTabActual(newValue);
@@ -34,7 +35,7 @@ function Surtiendo() {
 
     const cargarPedidosSurtiendo = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/pedidos/pedidos-surtiendo');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/pedidos/pedidos-surtiendo');
             // Agrupar por no_orden + tipo
             const pedidosAgrupados = {};
             const resumenUsuarios = {};
@@ -150,7 +151,7 @@ function Surtiendo() {
 
 
     useEffect(() => {
-        axios.get("http://192.168.3.154:3001/api/surtido/Obtener-pedidos-finalizados")
+        axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados")
             .then(res => setPedidosFinalizados(res.data))
             .catch(err => console.error("Error al cargar pedidos finalizados", err));
     }, []);
