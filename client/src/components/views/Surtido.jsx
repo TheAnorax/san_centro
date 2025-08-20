@@ -34,8 +34,8 @@ function Surtiendo() {
 
     const cargarPedidosSurtiendo = async () => {
         try {
-            const { data } = await axios.get('http://66.232.105.107:3001/api/surtido/pedidos/pedidos-surtiendo');
-
+            const res = await axios.get('http://192.168.3.154:3001/api/surtido/pedidos/pedidos-surtiendo');
+            // Agrupar por no_orden + tipo
             const pedidosAgrupados = {};
             const resumenUsuarios = {};
             const pedidosPorUsuario = {};
@@ -150,35 +150,9 @@ function Surtiendo() {
 
 
     useEffect(() => {
-        const cargarFinalizados = async () => {
-            try {
-                const { data } = await axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados");
-
-                const agrupados = {};
-                data.forEach(item => {
-                    const noOrden = String(item.no_orden ?? '').trim();
-                    const tipoNorm = String(item.tipo ?? '').trim().toUpperCase();
-                    const key = `${noOrden}__${tipoNorm}`;
-
-                    if (!agrupados[key]) {
-                        agrupados[key] = {
-                            key,
-                            no_orden: noOrden,
-                            tipo: tipoNorm,
-                            productos: []
-                        };
-                    }
-                    agrupados[key].productos.push(item);
-                });
-
-                setPedidosFinalizados(Object.values(agrupados));
-            } catch (err) {
-                console.error("Error al cargar pedidos finalizados", err);
-                setPedidosFinalizados([]);
-            }
-        };
-
-        cargarFinalizados();
+        axios.get("http://192.168.3.154:3001/api/surtido/Obtener-pedidos-finalizados")
+            .then(res => setPedidosFinalizados(res.data))
+            .catch(err => console.error("Error al cargar pedidos finalizados", err));
     }, []);
 
 

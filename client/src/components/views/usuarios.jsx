@@ -69,15 +69,7 @@ const Usuarios = ({ isSwitching }) => {
 
     const obtenerUsuarios = () => {
         setLoading(true);
-        fetch(`${API_BASE}/api/usuarios`)
-            .then((res) => res.json())
-            .then((data) => setUsuarios(data))
-            .catch((err) => console.error("❌ Error al obtener usuarios:", err))
-            .finally(() => setLoading(false));
-    };
-
-    const obtenerRoles = () => {
-        fetch(`${API_BASE}/api/usuarios/roles`)
+        fetch("http://192.168.3.154:3001/api/usuarios")
             .then((res) => res.json())
             .then((data) => Array.isArray(data) ? setRolesDisponibles(data) : setRolesDisponibles([]))
             .catch(() => setRolesDisponibles([]));
@@ -105,8 +97,9 @@ const Usuarios = ({ isSwitching }) => {
 
     const handleGuardarUsuario = () => {
         const url = editando
-            ? `${API_BASE}/api/usuarios/${usuarioSeleccionado.id}`
-            : `${API_BASE}/api/usuarios`;
+            ? `http://192.168.3.154:3001/api/usuarios/${usuarioSeleccionado.id}`
+            : "http://192.168.3.154:3001/api/usuarios";
+
         const method = editando ? "PUT" : "POST";
 
         fetch(url, {
@@ -126,165 +119,47 @@ const Usuarios = ({ isSwitching }) => {
     const handleEliminarUsuario = (id) => setConfirmarEliminar({ open: true, id });
 
     const confirmarEliminacion = () => {
-        fetch(`${API_BASE}/api/usuarios/${confirmarEliminar.id}`, { method: "DELETE" })
-            .then((res) => res.json())
+        fetch(`http://192.168.3.154:3001/api/usuarios/${confirmarEliminar.id}`, {
+            method: "DELETE"
+        })
+            .then(res => res.json())
             .then(() => {
                 obtenerUsuarios();
                 mostrarAlerta("Usuario eliminado correctamente");
             })
-            .catch(() => mostrarAlerta("Error al eliminar usuario", "error"))
-            .finally(() => setConfirmarEliminar({ open: false, id: null }));
-    };
-
-    // ---------- Abrir modal y cargar credenciales ----------
-    const handleVerQR = async (user) => {
-        setUsuarioQR(user);
-        setOpenCred(true);
-        setCredenciales(null);
-        setErrorCred("");
-        setLoadingCred(true);
-        setQrEmailUrl("");
-        setQrPassUrl("");
-
-        try {
-            const res = await fetch(`${API_BASE}/api/usuarios/${user.id}/credenciales`, {
-                headers: { Accept: "application/json" },
+            .catch(error => {
+                console.error("Error al eliminar usuario:", error);
+                mostrarAlerta("Error al eliminar usuario", "error");
+            })
+            .finally(() => {
+                setConfirmarEliminar({ open: false, id: null });
             });
-            const raw = await res.text();
-
-            if (!res.ok) {
-                let msg = `HTTP ${res.status}`;
-                try { msg = JSON.parse(raw).message || msg; } catch { }
-                throw new Error(msg);
-            }
-
-            const data = JSON.parse(raw);
-            if (!data?.correo || !data?.password) throw new Error("La API no devolvió {correo, password}");
-            setCredenciales({ correo: data.correo, password: data.password });
-        } catch (e) {
-            setErrorCred(e.message);
-        } finally {
-            setLoadingCred(false);
-        }
     };
 
-    // ---------- Generar 2 QR (correo y password por separado) ----------
-    useEffect(() => {
-        (async () => {
-            try {
-                if (!credenciales) { setQrEmailUrl(""); setQrPassUrl(""); return; }
-                const emailQR = await QRCode.toDataURL(String(credenciales.correo || ""), { errorCorrectionLevel: "M", margin: 2, width: 200 });
-                const passQR = await QRCode.toDataURL(String(credenciales.password || ""), { errorCorrectionLevel: "M", margin: 2, width: 200 });
-                setQrEmailUrl(emailQR);
-                setQrPassUrl(passQR);
-            } catch (e) {
-                console.error("QR error:", e);
-                setQrEmailUrl(""); setQrPassUrl("");
-            }
-        })();
-    }, [credenciales]);
-
-    //separar por roles 
-
-    const ordenRoles = ["admin", "Supervisor", "Embarques", "Paqueteria", "surtidor"];
-
-    const usuariosPorRol = useMemo(() => {
-        const grupos = usuarios.reduce((acc, u) => {
-            const key = u.rol || "Sin rol";
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(u);
-            return acc;
-        }, {});
-
-        // Ordena alfabéticamente dentro de cada grupo
-        Object.values(grupos).forEach(arr => arr.sort((a, b) => a.nombre.localeCompare(b.nombre)));
-
-        // Reordena los grupos por prioridad de rol
-        const entries = Object.entries(grupos);
-        entries.sort((a, b) => {
-            const ai = ordenRoles.indexOf(a[0]);
-            const bi = ordenRoles.indexOf(b[0]);
-            if (ai === -1 && bi === -1) return a[0].localeCompare(b[0]); // ambos no listados: orden alfabético
-            if (ai === -1) return 1;  // a no está en lista -> al final
-            if (bi === -1) return -1; // b no está en lista -> al final
-            return ai - bi;           // por prioridad
-        });
-
-        return entries; // [ [rol, listaUsuarios], ... ]
-    }, [usuarios]);
-
-
-    // ---- Impresora ----
-    const [openPrinter, setOpenPrinter] = useState(false);
-    const [printerUser, setPrinterUser] = useState(null);
-    const [printerForm, setPrinterForm] = useState({ mac_print: "", hand: "" });
-    const [savingPrinter, setSavingPrinter] = useState(false);
-    const [printerError, setPrinterError] = useState("");
-
-    const ROLES_CON_IMPRESORA = ["Embarques", "Paqueteria"]; // ajusta a tus nombres exactos
-
-    const macRegex = /^([0-9A-Fa-f]{2}[:\-]){5}([0-9A-Fa-f]{2})$/; // 00:11:22:33:44:55
-
-    const handleOpenPrinter = async (user) => {
-        setPrinterUser(user);
-        setOpenPrinter(true);
-        setPrinterError("");
-        setSavingPrinter(false);
-        setPrinterForm({ mac_print: "", hand: "" });
-
-        // Prefill si ya existe
-        try {
-            const res = await fetch(`${API_BASE}/api/usuarios/${user.id}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data) {
-                    setPrinterForm({
-                        mac_print: data.mac_print || "",
-                        hand: data.hand || ""
-                    });
+    const obtenerRoles = () => {
+        fetch("http://192.168.3.154:3001/api/usuarios/roles")
+            .then(res => res.json())
+            .then(data => {
+                console.log("✅ Roles recibidos:", data);
+                if (Array.isArray(data)) {
+                    setRolesDisponibles(data);
+                } else {
+                    console.error("❌ Error: datos recibidos no son un array:", data);
+                    setRolesDisponibles([]); // fallback seguro
                 }
-            }
-        } catch { }
-    };
-
-    const handleSavePrinter = async () => {
-        const mac = printerForm.mac_print.trim();
-        const hand = printerForm.hand.trim();
-
-        if (!macRegex.test(mac)) {
-            setPrinterError("MAC inválida. Usa formato 00:11:22:33:44:55");
-            return;
-        }
-        if (!hand) {
-            setPrinterError("El campo 'hand' es obligatorio.");
-            return;
-        }
-
-        setSavingPrinter(true);
-        setPrinterError("");
-
-        try {
-            const res = await fetch(`${API_BASE}/api/usuarios/guardarImpresora`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    id_usu: printerUser.id,   // ← se toma automático
-                    mac_print: mac,
-                    hand
-                })
+            })
+            .catch(err => {
+                console.error("❌ Error al obtener roles:", err);
+                setRolesDisponibles([]); // fallback seguro
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || "Error al guardar");
-            mostrarAlerta("Impresora guardada");
-            setOpenPrinter(false);
-        } catch (e) {
-            setPrinterError(e.message);
-        } finally {
-            setSavingPrinter(false);
-        }
     };
 
 
+    useEffect(() => {
+        setAnimationClass(isSwitching ? "slide-out-down" : "fade-in");
+        obtenerUsuarios();
+        obtenerRoles();
+    }, [isSwitching]);
 
     return (
         <div className={`place_holder-container ${animationClass}`}>

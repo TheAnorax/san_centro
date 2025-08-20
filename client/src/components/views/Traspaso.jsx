@@ -46,6 +46,8 @@ function Traspaso() {
       ]);
 
       const listaPendientes = resPendientes.data;
+
+      const resRecibidos = await axios.get('http://192.168.3.154:3001/api/traspaso/recibidos');
       const listaRecibidos = resRecibidos.data;
 
       const ubicacionMap = new Map(
@@ -97,20 +99,17 @@ function Traspaso() {
     setSaving(true);
 
     try {
-      const userData = JSON.parse(localStorage.getItem('user'));
-      const usuarioId = userData?.id || null;
-
-      const d = traspasoSeleccionado;
-      await axios.post(`${API_TRASPASO}/guardarTraspaso`, {
-        Codigo: d.Codigo,
-        Descripcion: d.Descripcion,
-        Clave: d.Clave,
-        um: d.um,
-        _pz: d._pz,
-        Cantidad: modificarCantidad ? Number(cantidadModificada) : d.Cantidad,
-        dia_envio: new Date(d.dia_envio).toISOString(),
-        almacen_envio: d.almacen_envio,
-        tiempo_llegada_estimado: new Date(d.tiempo_llegada_estimado).toISOString(),
+      const datos = traspasoSeleccionado;
+      await axios.post('http://192.168.3.154:3001/api/traspaso/guardarTraspaso', {
+        Codigo: datos.Codigo,
+        Descripcion: datos.Descripcion,
+        Clave: datos.Clave,
+        um: datos.um,
+        _pz: datos._pz,
+        Cantidad: modificarCantidad ? Number(cantidadModificada) : datos.Cantidad,
+        dia_envio: new Date(datos.dia_envio).toISOString(),
+        almacen_envio: datos.almacen_envio,
+        tiempo_llegada_estimado: new Date(datos.tiempo_llegada_estimado).toISOString(),
         estado: 'F',
         ubicacion: ubicacionInput.trim(),
         usuario_id: usuarioId
@@ -138,11 +137,9 @@ function Traspaso() {
     setLoadingFetch(true);
     setErrorFetch('');
     try {
-      const [resPend, resRec] = await Promise.all([
-        axios.get(`${API_TRASPASO}/pendientes`),
-        axios.get(`${API_TRASPASO}/recibidos`),
-      ]);
-      const listaPend = resPend.data;
+      const resPendientes = await axios.get('http://192.168.3.154:3007/api/RH/ObtenerTraspaso');
+      const listaPend = resPendientes.data;
+      const resRec = await axios.get('http://192.168.3.154:3001/api/traspaso/recibidos');
       const listaRec = resRec.data;
 
       const setRecibidosKey = new Set(listaRec.map(r => `${r.Codigo}|${r.Cantidad}`));
