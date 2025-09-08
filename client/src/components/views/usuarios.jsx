@@ -22,7 +22,7 @@ import SnackbarAlert from "../main/SnackbarAlert";
 import AdminPermisos from "./adminPermisos";
 import ModalGestionRoles from "./roles";
 
-const API_BASE = "http://192.168.3.154:3001";
+const API_BASE = "http://66.232.105.107:3001";
 
 const Usuarios = ({ isSwitching }) => {
     const navigate = useNavigate();

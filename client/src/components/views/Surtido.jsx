@@ -90,7 +90,7 @@ function Surtiendo() {
 
     const cargarPedidosSurtiendo = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/pedidos/pedidos-surtiendo');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/pedidos/pedidos-surtiendo');
 
             const pedidosAgrupados = {};
             const resumenUsuarios = {};
@@ -141,7 +141,7 @@ function Surtiendo() {
 
     const cargarPedidosEmbarques = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/embarque');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/embarque');
             const pedidosAgrupados = {};
 
             (res.data || []).forEach(item => {
@@ -180,7 +180,7 @@ function Surtiendo() {
 
     const cargarUsuariosPaqueteria = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/Obtener-usuarios');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/Obtener-usuarios');
             setUsuariosPaqueteria(Array.isArray(res.data) ? res.data : []);
         } catch {
             setUsuariosPaqueteria([]);
@@ -196,7 +196,7 @@ function Surtiendo() {
 
     const finalizarPedido = async (noOrden) => {
         try {
-            const res = await axios.post(`http://192.168.3.154:3001/api/surtido/pedido-finalizado/${noOrden}`);
+            const res = await axios.post(`http://66.232.105.107:3001/api/surtido/pedido-finalizado/${noOrden}`);
             if (res.data.ok) {
                 alert(`✅ Pedido ${noOrden} finalizado correctamente`);
                 setEmbarques(prev => prev.filter(p => p.no_orden !== noOrden));
@@ -222,7 +222,7 @@ function Surtiendo() {
 
     const asignarUsuarioPaqueteria = async (no_orden, id_usuario) => {
         try {
-            const res = await axios.put(`http://192.168.3.154:3001/api/surtido/asignar-usuario-paqueteria`, {
+            const res = await axios.put(`http://66.232.105.107:3001/api/surtido/asignar-usuario-paqueteria`, {
                 no_orden,
                 id_usuario_paqueteria: id_usuario, // acepta id o nombre si backend lo resuelve
             });
@@ -242,7 +242,7 @@ function Surtiendo() {
     const liberarUsuarioPaqueteria = async (no_orden) => {
         if (!window.confirm('¿Liberar este pedido para reasignarlo?')) return;
         try {
-            const res = await axios.put(`http://192.168.3.154:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
+            const res = await axios.put(`http://66.232.105.107:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
             if (res.data?.ok) {
                 alert('✅ Pedido liberado');
             } else {
@@ -262,7 +262,7 @@ function Surtiendo() {
     const [qFin, setQFin] = useState(''); // filtro de finalizados
 
     useEffect(() => {
-        axios.get("http://192.168.3.154:3001/api/surtido/Obtener-pedidos-finalizados")
+        axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados")
             .then(res => {
                 const rows = Array.isArray(res.data) ? res.data : [];
                 const map = {};
