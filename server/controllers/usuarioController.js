@@ -1,3 +1,4 @@
+// controllers/usuarioController.js
 const bcrypt = require('bcrypt');
 const {
   obtenerUsuarios,
@@ -8,11 +9,15 @@ const {
   actualizarPasswordHash,
   eliminarUsuario,
   obtenerRoles,
-  upsertImpresora,
-  getImpresoraByUsuario,
-} = require('../models/usuarioModel');
-const { Row } = require('jspdf-autotable');
 
+  // impresoras
+  getImpresoras,
+  getImpresoraByUsuario,
+  asignarImpresoraPorId,
+  unassignImpresoraFromUsuario,
+} = require('../models/usuarioModel');
+
+/* ------------ USUARIOS ------------ */
 async function listarUsuarios(req, res) {
   try { res.json(await obtenerUsuarios()); }
   catch (err) { res.status(500).json({ message: 'Error al obtener usuarios', error: err }); }
@@ -35,19 +40,13 @@ async function crearNuevoUsuario(req, res) {
       return res.status(400).json({ message: 'Faltan campos requeridos' });
 
     const password_hash = await bcrypt.hash(password, 10);
-    const password_plain = password; // ← guardar para TODOS
-
-    await crearUsuario({ nombre, correo, password_hash, password_plain, rol_id, turno });
+    await crearUsuario({ nombre, correo, password_hash, password_plain: password, rol_id, turno });
     res.status(201).json({ message: 'Usuario creado' });
   } catch (err) {
     res.status(500).json({ message: 'Error al crear usuario', error: err });
   }
 }
 
-/**
- * Actualiza datos del usuario. Si te mandan new_password:
- *  - actualiza hash y password_plain (consistentes).
- */
 async function actualizarUsuarioExistente(req, res) {
   try {
     const { id } = req.params;
@@ -89,36 +88,41 @@ async function getCredencialesUsuario(req, res) {
   }
 }
 
+/* ------------ IMPRESORAS ------------ */
+async function listarImpresoras(req, res) {
+  try { res.json(await getImpresoras()); }
+  catch (e) { res.status(500).json({ message: 'Error al listar impresoras', error: e.message }); }
+}
 
-async function guardarImpresora(req, res) {
+async function impresoraDeUsuario(req, res) {
+  try { res.json(await getImpresoraByUsuario(req.params.id_usu)); }
+  catch (e) { res.status(500).json({ message: 'Error al obtener impresora del usuario', error: e.message }); }
+}
+
+async function asignarImpresoraAUsuario(req, res) {
   try {
-    const { id_usu, mac_print, hand } = req.body;
-    if (!id_usu || !mac_print || !hand) {
-      return res.status(400).json({ message: "id_usu, mac_print y hand son requeridos" });
-    }
-    await upsertImpresora({ id_usu, mac_print, hand });
-    res.json({ message: "Impresora guardada" });
+    const { id_print, id_usu } = req.body;
+    if (!id_print || !id_usu) return res.status(400).json({ message: 'id_print e id_usu son requeridos' });
+    await asignarImpresoraPorId({ id_print, id_usu });
+    res.json({ message: 'Impresora asignada' });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Error al guardar impresora" });
+    res.status(500).json({ message: 'Error al asignar impresora', error: e.message });
   }
 }
 
-async function obtenerImpresoras(req, res) {
+async function quitarImpresora(req, res) {
   try {
-    const { id_usu } = req.params;
-    const rows = await getImpresoraByUsuario(id_usu);
-    if (!rows) return res.status(400).json(null);
-    res.json(Row);
+    const { id_usu } = req.body;
+    if (!id_usu) return res.status(400).json({ message: 'id_usu es obligatorio' });
+    await unassignImpresoraFromUsuario(id_usu);
+    res.json({ message: 'Asignación eliminada' });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Error al Obtener la impresora" });
+    res.status(500).json({ message: 'Error al quitar impresora', error: e.message });
   }
-};
-
-
+}
 
 module.exports = {
+  // usuarios
   listarUsuarios,
   obtenerUsuario: obtenerUsuarioCtrl,
   crearNuevoUsuario,
@@ -126,6 +130,10 @@ module.exports = {
   eliminarUsuarioLogico,
   obtenerListaRoles,
   getCredencialesUsuario,
-  guardarImpresora,
-  obtenerImpresoras
+
+  // impresoras
+  listarImpresoras,
+  impresoraDeUsuario,
+  asignarImpresoraAUsuario,
+  quitarImpresora,
 };

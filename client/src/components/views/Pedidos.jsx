@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Card, CardContent, Typography, Box, Divider, Button, TextField } from '@mui/material';
 import Pagination from '@mui/material/Pagination';
 import { FaTimes } from "react-icons/fa";
@@ -20,17 +20,77 @@ function Pedidos() {
     const [bahias, setBahias] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
 
-    // Estados de selects por pedido
+    // Selects por pedido
     const [bahiasPorPedido, setBahiasPorPedido] = useState({});
     const [usuariosPorPedido, setUsuariosPorPedido] = useState({});
 
+    // --- Helpers ---
+
+    // 1) Normaliza el nombre de bahía (por si el backend cambia el campo)
+    const nombreBahia = (b) =>
+        (b?.bahia ?? b?.Bahia ?? b?.nombre ?? b?.codigo ?? b?.id ?? '').toString().trim();
+
+    // 2) Define si está libre con múltiples señales (texto/flags)
+    const isBahiaLibre = (b) => {
+        const est = (b?.estado ?? b?.estatus ?? b?.status ?? '').toString().toLowerCase().trim();
+
+        // Textos típicos
+        if (est) {
+            if (/(ocupado|asignado|en uso|busy)/i.test(est)) return false;
+            if (/(libre|disponible)/i.test(est)) return true;
+            if (/(sin ingreso|n\/a|na)/i.test(est)) return true;
+        }
+
+        // Flags/campos que delatan ocupación
+        if (b && (b.no_orden || b.orden_actual)) return false;
+        if (typeof b?.ocupado !== 'undefined') return !(!b.ocupado); // true si ocupado => NO libre
+        if (typeof b?.libre !== 'undefined') return !!b.libre;
+        if (typeof b?.disponible !== 'undefined') return !!b.disponible;
+
+        // Si no hay señales claras, asumimos libre para no ocultar opciones válidas
+        return true;
+    };
+
+    // 3) Fallback: si el filtro deja 0, mostramos todas para no vaciar el select
+    const bahiasLibres = useMemo(() => {
+        const libres = (bahias || []).filter(isBahiaLibre);
+        return libres.length > 0 ? libres : (bahias || []);
+    }, [bahias]);
+
+    const cargarBahias = async () => {
+        try {
+            const res = await axios.get("http://192.168.3.154:3001/api/pedidos/bahias");
+            setBahias(res.data || []);
+        } catch {
+            setBahias([]);
+        }
+    };
+
+    const cargarTodosPedidos = (callback) => {
+        setLoading(true);
+        axios
+            .get('http://192.168.3.154:3001/api/pedidos/todos-con-productos')
+            .then(res => setPedidos(res.data || []))
+            .finally(() => {
+                setLoading(false);
+                if (callback) callback();
+            });
+    };
+
+    // --- Effects ---
+
     useEffect(() => {
-        axios.get('http://66.232.105.107:3001/api/pedidos/usuarios-surtidor')
+        axios
+            .get('http://192.168.3.154:3001/api/pedidos/usuarios-surtidor')
             .then(res => setUsuarios(res.data || []));
-        axios.get('http://66.232.105.107:3001/api/pedidos/bahias')
-            .then(res => setBahias(res.data || []))
-            .catch(() => setBahias([]));
+        cargarBahias();
         cargarTodosPedidos();
+    }, []);
+
+    // Polling ligero para mantener bahías frescas
+    useEffect(() => {
+        const id = setInterval(cargarBahias, 15000);
+        return () => clearInterval(id);
     }, []);
 
     useEffect(() => {
@@ -45,12 +105,9 @@ function Pedidos() {
         setBuscando(true);
         searchTimeout.current = setTimeout(async () => {
             try {
-                const res = await axios.get(`http://66.232.105.107:3001/api/pedidos/productos-por-orden/${searchNoOrden}`);
+                const res = await axios.get(`http://192.168.3.154:3001/api/pedidos/productos-por-orden/${searchNoOrden}`);
                 if (res.data && res.data.info && res.data.items && res.data.items.length > 0) {
-                    setPedidos([{
-                        ...res.data.info,
-                        productos: res.data.items
-                    }]);
+                    setPedidos([{ ...res.data.info, productos: res.data.items }]);
                 } else {
                     setPedidos([]);
                 }
@@ -61,15 +118,7 @@ function Pedidos() {
         }, 350);
     }, [searchNoOrden]);
 
-    const cargarTodosPedidos = (callback) => {
-        setLoading(true);
-        axios.get('http://66.232.105.107:3001/api/pedidos/todos-con-productos')
-            .then(res => setPedidos(res.data || []))
-            .finally(() => {
-                setLoading(false);
-                if (callback) callback();
-            });
-    };
+    // --- UI handlers ---
 
     const toggleExpandPedido = (no_orden) => {
         setExpandedPedidos(expanded =>
@@ -79,56 +128,55 @@ function Pedidos() {
         );
     };
 
-    // Handler para selects por pedido
     const handleBahiaChange = (no_orden, value) => {
-        setBahiasPorPedido(prev => ({
-            ...prev,
-            [no_orden]: value
-        }));
-    };
-    const handleUsuarioChange = (no_orden, value) => {
-        setUsuariosPorPedido(prev => ({
-            ...prev,
-            [no_orden]: value
-        }));
+        setBahiasPorPedido(prev => ({ ...prev, [no_orden]: value }));
     };
 
-    // Nuevo: handler para agregar pedido a pedidos_surtiendo
+    const handleUsuarioChange = (no_orden, value) => {
+        setUsuariosPorPedido(prev => ({ ...prev, [no_orden]: value }));
+    };
+
     const handleAgregarPedido = async (pedido) => {
         const bahia = bahiasPorPedido[pedido.no_orden];
         const usuario = usuariosPorPedido[pedido.no_orden];
-
-        // 🔴 LOG ANTES DEL AXIOS
-        console.log('DATA QUE MANDO:', {
-            no_orden: pedido.no_orden,
-            bahia,
-            usuario
-        });
 
         if (!bahia || !usuario) {
             alert("Selecciona bahía y usuario.");
             return;
         }
+
         try {
-            const res = await axios.post('http://66.232.105.107:3001/api/pedidos/agregar-pedido-surtiendo', {
+            const res = await axios.post('http://192.168.3.154:3001/api/pedidos/agregar-pedido-surtiendo', {
                 no_orden: pedido.no_orden,
                 tipo: pedido.tipo,
                 bahia,
-                usuario // aquí SÍ va el id_usuario (numérico/string)
+                usuario // id_usuario numérico
             });
+
             if (res.data && res.data.ok) {
                 alert("Pedido enviado correctamente.");
+
+                // 1) Optimista: quitar bahía localmente
+                setBahias(prev => prev.filter(b => nombreBahia(b) !== bahia));
+
+                // 2) Limpiar selects
                 setBahiasPorPedido(prev => ({ ...prev, [pedido.no_orden]: '' }));
                 setUsuariosPorPedido(prev => ({ ...prev, [pedido.no_orden]: '' }));
+
+                // 3) Re-sincronizar desde backend
                 cargarTodosPedidos();
+                cargarBahias();
             } else {
                 alert("Error: " + (res.data?.message || "No se pudo enviar el pedido."));
+                cargarBahias();
             }
-        } catch (err) {
+        } catch {
             alert("Error al enviar el pedido.");
+            cargarBahias();
         }
     };
 
+    // --- Paginación ---
 
     const totalPaginas = Math.ceil(pedidos.length / pedidosPorPagina);
     const pedidosMostrados = pedidos.slice(
@@ -136,13 +184,15 @@ function Pedidos() {
         page * pedidosPorPagina
     );
 
+    // --- Render ---
+
     return (
         <div className="place_holder-container fade-in">
             <div className="place_holder-header" style={{ background: '#e74c3c', padding: '8px 16px' }}>
-                <span className="place_holder-title" style={{ color: '#fff', fontWeight: 600, fontSize: 20 }}>Pedidos Faltantes</span>
-                <button
-                    className="place_holder-close"
-                    onClick={() => (window.location.href = '/menu')} >
+                <span className="place_holder-title" style={{ color: '#fff', fontWeight: 600, fontSize: 20 }}>
+                    Pedidos Faltantes
+                </span>
+                <button className="place_holder-close" onClick={() => (window.location.href = '/menu')}>
                     <FaTimes color="#fff" />
                 </button>
             </div>
@@ -158,7 +208,9 @@ function Pedidos() {
                     sx={{ width: 240, mr: 1 }}
                 />
                 {searchNoOrden && (
-                    <Button color="secondary" onClick={() => setSearchNoOrden('')}>Limpiar</Button>
+                    <Button color="secondary" onClick={() => setSearchNoOrden('')}>
+                        Limpiar
+                    </Button>
                 )}
             </Box>
 
@@ -180,9 +232,16 @@ function Pedidos() {
                     ) : (
                         pedidosMostrados.map(pedido => {
                             const isExpanded = expandedPedidos.includes(pedido.no_orden);
-                            const productosToShow = isExpanded
-                                ? pedido.productos
-                                : pedido.productos.slice(0, 5);
+                            const productosToShow = isExpanded ? pedido.productos : pedido.productos.slice(0, 5);
+
+                            // Cálculo por pedido
+                            const selectedBahia = bahiasPorPedido[pedido.no_orden];
+
+                            // Si hay lista de libres usamos esa; si no, permitimos cualquier selección (fallback)
+                            const selectedBahiaDisponible =
+                                bahiasLibres.length > 0
+                                    ? (!!selectedBahia && bahiasLibres.some(b => nombreBahia(b) === selectedBahia && isBahiaLibre(b)))
+                                    : !!selectedBahia;
 
                             return (
                                 <Card sx={{ mb: 4, boxShadow: 2 }} key={pedido.no_orden}>
@@ -192,7 +251,6 @@ function Pedidos() {
 
                                             {/* Selects y Botón */}
                                             <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-
                                                 <select
                                                     value={bahiasPorPedido[pedido.no_orden] || ''}
                                                     onChange={e => handleBahiaChange(pedido.no_orden, e.target.value)}
@@ -208,15 +266,17 @@ function Pedidos() {
                                                     }}
                                                 >
                                                     <option value="">Selecciona bahía</option>
-                                                    {bahias.map(b => (
-                                                        <option key={b.bahia} value={b.bahia}>{b.bahia}</option>
-                                                    ))}
+                                                    {bahiasLibres.map(b => {
+                                                        const name = nombreBahia(b);
+                                                        return (
+                                                            <option key={name} value={name}>{name}</option>
+                                                        );
+                                                    })}
                                                 </select>
-
 
                                                 <select
                                                     value={usuariosPorPedido[pedido.no_orden] || ''}
-                                                    onChange={e => handleUsuarioChange(pedido.no_orden, Number(e.target.value))} // <-- Número
+                                                    onChange={e => handleUsuarioChange(pedido.no_orden, Number(e.target.value))}
                                                     style={{
                                                         height: 38,
                                                         borderRadius: 8,
@@ -234,26 +294,22 @@ function Pedidos() {
                                                     ))}
                                                 </select>
 
-
                                                 <Button
                                                     variant="contained"
                                                     color="primary"
                                                     size="small"
-                                                    disabled={
-                                                        !(bahiasPorPedido[pedido.no_orden] && usuariosPorPedido[pedido.no_orden])
-                                                    }
+                                                    disabled={!(selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])}
                                                     title={
-                                                        !(bahiasPorPedido[pedido.no_orden] && usuariosPorPedido[pedido.no_orden])
-                                                            ? "Selecciona primero bahía y usuario"
+                                                        !(selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])
+                                                            ? "Selecciona primero una bahía libre y un usuario"
                                                             : ""
                                                     }
                                                     onClick={() => handleAgregarPedido(pedido)}
                                                 >
                                                     Agregar
                                                 </Button>
-
-
                                             </Box>
+
                                             <Box flex={1} textAlign="center">
                                                 <Typography variant="h5" fontWeight={600}>
                                                     {pedido.tipo} : {pedido.no_orden}
@@ -263,23 +319,23 @@ function Pedidos() {
                                                 Registro: {pedido.registro ? new Date(pedido.registro).toLocaleDateString('es-MX') : ''}
                                             </Typography>
                                         </Box>
+
                                         <Divider sx={{ mb: 2 }} />
+
                                         <Box sx={{ maxWidth: 900, margin: '0 auto', mb: 2 }}>
                                             <Typography variant="h6" align="center">Productos</Typography>
                                         </Box>
-                                        <Box sx={{
-                                            overflowX: 'auto',
-                                            maxWidth: 900,
-                                            margin: '0 auto',
-                                            mt: 1
-                                        }}>
-                                            <table style={{
-                                                width: '100%',
-                                                borderCollapse: 'collapse',
-                                                fontSize: '0.92rem',
-                                                background: '#fff',
-                                                tableLayout: 'fixed'
-                                            }}>
+
+                                        <Box sx={{ overflowX: 'auto', maxWidth: 900, margin: '0 auto', mt: 1 }}>
+                                            <table
+                                                style={{
+                                                    width: '100%',
+                                                    borderCollapse: 'collapse',
+                                                    fontSize: '0.92rem',
+                                                    background: '#fff',
+                                                    tableLayout: 'fixed'
+                                                }}
+                                            >
                                                 <thead>
                                                     <tr>
                                                         <th style={{ padding: '2px 6px', width: '20%', textAlign: 'center' }}>Código</th>
@@ -310,6 +366,7 @@ function Pedidos() {
                                                             </td>
                                                         </tr>
                                                     ))}
+
                                                     {pedido.productos.length > 5 && (
                                                         <tr>
                                                             <td colSpan={4} style={{ textAlign: 'center', paddingTop: 8 }}>
@@ -324,6 +381,7 @@ function Pedidos() {
                                                             </td>
                                                         </tr>
                                                     )}
+
                                                 </tbody>
                                             </table>
                                         </Box>

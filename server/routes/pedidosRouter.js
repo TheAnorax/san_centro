@@ -10,4 +10,8 @@ router.get('/usuarios-surtidor', pedidosController.getUsuarios);
 // Nueva ruta:
 router.post('/agregar-pedido-surtiendo', pedidosController.agregarPedidoSurtiendo);
 
+router.put('/embarques/liberar-usuario', pedidosController.liberarUsuarioPaqueteria);
+
+
+
 module.exports = router;

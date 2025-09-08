@@ -1,9 +1,9 @@
-// routes/traspasoRouter.js
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
 
 const { handleGuardarTraspaso, handleListadoRecibidos } = require('../controllers/traspasoController');
-const RH_BASE_URL = process.env.RH_BASE_URL || 'http://66.232.105.87:3007/api/RH';
+const RH_BASE_URL = process.env.RH_BASE_URL || 'http://192.168.3.154:3007/api/RH';
 
 router.post('/guardarTraspaso', handleGuardarTraspaso);
 

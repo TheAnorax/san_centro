@@ -1,5 +1,5 @@
 // src/components/views/TraspasoListado.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import {
   Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -14,6 +14,57 @@ import Swal from 'sweetalert2';
 
 const API_TRASPASO = 'http://66.232.105.107:3001/api/traspaso';
 
+
+function SmartImage({ code, size = 56 }) {
+  const base = 'https://sanced.santulconnect.com:3011/imagenes';
+  const candidates = [
+    `${base}/img_pz/${code}.jpg`,
+    `${base}/img_pz/${code}.png`,
+    `${base}/img/${code}.jpg`,
+    `${base}/img/${code}.png`,
+  ];
+
+  const [idx, setIdx] = useState(0);
+  const [src, setSrc] = useState(candidates[0]);
+
+  useEffect(() => {
+    setIdx(0);
+    setSrc(candidates[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  const handleError = () => {
+    const next = idx + 1;
+    if (next < candidates.length) {
+      setIdx(next);
+      setSrc(candidates[next]);
+    } else {
+      setSrc(`https://via.placeholder.com/${size}?text=Sin+img`);
+    }
+  };
+
+  return (
+    <img
+      src={src}
+      alt={`Producto ${code}`}
+      onError={handleError}
+      loading="lazy"
+      style={{
+        width: size,
+        height: size,
+        objectFit: 'contain',
+        borderRadius: 8,
+        background: '#f6f7f8',
+        border: '1px solid #eee',
+        display: 'block',
+      }}
+    />
+  );
+}
+
+/* =========================
+   Traspaso (agrupado por No_Orden)
+   ========================= */
 function Traspaso() {
   const [registros, setRegistros] = useState([]);
   const [loadingFetch, setLoadingFetch] = useState(false);
@@ -26,7 +77,7 @@ function Traspaso() {
   const [traspasoSeleccionado, setTraspasoSeleccionado] = useState(null);
 
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [groupsPerPage, setGroupsPerPage] = useState(1);
 
   const [modificarCantidad, setModificarCantidad] = useState(false);
   const [cantidadModificada, setCantidadModificada] = useState('');
@@ -39,24 +90,23 @@ function Traspaso() {
     setLoadingFetch(true);
     setErrorFetch('');
     try {
-      // 🔁 Llamadas en paralelo al backend 3001 (proxy + recibidos)
       const [resPendientes, resRecibidos] = await Promise.all([
-        axios.get(`${API_TRASPASO}/pendientes`), // <- PROXY a 3007
+        axios.get(`${API_TRASPASO}/pendientes`),
         axios.get(`${API_TRASPASO}/recibidos`),
       ]);
 
-      const listaPendientes = resPendientes.data;
-      const listaRecibidos = resRecibidos.data;
+      const listaPendientes = resPendientes.data || [];
+      const listaRecibidos = resRecibidos.data || [];
 
+      // clave incluye No_Orden para no mezclar órdenes distintas
+      const keyRec = (r) => `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
+      const setRecibidosKey = new Set(listaRecibidos.map(keyRec));
       const ubicacionMap = new Map(
-        listaRecibidos.map(r => [`${r.Codigo}|${r.Cantidad}`, r.ubicacion])
-      );
-      const setRecibidosKey = new Set(
-        listaRecibidos.map(r => `${r.Codigo}|${r.Cantidad}`)
+        listaRecibidos.map(r => [keyRec(r), r.ubicacion])
       );
 
       const fusionado = listaPendientes.map(r => {
-        const key = `${r.Codigo}|${r.Cantidad}`;
+        const key = `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
         if (setRecibidosKey.has(key)) {
           return { ...r, estado: 'F', ubicacion: ubicacionMap.get(key) || '' };
         }
@@ -64,6 +114,7 @@ function Traspaso() {
       });
 
       setRegistros(fusionado);
+      setPage(0);
     } catch (err) {
       console.error('Error al obtener traspasos:', err);
       setErrorFetch('No se pudieron cargar los registros de traspaso.');
@@ -102,6 +153,8 @@ function Traspaso() {
 
       const d = traspasoSeleccionado;
       await axios.post(`${API_TRASPASO}/guardarTraspaso`, {
+        No_Orden: d.No_Orden || null,
+        tipo_orden: d.tipo_orden || null,
         Codigo: d.Codigo,
         Descripcion: d.Descripcion,
         Clave: d.Clave,
@@ -142,12 +195,14 @@ function Traspaso() {
         axios.get(`${API_TRASPASO}/pendientes`),
         axios.get(`${API_TRASPASO}/recibidos`),
       ]);
-      const listaPend = resPend.data;
-      const listaRec = resRec.data;
+      const listaPend = resPend.data || [];
+      const listaRec = resRec.data || [];
 
-      const setRecibidosKey = new Set(listaRec.map(r => `${r.Codigo}|${r.Cantidad}`));
+      const setRecibidosKey = new Set(
+        listaRec.map(r => `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`)
+      );
       const fusionado = listaPend.map(r => {
-        const key = `${r.Codigo}|${r.Cantidad}`;
+        const key = `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
         return setRecibidosKey.has(key) ? { ...r, estado: 'F' } : r;
       });
       setRegistros(fusionado);
@@ -161,14 +216,41 @@ function Traspaso() {
 
   const registroActual = traspasoSeleccionado || {};
 
-  const registrosOrdenados = [...registros].sort((a, b) => {
-    if ((a.estado !== 'F') && (b.estado === 'F')) return -1;
-    if ((a.estado === 'F') && (b.estado !== 'F')) return 1;
-    return 0;
-  });
+  const registrosOrdenados = useMemo(() => {
+    return [...registros].sort((a, b) => {
+      if ((a.estado !== 'F') && (b.estado === 'F')) return -1;
+      if ((a.estado === 'F') && (b.estado !== 'F')) return 1;
+      const ao = String(a.No_Orden || '').localeCompare(String(b.No_Orden || ''), 'es', { numeric: true });
+      if (ao !== 0) return ao;
+      return String(a.Codigo).localeCompare(String(b.Codigo), 'es', { numeric: true });
+    });
+  }, [registros]);
+
+  const grupos = useMemo(() => {
+    const by = new Map();
+    registrosOrdenados.forEach(r => {
+      const key = r.No_Orden || '—';
+      if (!by.has(key)) by.set(key, []);
+      by.get(key).push(r);
+    });
+    const entries = Array.from(by.entries()).sort((a, b) =>
+      String(a[0]).localeCompare(String(b[0]), 'es', { numeric: true })
+    );
+    entries.forEach(([, arr]) =>
+      arr.sort((a, b) => String(a.Codigo).localeCompare(String(b.Codigo), 'es', { numeric: true }))
+    );
+    return entries; // [ [noOrden, items[]], ... ]
+  }, [registrosOrdenados]);
+
+  const paginatedGroups = useMemo(() => {
+    const start = page * groupsPerPage;
+    return grupos.slice(start, start + groupsPerPage);
+  }, [grupos, page, groupsPerPage]);
+
+  const TOTAL_COLS = 14;
 
   return (
-    <div className="place_holder-container fade-in">
+    <div className="place_holder-container fade-in" style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div className="place_holder-header">
         <span className="place_holder-title">Traspasos</span>
         <button className="place_holder-close" onClick={() => (window.location.href = '/menu')}>
@@ -176,7 +258,16 @@ function Traspaso() {
         </button>
       </div>
 
-      <Box sx={{ p: 2 }}>
+      {/* Área central scrollable */}
+      <Box
+        sx={{
+          p: 2,
+          height: 'calc(100vh - 120px)',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }}
+      >
         {loadingFetch && (
           <Box sx={{ mt: 3, textAlign: 'center' }}>
             <CircularProgress />
@@ -190,83 +281,111 @@ function Traspaso() {
         )}
 
         {!loadingFetch && !errorFetch && (
-          <TableContainer component={Paper} sx={{ mt: 2 }}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Código</TableCell>
-                  <TableCell>Descripción</TableCell>
-                  <TableCell>Clave</TableCell>
-                  <TableCell>UM</TableCell>
-                  <TableCell>_pz</TableCell>
-                  <TableCell>Cantidad</TableCell>
-                  <TableCell>Día de Envío</TableCell>
-                  <TableCell>Almacén Envío</TableCell>
-                  <TableCell>Llegada Estimada</TableCell>
-                  <TableCell>Estado</TableCell>
-                  <TableCell>Ubicación Destino</TableCell>
-                  <TableCell>Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {registrosOrdenados
-                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((r, i) => {
-                    const yaRecibido = (r.estado || '').toUpperCase() === 'F';
-                    return (
-                      <TableRow key={`${r.Codigo}-${r.Cantidad}-${i}`}>
-                        <TableCell>{r.Codigo}</TableCell>
-                        <TableCell>{r.Descripcion}</TableCell>
-                        <TableCell>{r.Clave}</TableCell>
-                        <TableCell>{r.um || '—'}</TableCell>
-                        <TableCell>{r._pz != null ? r._pz : '—'}</TableCell>
-                        <TableCell>{r.Cantidad}</TableCell>
-                        <TableCell>{r.dia_envio ? new Date(r.dia_envio).toLocaleString() : '—'}</TableCell>
-                        <TableCell>{r.almacen_envio || '—'}</TableCell>
-                        <TableCell>{r.tiempo_llegada_estimado ? new Date(r.tiempo_llegada_estimado).toLocaleString() : '—'}</TableCell>
-                        <TableCell>{yaRecibido ? <CheckCircleIcon sx={{ color: 'green' }} /> : <RadioButtonUncheckedIcon sx={{ color: 'gray' }} />}</TableCell>
-                        <TableCell>{r.ubicacion}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => handleOpenDialog(r)}
-                            disabled={yaRecibido}
-                          >
-                            {yaRecibido ? 'Ya Recibido' : 'Guardar Traspaso'}
-                          </Button>
+          <>
+            {/* Tabla con scroll y header sticky */}
+            <TableContainer
+              component={Paper}
+              sx={{ mt: 2, flex: 1, minHeight: 0, overflow: 'auto' }}
+            >
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>No Orden</TableCell>
+                    <TableCell>Imagen</TableCell>
+                    <TableCell>Código</TableCell>
+                    <TableCell>Descripción</TableCell>
+                    <TableCell>Clave</TableCell>
+                    <TableCell>UM</TableCell>
+                    <TableCell>_pz</TableCell>
+                    <TableCell>Cantidad</TableCell>
+                    <TableCell>Día de Envío</TableCell>
+                    <TableCell>Almacén Envío</TableCell>
+                    <TableCell>Llegada Estimada</TableCell>
+                    <TableCell>Estado</TableCell>
+                    <TableCell>Ubicación Destino</TableCell>
+                    <TableCell>Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
+
+                <TableBody>
+                  {paginatedGroups.map(([noOrden, items]) => (
+                    <React.Fragment key={`group-${noOrden}`}>
+                      {/* Cabecera de grupo */}
+                      <TableRow sx={{ background: '#f7f9fc' }}>
+                        <TableCell colSpan={TOTAL_COLS} sx={{ fontWeight: 700 }}>
+                          No Orden: {noOrden} {items[0]?.tipo_orden ? `· ${items[0].tipo_orden}` : ''}
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
 
-                {registrosOrdenados.length === 0 && !loadingFetch && (
-                  <TableRow>
-                    <TableCell colSpan={12} align="center">
-                      No hay registros de traspaso.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                      {/* Filas del grupo */}
+                      {items.map((r, i) => {
+                        const yaRecibido = (r.estado || '').toUpperCase() === 'F';
+                        return (
+                          <TableRow key={`${noOrden}-${r.Codigo}-${r.Cantidad}-${i}`}>
+                            <TableCell>{r.No_Orden}</TableCell>
+                            <TableCell><SmartImage code={r.Codigo} /></TableCell>
+                            <TableCell>{r.Codigo}</TableCell>
+                            <TableCell>{r.Descripcion}</TableCell>
+                            <TableCell>{r.Clave}</TableCell>
+                            <TableCell>{r.um || '—'}</TableCell>
+                            <TableCell>{r._pz != null ? r._pz : '—'}</TableCell>
+                            <TableCell>{r.Cantidad}</TableCell>
+                            <TableCell>{r.dia_envio ? new Date(r.dia_envio).toLocaleString() : '—'}</TableCell>
+                            <TableCell>{r.almacen_envio || '—'}</TableCell>
+                            <TableCell>{r.tiempo_llegada_estimado ? new Date(r.tiempo_llegada_estimado).toLocaleString() : '—'}</TableCell>
+                            <TableCell>
+                              {yaRecibido ? <CheckCircleIcon sx={{ color: 'green' }} /> : <RadioButtonUncheckedIcon sx={{ color: 'gray' }} />}
+                            </TableCell>
+                            <TableCell>{r.ubicacion}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => handleOpenDialog(r)}
+                                disabled={yaRecibido}
+                              >
+                                {yaRecibido ? 'Ya Recibido' : 'Guardar Traspaso'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
 
+                  {grupos.length === 0 && !loadingFetch && (
+                    <TableRow>
+                      <TableCell colSpan={TOTAL_COLS} align="center">
+                        No hay registros de traspaso.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Paginación por grupos (fuera del contenedor scrollable) */}
             <TablePagination
               component="div"
-              count={registrosOrdenados.length}
+              count={grupos.length}
               page={page}
               onPageChange={(event, newPage) => setPage(newPage)}
-              rowsPerPage={rowsPerPage}
+              rowsPerPage={groupsPerPage}
               onRowsPerPageChange={(event) => {
-                setRowsPerPage(parseInt(event.target.value, 10));
+                setGroupsPerPage(parseInt(event.target.value, 10));
                 setPage(0);
               }}
-              rowsPerPageOptions={[5]}
-              labelRowsPerPage=""
+              rowsPerPageOptions={[1, 2, 3, 5]}
+              labelRowsPerPage="Órdenes por página:"
             />
-          </TableContainer>
+
+          </>
         )}
       </Box>
 
+
+
+      {/* Modal Guardar Traspaso */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Guardar Traspaso</DialogTitle>
         <DialogContent dividers>
@@ -275,6 +394,16 @@ function Traspaso() {
               <Alert severity="error">{errorSave}</Alert>
             </Box>
           )}
+
+          {registroActual.Codigo && (
+            <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
+              <SmartImage code={registroActual.Codigo} size={140} />
+              <Typography variant="subtitle1">
+                Código: <b>{registroActual.Codigo}</b>
+              </Typography>
+            </Box>
+          )}
+
           <Typography variant="subtitle1" sx={{ mb: 2 }}>
             Datos del registro seleccionado:
           </Typography>
@@ -317,7 +446,6 @@ function Traspaso() {
                 </label>
               </Box>
             </Grid>
-
             <Grid item xs={6} md={4}>
               <TextField
                 label="Día de Envío"
@@ -345,7 +473,13 @@ function Traspaso() {
             <Typography variant="body2" sx={{ mb: 1 }}>
               Ingresa la ubicación donde se guardó este traspaso:
             </Typography>
-            <TextField label="Ubicación" fullWidth value={ubicacionInput} onChange={(e) => setUbicacionInput(e.target.value)} disabled={saving} />
+            <TextField
+              label="Ubicación"
+              fullWidth
+              value={ubicacionInput}
+              onChange={(e) => setUbicacionInput(e.target.value)}
+              disabled={saving}
+            />
           </Box>
         </DialogContent>
 
@@ -355,7 +489,9 @@ function Traspaso() {
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
         </DialogActions>
+
       </Dialog>
+
     </div>
   );
 }

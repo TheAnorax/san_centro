@@ -147,6 +147,61 @@ const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahia, usuario }) => {
 };
 
 
+const liberarUsuarioPaqueteria = async (no_orden) => {
+    if (!no_orden) throw new Error('Falta no_orden');
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // Bloquea y suma validaciones v_*
+        const [sumRows] = await conn.query(
+            `
+      SELECT
+        SUM(COALESCE(v_pz,0) + COALESCE(v_pq,0) + COALESCE(v_inner,0) + COALESCE(v_master,0)) AS total_v
+      FROM pedidos_embarques
+      WHERE no_orden = ?
+      FOR UPDATE
+      `,
+            [no_orden]
+        );
+
+        if (!sumRows.length) {
+            await conn.rollback();
+            return { ok: false, code: 404, message: 'Pedido no encontrado' };
+        }
+
+        const totalV = Number(sumRows[0].total_v || 0);
+        if (totalV > 0) {
+            await conn.rollback();
+            return {
+                ok: false,
+                code: 409,
+                message: 'No se puede liberar: existen movimientos en v_pz/v_pq/v_inner/v_master.'
+            };
+        }
+
+        // Liberar: dejar NULL el usuario de paquetería
+        const [upd] = await conn.query(
+            `UPDATE pedidos_embarques SET id_usuario_paqueteria = NULL WHERE no_orden = ?`,
+            [no_orden]
+        );
+
+        await conn.commit();
+        return { ok: upd.affectedRows > 0 };
+    } catch (e) {
+        await conn.rollback();
+        console.error('Error en liberarUsuarioPaqueteria:', e);
+        return { ok: false, code: 500, message: 'Error interno' };
+    } finally {
+        conn.release();
+    }
+};
+
+
+
+
+
 
 
 module.exports = {
@@ -156,5 +211,8 @@ module.exports = {
     ObtenerUsuarios,
     obtenerIdUsuario,
     obtenerIdBahia,
-    agregarPedidoSurtiendo
+    agregarPedidoSurtiendo,
+
+    // ...otros métodos
+    liberarUsuarioPaqueteria
 };

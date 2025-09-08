@@ -1,34 +1,43 @@
+// src/services/traspasoService.js (o donde tengas este helper)
 const pool = require('../db');
-
 
 async function insertTraspasoRecibido(datos) {
   const sql = `
     INSERT INTO recibir_traspasos
-      (Codigo, Descripcion, Clave, um, _pz, Cantidad,
+      (No_Orden, tipo_orden,
+       Codigo, Descripcion, Clave, um, _pz, Cantidad,
        dia_envio, almacen_envio, tiempo_llegada_estimado,
        estado, ubicacion, usuario_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   const params = [
+    datos.No_Orden || null,
+    datos.tipo_orden || null,
+
     datos.Codigo,
     datos.Descripcion,
     datos.Clave || null,
     datos.um || null,
     datos._pz != null ? datos._pz : null,
     datos.Cantidad,
-    new Date(datos.dia_envio),
+
+    // fechas
+    datos.dia_envio ? new Date(datos.dia_envio) : null,
     datos.almacen_envio || null,
-    new Date(datos.tiempo_llegada_estimado),
-    datos.estado,
-    datos.ubicacion,
-    datos.usuario_id || null   // 👈 aquí agregamos el ID del usuario que lo ingresó
+    datos.tiempo_llegada_estimado ? new Date(datos.tiempo_llegada_estimado) : null,
+
+    // estado / destino / auditoría
+    datos.estado || 'F',
+    datos.ubicacion || null,
+    datos.usuario_id || null
   ];
 
   const [result] = await pool.query(sql, params);
 
+  // inventario (no cambia)
   const sqlInv = `
     INSERT INTO inventario
-      (ubicaccion, codigo_producto, lote, almacen, cant_stock_real, ingreso)
+      (ubicacion, codigo_producto, lote, almacen, cant_stock_real, ingreso)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
   const paramsInv = [
@@ -39,7 +48,6 @@ async function insertTraspasoRecibido(datos) {
     datos.Cantidad,
     new Date()
   ];
-
   const [invResult] = await pool.query(sqlInv, paramsInv);
 
   return {
@@ -48,13 +56,13 @@ async function insertTraspasoRecibido(datos) {
   };
 }
 
-
-
 async function handleObtenerRecibidos(req, res) {
   try {
     const [rows] = await pool.query(`
-      SELECT rt.Codigo, rt.Cantidad, rt.estado, rt.ubicacion,
-             rt.usuario_id, u.nombre AS nombre_usuario
+      SELECT 
+        rt.No_Orden, rt.tipo_orden,
+        rt.Codigo, rt.Cantidad, rt.estado, rt.ubicacion,
+        rt.usuario_id, u.nombre AS nombre_usuario
       FROM recibir_traspasos rt
       LEFT JOIN usuarios u ON rt.usuario_id = u.id
     `);
@@ -64,8 +72,5 @@ async function handleObtenerRecibidos(req, res) {
     return res.status(500).json({ message: 'Error en el servidor' });
   }
 }
-
-
-
 
 module.exports = { insertTraspasoRecibido, handleObtenerRecibidos };

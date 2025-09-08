@@ -1,19 +1,20 @@
+// src/components/views/Usuarios.jsx
 import React, { useState, useEffect, useMemo } from "react";
-import PrintIcon from '@mui/icons-material/Print';
+import PrintIcon from "@mui/icons-material/Print";
 import { useNavigate } from "react-router-dom";
 import { FaTimes } from "react-icons/fa";
 import {
     Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Paper, CircularProgress,
     Typography, Box, Button, Dialog, DialogTitle,
-    DialogContent, DialogActions, TextField, MenuItem, IconButton,
-    DialogContentText
+    DialogContent, DialogActions, TextField, MenuItem,
+    IconButton, DialogContentText
 } from "@mui/material";
-import AddIcon from '@mui/icons-material/PersonAdd';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import Autocomplete from "@mui/material/Autocomplete";
+import AddIcon from "@mui/icons-material/PersonAdd";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import QRCode from "qrcode";
 
 import "../../css/main_css/views/place_holder.css";
@@ -21,11 +22,12 @@ import SnackbarAlert from "../main/SnackbarAlert";
 import AdminPermisos from "./adminPermisos";
 import ModalGestionRoles from "./roles";
 
-const API_BASE = "http://66.232.105.107:3001";
+const API_BASE = "http://192.168.3.154:3001";
 
 const Usuarios = ({ isSwitching }) => {
     const navigate = useNavigate();
     const [animationClass, setAnimationClass] = useState(isSwitching ? "slide-left-out" : "fade-in");
+
     const [rolesDisponibles, setRolesDisponibles] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -40,7 +42,6 @@ const Usuarios = ({ isSwitching }) => {
     const [openRolesModal, setOpenRolesModal] = useState(false);
     const [openPermisos, setOpenPermisos] = useState(false);
 
-    const [data, setData] = useState([]);
     const [nuevoUsuario, setNuevoUsuario] = useState({
         nombre: "",
         correo: "",
@@ -49,15 +50,13 @@ const Usuarios = ({ isSwitching }) => {
         turno: 1,
     });
 
-    // ---------- QR modal state ----------
+    // ---------- QR modal ----------
     const [openCred, setOpenCred] = useState(false);
-    const [usuarioQR, setUsuarioQR] = useState(null);
-    const [credenciales, setCredenciales] = useState(null); // {correo, password}
+    const [credenciales, setCredenciales] = useState(null);
     const [loadingCred, setLoadingCred] = useState(false);
     const [errorCred, setErrorCred] = useState("");
     const [qrEmailUrl, setQrEmailUrl] = useState("");
     const [qrPassUrl, setQrPassUrl] = useState("");
-
 
     const mostrarAlerta = (mensaje, tipo = "success") => setAlerta({ open: true, mensaje, tipo });
     const cerrarAlerta = () => setAlerta((a) => ({ ...a, open: false }));
@@ -80,7 +79,7 @@ const Usuarios = ({ isSwitching }) => {
     const obtenerRoles = () => {
         fetch(`${API_BASE}/api/usuarios/roles`)
             .then((res) => res.json())
-            .then((data) => Array.isArray(data) ? setRolesDisponibles(data) : setRolesDisponibles([]))
+            .then((data) => (Array.isArray(data) ? setRolesDisponibles(data) : setRolesDisponibles([])))
             .catch(() => setRolesDisponibles([]));
     };
 
@@ -137,9 +136,8 @@ const Usuarios = ({ isSwitching }) => {
             .finally(() => setConfirmarEliminar({ open: false, id: null }));
     };
 
-    // ---------- Abrir modal y cargar credenciales ----------
+    // ---------- Credenciales (QR) ----------
     const handleVerQR = async (user) => {
-        setUsuarioQR(user);
         setOpenCred(true);
         setCredenciales(null);
         setErrorCred("");
@@ -152,13 +150,13 @@ const Usuarios = ({ isSwitching }) => {
                 headers: { Accept: "application/json" },
             });
             const raw = await res.text();
-
             if (!res.ok) {
                 let msg = `HTTP ${res.status}`;
-                try { msg = JSON.parse(raw).message || msg; } catch { }
+                try {
+                    msg = JSON.parse(raw).message || msg;
+                } catch { }
                 throw new Error(msg);
             }
-
             const data = JSON.parse(raw);
             if (!data?.correo || !data?.password) throw new Error("La API no devolvió {correo, password}");
             setCredenciales({ correo: data.correo, password: data.password });
@@ -169,24 +167,34 @@ const Usuarios = ({ isSwitching }) => {
         }
     };
 
-    // ---------- Generar 2 QR (correo y password por separado) ----------
     useEffect(() => {
         (async () => {
             try {
-                if (!credenciales) { setQrEmailUrl(""); setQrPassUrl(""); return; }
-                const emailQR = await QRCode.toDataURL(String(credenciales.correo || ""), { errorCorrectionLevel: "M", margin: 2, width: 200 });
-                const passQR = await QRCode.toDataURL(String(credenciales.password || ""), { errorCorrectionLevel: "M", margin: 2, width: 200 });
+                if (!credenciales) {
+                    setQrEmailUrl("");
+                    setQrPassUrl("");
+                    return;
+                }
+                const emailQR = await QRCode.toDataURL(String(credenciales.correo || ""), {
+                    errorCorrectionLevel: "M",
+                    margin: 2,
+                    width: 200,
+                });
+                const passQR = await QRCode.toDataURL(String(credenciales.password || ""), {
+                    errorCorrectionLevel: "M",
+                    margin: 2,
+                    width: 200,
+                });
                 setQrEmailUrl(emailQR);
                 setQrPassUrl(passQR);
-            } catch (e) {
-                console.error("QR error:", e);
-                setQrEmailUrl(""); setQrPassUrl("");
+            } catch {
+                setQrEmailUrl("");
+                setQrPassUrl("");
             }
         })();
     }, [credenciales]);
 
-    //separar por roles 
-
+    // ---------- ordenar por roles ----------
     const ordenRoles = ["admin", "Supervisor", "Embarques", "Paqueteria", "surtidor"];
 
     const usuariosPorRol = useMemo(() => {
@@ -196,129 +204,159 @@ const Usuarios = ({ isSwitching }) => {
             acc[key].push(u);
             return acc;
         }, {});
-
-        // Ordena alfabéticamente dentro de cada grupo
-        Object.values(grupos).forEach(arr => arr.sort((a, b) => a.nombre.localeCompare(b.nombre)));
-
-        // Reordena los grupos por prioridad de rol
+        Object.values(grupos).forEach((arr) => arr.sort((a, b) => a.nombre.localeCompare(b.nombre)));
         const entries = Object.entries(grupos);
         entries.sort((a, b) => {
             const ai = ordenRoles.indexOf(a[0]);
             const bi = ordenRoles.indexOf(b[0]);
-            if (ai === -1 && bi === -1) return a[0].localeCompare(b[0]); // ambos no listados: orden alfabético
-            if (ai === -1) return 1;  // a no está en lista -> al final
-            if (bi === -1) return -1; // b no está en lista -> al final
-            return ai - bi;           // por prioridad
+            if (ai === -1 && bi === -1) return a[0].localeCompare(b[0]);
+            if (ai === -1) return 1;
+            if (bi === -1) return -1;
+            return ai - bi;
         });
-
-        return entries; // [ [rol, listaUsuarios], ... ]
+        return entries;
     }, [usuarios]);
 
+    // ---------- Impresoras (seleccionar existente y sólo vincular) ----------
+    const ROLES_CON_IMPRESORA = ["Embarques", "Paqueteria"];
 
-    // ---- Impresora ----
     const [openPrinter, setOpenPrinter] = useState(false);
     const [printerUser, setPrinterUser] = useState(null);
-    const [printerForm, setPrinterForm] = useState({ mac_print: "", hand: "" });
-    const [savingPrinter, setSavingPrinter] = useState(false);
+
+    const [printers, setPrinters] = useState([]); // [{id_print, name, mac_print, hand, id_usu}]
+    const [printersLoading, setPrintersLoading] = useState(false);
+    const [selectedPrinter, setSelectedPrinter] = useState(null);
+    const [assigning, setAssigning] = useState(false);
+    const [unassigning, setUnassigning] = useState(false);
     const [printerError, setPrinterError] = useState("");
 
-    const ROLES_CON_IMPRESORA = ["Embarques", "Paqueteria"]; // ajusta a tus nombres exactos
-
-    const macRegex = /^([0-9A-Fa-f]{2}[:\-]){5}([0-9A-Fa-f]{2})$/; // 00:11:22:33:44:55
-
+    // Abre modal y carga todas las impresoras; preselecciona la del usuario si existe
     const handleOpenPrinter = async (user) => {
         setPrinterUser(user);
         setOpenPrinter(true);
         setPrinterError("");
-        setSavingPrinter(false);
-        setPrinterForm({ mac_print: "", hand: "" });
+        setSelectedPrinter(null);
+        setPrinters([]);
+        setPrintersLoading(true);
 
-        // Prefill si ya existe
         try {
-            const res = await fetch(`${API_BASE}/api/usuarios/${user.id}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data) {
-                    setPrinterForm({
-                        mac_print: data.mac_print || "",
-                        hand: data.hand || ""
-                    });
-                }
-            }
-        } catch { }
+            const r = await fetch(`${API_BASE}/api/usuarios/impresoras`);
+            const data = await r.json();
+            const list = Array.isArray(data) ? data : [];
+            setPrinters(list);
+
+            // preseleccionar la impresora de este usuario (si tiene)
+            const yaAsignada = list.find((p) => p.id_usu === user.id);
+            if (yaAsignada) setSelectedPrinter(yaAsignada);
+        } catch (e) {
+            setPrinters([]);
+        } finally {
+            setPrintersLoading(false);
+        }
     };
 
-    const handleSavePrinter = async () => {
-        const mac = printerForm.mac_print.trim();
-        const hand = printerForm.hand.trim();
+    // Sólo mostrar disponibles y la que ya pudiera tener este usuario
+    const printerOptions = useMemo(() => {
+        return printers.filter((p) => !p.id_usu || (printerUser && p.id_usu === printerUser.id));
+    }, [printers, printerUser]);
 
-        if (!macRegex.test(mac)) {
-            setPrinterError("MAC inválida. Usa formato 00:11:22:33:44:55");
+    const handleAssignPrinter = async () => {
+        if (!selectedPrinter) {
+            setPrinterError("Selecciona una impresora.");
             return;
         }
-        if (!hand) {
-            setPrinterError("El campo 'hand' es obligatorio.");
-            return;
-        }
-
-        setSavingPrinter(true);
+        setAssigning(true);
         setPrinterError("");
-
         try {
-            const res = await fetch(`${API_BASE}/api/usuarios/guardarImpresora`, {
+            const res = await fetch(`${API_BASE}/api/usuarios/impresoras/asignar`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    id_usu: printerUser.id,   // ← se toma automático
-                    mac_print: mac,
-                    hand
-                })
+                    id_print: selectedPrinter.id_print,
+                    id_usu: printerUser.id,
+                }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || "Error al guardar");
-            mostrarAlerta("Impresora guardada");
+            if (!res.ok) throw new Error(data?.message || "Error al asignar impresora");
+            mostrarAlerta("Impresora asignada");
             setOpenPrinter(false);
         } catch (e) {
             setPrinterError(e.message);
         } finally {
-            setSavingPrinter(false);
+            setAssigning(false);
         }
     };
 
-
+    const handleUnassignPrinter = async () => {
+        setUnassigning(true);
+        setPrinterError("");
+        try {
+            const res = await fetch(`${API_BASE}/api/usuarios/impresoras/quitar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id_usu: printerUser.id }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.message || "Error al quitar asignación");
+            mostrarAlerta("Asignación eliminada");
+            setOpenPrinter(false);
+        } catch (e) {
+            setPrinterError(e.message);
+        } finally {
+            setUnassigning(false);
+        }
+    };
 
     return (
         <div className={`place_holder-container ${animationClass}`}>
             <div className="place_holder-header">
                 <span className="place_holder-title">Usuarios</span>
-                <button className="place_holder-close" onClick={handleClose}><FaTimes /></button>
+                <button className="place_holder-close" onClick={handleClose}>
+                    <FaTimes />
+                </button>
             </div>
 
             <ModalGestionRoles open={openRolesModal} onClose={() => setOpenRolesModal(false)} />
 
             <div className="place_holder-content">
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="h6" fontWeight="bold">Lista de usuarios registrados</Typography>
+                    <Typography variant="h6" fontWeight="bold">
+                        Lista de usuarios registrados
+                    </Typography>
                     <Box display="flex" gap={1}>
-                        <Button variant="contained" sx={{ backgroundColor: "#1976d2", color: "#fff", textTransform: "none", fontWeight: "bold" }} startIcon={<AddIcon />} onClick={() => handleOpenDialog()}>
+                        <Button
+                            variant="contained"
+                            sx={{ backgroundColor: "#1976d2", color: "#fff", textTransform: "none", fontWeight: "bold" }}
+                            startIcon={<AddIcon />}
+                            onClick={() => handleOpenDialog()}
+                        >
                             Agregar usuario
                         </Button>
-                        <Button variant="outlined" sx={{ textTransform: "none", fontWeight: "bold" }} onClick={() => setOpenRolesModal(true)}>
+                        <Button
+                            variant="outlined"
+                            sx={{ textTransform: "none", fontWeight: "bold" }}
+                            onClick={() => setOpenRolesModal(true)}
+                        >
                             Administrar Roles
                         </Button>
-                        <Button variant="text" sx={{ textTransform: "none", fontWeight: "bold", color: "#616161" }} onClick={() => setOpenPermisos(true)}>
+                        <Button
+                            variant="text"
+                            sx={{ textTransform: "none", fontWeight: "bold", color: "#616161" }}
+                            onClick={() => setOpenPermisos(true)}
+                        >
                             Permisos
                         </Button>
                     </Box>
                 </Box>
 
                 {loading ? (
-                    <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>
+                    <Box display="flex" justifyContent="center" mt={4}>
+                        <CircularProgress />
+                    </Box>
                 ) : (
                     <Box display="flex" flexDirection="column" gap={3}>
                         {usuariosPorRol.map(([rol, lista]) => (
                             <Paper key={rol} elevation={4} sx={{ borderRadius: 3, overflow: "hidden" }}>
-                                {/* Encabezado rojo con el nombre del rol y el conteo */}
                                 <Box sx={{ px: 2, py: 1.5, bgcolor: "#f44336" }}>
                                     <Typography variant="subtitle1" sx={{ color: "#fff", fontWeight: 700 }}>
                                         {rol}{" "}
@@ -356,7 +394,11 @@ const Usuarios = ({ isSwitching }) => {
                                                             <IconButton size="small" onClick={() => handleOpenDialog(user)} sx={{ color: "#1976d2" }}>
                                                                 <EditIcon />
                                                             </IconButton>
-                                                            <IconButton size="small" onClick={() => handleEliminarUsuario(user.id)} sx={{ color: "#d32f2f" }}>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleEliminarUsuario(user.id)}
+                                                                sx={{ color: "#d32f2f" }}
+                                                            >
                                                                 <DeleteIcon />
                                                             </IconButton>
 
@@ -379,9 +421,6 @@ const Usuarios = ({ isSwitching }) => {
                                                                     <PrintIcon />
                                                                 </IconButton>
                                                             )}
-
-
-
                                                         </Box>
                                                     </TableCell>
                                                 </TableRow>
@@ -393,8 +432,6 @@ const Usuarios = ({ isSwitching }) => {
                         ))}
                     </Box>
                 )}
-
-
             </div>
 
             {/* Modal Crear/Editar */}
@@ -408,14 +445,27 @@ const Usuarios = ({ isSwitching }) => {
                     )}
                     <TextField select fullWidth label="Rol" name="rol_id" margin="normal" value={nuevoUsuario.rol_id || ""} onChange={handleChange} required>
                         {rolesDisponibles.map((rol) => (
-                            <MenuItem key={rol.id} value={rol.id}>{rol.nombre}</MenuItem>
+                            <MenuItem key={rol.id} value={rol.id}>
+                                {rol.nombre}
+                            </MenuItem>
                         ))}
                     </TextField>
-                    <TextField fullWidth label="Turno" name="turno" type="number" value={nuevoUsuario.turno} onChange={handleChange} margin="normal" inputProps={{ min: 1, max: 3 }} />
+                    <TextField
+                        fullWidth
+                        label="Turno"
+                        name="turno"
+                        type="number"
+                        value={nuevoUsuario.turno}
+                        onChange={handleChange}
+                        margin="normal"
+                        inputProps={{ min: 1, max: 3 }}
+                    />
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDialog}>Cancelar</Button>
-                    <Button variant="contained" color="primary" onClick={handleGuardarUsuario}>Guardar</Button>
+                    <Button variant="contained" color="primary" onClick={handleGuardarUsuario}>
+                        Guardar
+                    </Button>
                 </DialogActions>
             </Dialog>
 
@@ -427,7 +477,9 @@ const Usuarios = ({ isSwitching }) => {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setConfirmarEliminar({ open: false, id: null })}>Cancelar</Button>
-                    <Button onClick={confirmarEliminacion} color="error" variant="contained">Eliminar</Button>
+                    <Button onClick={confirmarEliminacion} color="error" variant="contained">
+                        Eliminar
+                    </Button>
                 </DialogActions>
             </Dialog>
 
@@ -443,25 +495,35 @@ const Usuarios = ({ isSwitching }) => {
                 <DialogTitle>Credenciales de acceso</DialogTitle>
                 <DialogContent dividers>
                     {loadingCred && (
-                        <Box display="flex" justifyContent="center" py={3}><CircularProgress /></Box>
+                        <Box display="flex" justifyContent="center" py={3}>
+                            <CircularProgress />
+                        </Box>
                     )}
 
-                    {!loadingCred && errorCred && (
-                        <Typography color="error">{errorCred}</Typography>
-                    )}
+                    {!loadingCred && errorCred && <Typography color="error">{errorCred}</Typography>}
 
                     {!loadingCred && !errorCred && credenciales && (
                         <Box display="flex" flexDirection="column" gap={2}>
-
-                            {/* Dos QR separados */}
                             <Box display="flex" justifyContent="center" gap={6} py={2}>
                                 <Box textAlign="center">
-                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>QR del correo</Typography>
-                                    {qrEmailUrl ? <img src={qrEmailUrl} alt="QR correo" width={200} height={200} /> : <Typography variant="caption">No se pudo generar</Typography>}
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                                        QR del correo
+                                    </Typography>
+                                    {qrEmailUrl ? (
+                                        <img src={qrEmailUrl} alt="QR correo" width={200} height={200} />
+                                    ) : (
+                                        <Typography variant="caption">No se pudo generar</Typography>
+                                    )}
                                 </Box>
                                 <Box textAlign="center">
-                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>QR de la contraseña</Typography>
-                                    {qrPassUrl ? <img src={qrPassUrl} alt="QR password" width={200} height={200} /> : <Typography variant="caption">No se pudo generar</Typography>}
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                                        QR de la contraseña
+                                    </Typography>
+                                    {qrPassUrl ? (
+                                        <img src={qrPassUrl} alt="QR password" width={200} height={200} />
+                                    ) : (
+                                        <Typography variant="caption">No se pudo generar</Typography>
+                                    )}
                                 </Box>
                             </Box>
 
@@ -476,48 +538,58 @@ const Usuarios = ({ isSwitching }) => {
                 </DialogActions>
             </Dialog>
 
-            {/*Modal de asignar a un usuario su imporesora */}
-            <Dialog
-                open={openPrinter}
-                onClose={() => setOpenPrinter(false)}
-                fullWidth
-                maxWidth="sm"
-            >
+            {/* Modal Asignar Impresora */}
+            <Dialog open={openPrinter} onClose={() => setOpenPrinter(false)} fullWidth maxWidth="sm">
                 <DialogTitle>Asignar impresora</DialogTitle>
                 <DialogContent dividers>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
+                    <Typography variant="body2" sx={{ mb: 2 }}>
                         Usuario: <b>{printerUser?.nombre}</b> (ID: {printerUser?.id})
                     </Typography>
 
-                    <TextField
-                        fullWidth
-                        label="MAC de la impresora"
-                        placeholder="00:11:22:33:44:55"
-                        value={printerForm.mac_print}
-                        onChange={(e) => setPrinterForm({ ...printerForm, mac_print: e.target.value })}
-                        margin="dense"
-                    />
-                    <TextField
-                        fullWidth
-                        label="hand"
-                        placeholder="p. ej. A1 o 1"
-                        value={printerForm.hand}
-                        onChange={(e) => setPrinterForm({ ...printerForm, hand: e.target.value })}
-                        margin="dense"
-                    />
-                    {printerError && <Typography color="error" sx={{ mt: 1 }}>{printerError}</Typography>}
+                    {printersLoading ? (
+                        <Box display="flex" justifyContent="center" py={2}>
+                            <CircularProgress size={24} />
+                        </Box>
+                    ) : (
+                        <Autocomplete
+                            options={printerOptions}
+                            value={selectedPrinter}
+                            onChange={(_, v) => setSelectedPrinter(v)}
+                            getOptionLabel={(o) => (o ? `${o.name} — ${o.mac_print}${o.hand ? ` (${o.hand})` : ""}` : "")}
+                            renderInput={(params) => (
+                                <TextField {...params} label="Selecciona una impresora" placeholder="Buscar..." />
+                            )}
+                            noOptionsText="Sin impresoras disponibles"
+                            isOptionEqualToValue={(a, b) => a.id_print === b.id_print}
+                        />
+                    )}
+
+                    {printerError && (
+                        <Typography color="error" sx={{ mt: 1 }}>
+                            {printerError}
+                        </Typography>
+                    )}
+
+                    {selectedPrinter?.id_usu && printerUser && selectedPrinter.id_usu !== printerUser.id && (
+                        <Typography variant="caption" sx={{ mt: 1, display: "block", color: "text.secondary" }}>
+                            Nota: esta impresora está asignada a otro usuario; al guardar se reasignará.
+                        </Typography>
+                    )}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setOpenPrinter(false)}>Cancelar</Button>
-                    <Button onClick={handleSavePrinter} disabled={savingPrinter} variant="contained">
-                        {savingPrinter ? "Guardando..." : "Guardar"}
+                    <Button onClick={handleUnassignPrinter} disabled={unassigning} color="warning">
+                        {unassigning ? "Quitando..." : "Quitar asignación"}
+                    </Button>
+                    <Button variant="contained" onClick={handleAssignPrinter} disabled={assigning || !selectedPrinter}>
+                        {assigning ? "Guardando..." : "Guardar"}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-
             <SnackbarAlert open={alerta.open} mensaje={alerta.mensaje} tipo={alerta.tipo} onClose={cerrarAlerta} />
             <AdminPermisos open={openPermisos} onClose={() => setOpenPermisos(false)} onGuardado={() => setOpenPermisos(false)} />
+                
         </div>
     );
 };

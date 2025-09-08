@@ -101,7 +101,7 @@ const actualizarCantidadSurtida = async (req, res) => {
     await connection.beginTransaction();
 
     const [ubicaciones] = await connection.query(
-      "SELECT id_ubicaccion, cant_stock_real, ubicacion, almacen FROM inventario WHERE codigo_producto = ? ORDER BY cant_stock_real DESC LIMIT 1",
+      "SELECT id_ubicacion, cant_stock_real, ubicacion, almacen FROM inventario WHERE codigo_producto = ? ORDER BY cant_stock_real DESC LIMIT 1",
       [codigo_ped]
     );
 
@@ -116,7 +116,7 @@ const actualizarCantidadSurtida = async (req, res) => {
     }
 
     const [updateStock] = await connection.query(
-      "UPDATE inventario SET cant_stock_real = cant_stock_real - ? WHERE id_ubicaccion = ?",
+      "UPDATE inventario SET cant_stock_real = cant_stock_real - ? WHERE id_ubicacion = ?",
       [totalUnidades, id_ubicaccion]
     );
 

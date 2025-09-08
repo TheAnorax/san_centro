@@ -39,7 +39,7 @@ const Productos = ({ isSwitching }) => {
 
   const obtenerProductos = async () => {
     try {
-      const res = await fetch("http://66.232.105.107:3001/api/productos");
+      const res = await fetch("http://192.168.3.154:3001/api/productos");
       const data = await res.json();
       const productosConId = data.map((item, index) => ({ id: item.id || index, ...item }));
       setProductos(productosConId);
@@ -85,7 +85,7 @@ const Productos = ({ isSwitching }) => {
 
   const guardarProducto = async () => {
     try {
-      const res = await fetch(`http://66.232.105.107:3001/api/productos${editando ? `/${productoId}` : ""}`,
+      const res = await fetch(`http://192.168.3.154:3001/api/productos${editando ? `/${productoId}` : ""}`,
         {
           method: editando ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
@@ -104,7 +104,7 @@ const Productos = ({ isSwitching }) => {
   const eliminarProducto = async (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar este producto?")) return;
     try {
-      await fetch(`http://66.232.105.107:3001/api/productos/${id}`, { method: "DELETE" });
+      await fetch(`http://192.168.3.154:3001/api/productos/${id}`, { method: "DELETE" });
       mostrarAlerta("Producto eliminado");
       obtenerProductos();
     } catch (error) {
@@ -128,7 +128,7 @@ const Productos = ({ isSwitching }) => {
       sortable: false,
       renderCell: (params) => (
         <img
-          src={`http://66.232.105.87:3011/imagenes/img_pz/${params.row.codigo}.jpg`}
+          src={`https://sanced.santulconnect.com:3011/imagenes/img_pz/${params.row.codigo}.jpg`}
           alt={`Imagen de ${params.row.codigo}`}
           style={{ width: 40, height: 40, objectFit: "contain" }}
           onError={(e) => { e.target.style.display = "none"; }} // Oculta si no existe
@@ -256,7 +256,7 @@ const Productos = ({ isSwitching }) => {
         {productoActual.codigo && (
           <Box display="flex" justifyContent="center" mt={1}>
             <img
-              src={`http://66.232.105.87:3011/imagenes/img_pz/${productoActual.codigo}.jpg`}
+              src={`https://sanced.santulconnect.com:3011/imagenes/img_pz/${productoActual.codigo}.jpg`}
               alt={`Imagen de producto ${productoActual.codigo}`}
               style={{
                 width: "150px",

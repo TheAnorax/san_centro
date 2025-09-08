@@ -254,8 +254,24 @@ const getPedidosEmbarquePacking = async (req, res) => {
     }
 };
 
+const liberarUsuarioPaqueteria = async (req, res) => {
+    try {
+        const { no_orden } = req.body;
+        const r = await SurtidoModel.liberarUsuarioPaqueteria(no_orden);
 
- 
+        if (!r.ok) {
+            if (r.code === 404) return res.status(404).json({ ok: false, message: r.message });
+            if (r.code === 409) return res.status(409).json({ ok: false, message: r.message });
+            return res.status(500).json({ ok: false, message: r.message || 'Error al liberar' });
+        }
+
+        res.json({ ok: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ ok: false, message: 'Error al liberar' });
+    }
+};
+
 
 module.exports = {
     obtenerPedidosSurtiendo,
@@ -266,5 +282,5 @@ module.exports = {
     obtenerUsuariosEmbarques,
     asignarUsuarioPaqueteria,
     getPedidosEmbarquePacking,
-
+    liberarUsuarioPaqueteria
 };

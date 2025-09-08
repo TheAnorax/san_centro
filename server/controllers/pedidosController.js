@@ -60,7 +60,6 @@ const getUsuarios = async (req, res) => {
     }
 };
 
-// *** Nuevo controlador para insertar el pedido a pedidos_surtiendo ***
 const agregarPedidoSurtiendo = async (req, res) => {
     try {
         // AHORA también recibimos 'tipo'
@@ -85,6 +84,22 @@ const agregarPedidoSurtiendo = async (req, res) => {
     }
 };
 
+const liberarUsuarioPaqueteria = async (req, res) => {
+    try {
+        const { no_orden } = req.body;
+        const r = await PedidosModel.liberarUsuarioPaqueteria(no_orden);
+
+        if (!r.ok) {
+            if (r.code === 404) return res.status(404).json({ ok: false, message: r.message });
+            if (r.code === 409) return res.status(409).json({ ok: false, message: r.message });
+            return res.status(500).json({ ok: false, message: r.message || 'Error al liberar' });
+        }
+        res.json({ ok: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ ok: false, message: 'Error al liberar' });
+    }
+};
 
 
-module.exports = { getProductosPorOrden, obtenerTodosConProductos, getBahias, getUsuarios, agregarPedidoSurtiendo };
+module.exports = { getProductosPorOrden, obtenerTodosConProductos, getBahias, getUsuarios, agregarPedidoSurtiendo, liberarUsuarioPaqueteria };

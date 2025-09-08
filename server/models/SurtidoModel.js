@@ -110,16 +110,19 @@ const moverPedidoASurtidoFinalizado = async (noOrden) => {
             // OPCIÓN B: si NO quieres llevar líneas canceladas a embarques:
             // if (p.estado === 'C') continue;
 
+            // 🚚 Inserta en pedidos_embarques (PRESERVANDO el motivo)
             await connection.query(`
-        INSERT INTO pedidos_embarques (
-          no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-          um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
-          id_usuario_paqueteria, registro, inicio_surtido, fin_surtido
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
+            INSERT INTO pedidos_embarques (
+                no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
+                id_usuario_paqueteria, registro, inicio_surtido, fin_surtido,
+                motivo              -- 👈 NUEVO
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
                 p.um, p._bl, p._pz, p._pq, p._inner, p._master, p.ubi_bahia, estadoDestino, p.id_usuario,
-                p.id_usuario_paqueteria, p.registro, p.inicio_surtido, p.fin_surtido
+                p.id_usuario_paqueteria, p.registro, p.inicio_surtido, p.fin_surtido,
+                p.motivo
             ]);
         }
 
@@ -193,17 +196,17 @@ const moverPedidoAFinalizado = async (noOrden) => {
             const estadoFinal = (p.estado === 'C') ? 'C' : 'F';
 
             await connection.query(`
-        INSERT INTO pedido_finalizado (
-          no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-          um,  _pz, _pq, _inner, _master,
-          v_pz, v_pq, v_inner, v_master,
-          ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
-          inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
-          unido, registro_surtido, registro_embarque, caja, motivo,
-          unificado, registro_fin, id_usuario_surtido,
-          fusion, tipo_caja, cajas
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pedido_finalizado (
+                no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                um,  _pz, _pq, _inner, _master,
+                v_pz, v_pq, v_inner, v_master,
+                ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
+                inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
+                unido, registro_surtido, registro_embarque, caja, motivo,
+                unificado, registro_fin, id_usuario_surtido,
+                fusion, tipo_caja, cajas
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
                 p.um, p._pz, p._pq, p._inner, p._master,
@@ -273,6 +276,7 @@ const getPedidosEmbarque = async () => {
             pe.ubi_bahia,
             pe.id_usuario,
             pe.codigo_pedido,
+            pe.id_usuario_paqueteria,
             pe._pz, pe._pq, pe._inner, pe._master,
             pe.v_pz, pe.v_pq, pe.v_inner, pe.v_master,
             u.nombre AS nombre_usuario
@@ -305,72 +309,59 @@ const actualizarUsuarioPaqueteria = async (no_orden, id_usuario_paqueteria) => {
 };
 
 
-//generacion del Packinlist
 
-// Detalle por partida (normaliza nulls a 0)
-async function obtenerPartidasFinalizadasSimple(tipo, no_orden, { incluirConMotivo = false } = {}) {
-    const filtroMotivo = incluirConMotivo ? '' : "AND (pf.motivo IS NULL OR TRIM(pf.motivo) = '')";
 
-    const sql = `
-    SELECT
-      pf.no_orden,
-      pf.tipo,
-      pf.codigo_pedido,
-      COALESCE(pr.descripcion, CONCAT('SKU ', pf.codigo_pedido)) AS descripcion,
-      COALESCE(pf.um, pr.um, 'PZ') AS um,
-      pf.cantidad                                AS cant_pedida,
-      COALESCE(pf.cant_surtida,     0)           AS cant_surtida,
-      COALESCE(pf.cant_no_enviada,  0)           AS cant_no_enviada,
-      COALESCE(pf._pz,              0)           AS _pz,
-      COALESCE(pf._pq,              0)           AS _pq,
-      COALESCE(pf._inner,           0)           AS _inner,
-      COALESCE(pf._master,          0)           AS _master,
-      pf.caja,
-      pf.tipo_caja,
-      COALESCE(pf.cajas,            0)           AS cajas
-    FROM pedido_finalizado pf
-    LEFT JOIN productos pr
-      ON pr.codigo = pf.codigo_pedido  -- ajusta a pr.codigo_pro si aplica
-    WHERE pf.tipo = ?
-      AND pf.no_orden = ?
-      AND pf.estado = 'F'
-      ${filtroMotivo}
-    ORDER BY
-      CASE WHEN pf.caja IS NULL THEN 1 ELSE 0 END,
-      pf.caja,
-      pf.codigo_pedido
-  `;
-    const [rows] = await pool.query(sql, [tipo, no_orden]);
-    return rows;
-}
+const liberarUsuarioPaqueteria = async (no_orden) => {
+    if (!no_orden) return { ok: false, code: 400, message: 'Falta no_orden' };
 
-// Resumen por caja (AGREGA los campos por caja)
-async function obtenerResumenCajas(tipo, no_orden, { incluirConMotivo = false } = {}) {
-    const filtroMotivo = incluirConMotivo ? '' : "AND (motivo IS NULL OR TRIM(motivo) = '')";
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
 
-    const sql = `
-    SELECT
-      caja,
-      tipo_caja,
-      SUM(COALESCE(_pz,     0)) AS _pz,
-      SUM(COALESCE(_pq,     0)) AS _pq,
-      SUM(COALESCE(_inner,  0)) AS _inner,
-      SUM(COALESCE(_master, 0)) AS _master,
-      MAX(COALESCE(cajas,   0)) AS cajas
-    FROM pedido_finalizado
-    WHERE tipo = ?
-      AND no_orden = ?
-      AND estado = 'F'
-      ${filtroMotivo}
-    GROUP BY caja, tipo_caja
-    ORDER BY
-      CASE WHEN caja IS NULL THEN 1 ELSE 0 END,
-      caja
-  `;
-    const [rows] = await pool.query(sql, [tipo, no_orden]);
-    return rows;
-}
+        // Bloquear filas del pedido y sumar validaciones
+        const [sumRows] = await conn.query(
+            `
+      SELECT
+        SUM(COALESCE(v_pz,0) + COALESCE(v_pq,0) + COALESCE(v_inner,0) + COALESCE(v_master,0)) AS total_v
+      FROM pedidos_embarques
+      WHERE no_orden = ?
+      FOR UPDATE
+      `,
+            [no_orden]
+        );
 
+        if (!sumRows.length) {
+            await conn.rollback();
+            return { ok: false, code: 404, message: 'Pedido no encontrado' };
+        }
+
+        const totalV = Number(sumRows[0].total_v || 0);
+
+        // Si hay cualquier validación hecha no se puede liberar
+        if (totalV > 0) {
+            await conn.rollback();
+            return {
+                ok: false,
+                code: 409,
+                message: 'No se puede liberar: existen movimientos en v_pz/v_pq/v_inner/v_master.'
+            };
+        }
+
+        const [upd] = await conn.query(
+            `UPDATE pedidos_embarques SET id_usuario_paqueteria = NULL WHERE no_orden = ?`,
+            [no_orden]
+        );
+
+        await conn.commit();
+        return { ok: upd.affectedRows > 0 };
+    } catch (e) {
+        await conn.rollback();
+        console.error('Error en liberarUsuarioPaqueteria:', e);
+        return { ok: false, code: 500, message: 'Error interno' };
+    } finally {
+        conn.release();
+    }
+};
 
 
 
@@ -378,6 +369,5 @@ async function obtenerResumenCajas(tipo, no_orden, { incluirConMotivo = false } 
 module.exports = {
     getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado,
     getpedidosFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
-    obtenerPartidasFinalizadasSimple,
-    obtenerResumenCajas,
+    liberarUsuarioPaqueteria
 };
