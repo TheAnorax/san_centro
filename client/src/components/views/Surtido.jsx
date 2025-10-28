@@ -9,6 +9,11 @@ import axios from 'axios';
 import Pagination from '@mui/material/Pagination';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import Swal from "sweetalert2";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+
 
 /* ===================== Helpers robustos ===================== */
 
@@ -90,7 +95,7 @@ function Surtiendo() {
 
     const cargarPedidosSurtiendo = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/pedidos/pedidos-surtiendo');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/pedidos/pedidos-surtiendo');
 
             const pedidosAgrupados = {};
             const resumenUsuarios = {};
@@ -141,7 +146,7 @@ function Surtiendo() {
 
     const cargarPedidosEmbarques = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/embarque');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/embarque');
             const pedidosAgrupados = {};
 
             (res.data || []).forEach(item => {
@@ -180,7 +185,7 @@ function Surtiendo() {
 
     const cargarUsuariosPaqueteria = async () => {
         try {
-            const res = await axios.get('http://192.168.3.154:3001/api/surtido/Obtener-usuarios');
+            const res = await axios.get('http://66.232.105.107:3001/api/surtido/Obtener-usuarios');
             setUsuariosPaqueteria(Array.isArray(res.data) ? res.data : []);
         } catch {
             setUsuariosPaqueteria([]);
@@ -194,19 +199,151 @@ function Surtiendo() {
         }
     }, [tabActual]);
 
-    const finalizarPedido = async (noOrden) => {
+    const finalizarPedido = async (noOrden, tipo) => {
         try {
-            const res = await axios.post(`http://192.168.3.154:3001/api/surtido/pedido-finalizado/${noOrden}`);
-            if (res.data.ok) {
-                alert(`✅ Pedido ${noOrden} finalizado correctamente`);
-                setEmbarques(prev => prev.filter(p => p.no_orden !== noOrden));
-            } else {
-                alert(`⚠️ Error al finalizar: ${res.data.message}`);
+            // 1️⃣ Confirmar acción
+            const { isConfirmed } = await Swal.fire({
+                title: `¿Finalizar pedido ${noOrden}-${tipo}?`,
+                text: "Se generará el PDF y luego se moverá el pedido a embarques.",
+                icon: "question",
+                showCancelButton: true,
+                confirmButtonText: "Sí, finalizar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#3085d6",
+            });
+            if (!isConfirmed) return;
+
+            // 2️⃣ Consultar productos del pedido desde la base
+            const { data: productos } = await axios.get(
+                `http://66.232.105.107:3001/api/surtido/pedido/${noOrden}/${tipo}`
+            );
+
+            if (!productos || productos.length === 0) {
+                await Swal.fire({
+                    title: "Sin datos",
+                    text: `No se encontraron productos para el pedido ${noOrden}-${tipo}.`,
+                    icon: "warning",
+                });
+                return;
             }
-        } catch {
-            alert('Error al finalizar el pedido');
+
+            // 3️⃣ Generar PDF antes de finalizar
+            const doc = new jsPDF();
+
+            // 🧩 Datos de encabezado
+            const totalCodigos = productos.length; // total de registros en la consulta
+            const ubi_bahia = productos[0]?.ubi_bahia || "SIN BAHÍA"; // toma la bahía del primer producto
+
+            // 🏷️ Encabezado
+            doc.setFontSize(14);
+            doc.text(`Pedido: ${tipo} ${noOrden} (Total códigos: ${totalCodigos})`, 14, 18);
+            doc.setFontSize(12);
+            doc.text(`Bahías: ${ubi_bahia}`, 14, 26);
+
+            // 📦 Subtítulo
+            doc.setFontSize(10);
+            doc.text("Detalle de productos surtidos", 14, 34);
+
+            // 🧾 Definición de tabla
+            const head = [
+                ["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado"],
+            ];
+
+            const body = productos.map((p) => [
+                p.codigo_pedido,
+                p.cantidad,
+                p.cant_surtida,
+                p.cant_no_enviada,
+                p.motivo || "",
+                p.unificado || "",
+            ]);
+
+            // 🧩 Fallback doble para compatibilidad total
+            if (typeof doc.autoTable === "function") {
+                doc.autoTable({
+                    startY: 38,
+                    head,
+                    body,
+                    theme: "grid",
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
+                    didParseCell: (data) => {
+                        const row = productos[data.row.index];
+                        if (Number(row?.cant_no_enviada || 0) > 0) {
+                            data.cell.styles.fillColor = [255, 220, 220]; // rojo claro
+                            data.cell.styles.textColor = [180, 0, 0]; // texto rojo
+                        }
+                    },
+                });
+            } else {
+                // fallback si no se inyectó bien jspdf-autotable
+                autoTable(doc, {
+                    startY: 38,
+                    head,
+                    body,
+                    theme: "grid",
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
+                    didParseCell: (data) => {
+                        const row = productos[data.row.index];
+                        if (Number(row?.cant_no_enviada || 0) > 0) {
+                            data.cell.styles.fillColor = [255, 220, 220];
+                            data.cell.styles.textColor = [180, 0, 0];
+                        }
+                    },
+                });
+            }
+
+            // 💾 Guardar PDF
+            const nombrePDF = `Pedido ${noOrden}-${tipo}.pdf`;
+            doc.save(nombrePDF);
+
+
+            await Swal.fire({
+                title: "📄 PDF generado",
+                text: `Se generó el archivo ${nombrePDF} correctamente.`,
+                icon: "success",
+                confirmButtonText: "Continuar",
+            });
+
+            // 4️⃣ Llamar al backend para mover a embarques
+            const res = await axios.post(
+                `http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`
+            );
+
+            if (res.data.ok) {
+                await Swal.fire({
+                    title: "✅ Pedido liberado",
+                    text: `El pedido ${noOrden}-${tipo} se movió correctamente a embarques.`,
+                    icon: "success",
+                    confirmButtonColor: "#3085d6",
+                    confirmButtonText: "Aceptar",
+                });
+
+                // 🔄 Refrescar datos
+                await cargarPedidosSurtiendo();
+                setEmbarques((prev) => prev.filter((p) => p.no_orden !== noOrden));
+            } else {
+                Swal.fire({
+                    title: "⚠️ Error al finalizar",
+                    text: res.data.message || "No se pudo finalizar el pedido.",
+                    icon: "warning",
+                    confirmButtonColor: "#f39c12",
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire({
+                title: "❌ Error del servidor",
+                text: "Ocurrió un problema al generar el PDF o finalizar el pedido.",
+                icon: "error",
+                confirmButtonColor: "#e74c3c",
+                confirmButtonText: "Cerrar",
+            });
         }
     };
+
+
 
     // Liberar solo si todas las v_* = 0
     const puedeLiberarPedido = (pedido) => {
@@ -222,39 +359,113 @@ function Surtiendo() {
 
     const asignarUsuarioPaqueteria = async (no_orden, id_usuario) => {
         try {
-            const res = await axios.put(`http://192.168.3.154:3001/api/surtido/asignar-usuario-paqueteria`, {
+            const res = await axios.put(`http://66.232.105.107:3001/api/surtido/asignar-usuario-paqueteria`, {
                 no_orden,
                 id_usuario_paqueteria: id_usuario, // acepta id o nombre si backend lo resuelve
             });
+
             if (res.data?.ok) {
-                alert('✅ Usuario asignado correctamente');
+                await Swal.fire({
+                    title: "✅ Usuario asignado correctamente",
+                    text: `El pedido ${no_orden} fue asignado exitosamente.`,
+                    icon: "success",
+                    confirmButtonColor: "#3085d6",
+                    confirmButtonText: "Aceptar",
+                    timer: 2000,
+                    showConfirmButton: false
+                });
             } else {
-                alert('⚠️ ' + (res.data?.error || res.data?.mensaje || 'No se pudo asignar'));
+                await Swal.fire({
+                    title: "⚠️ Error al asignar",
+                    text: res.data?.error || res.data?.mensaje || "No se pudo asignar el usuario.",
+                    icon: "warning",
+                    confirmButtonColor: "#f39c12",
+                    confirmButtonText: "Entendido"
+                });
             }
+
         } catch (err) {
-            if (err.response?.status === 409) alert('Este pedido ya fue asignado a otra persona.');
-            else alert('❌ Error al asignar el usuario');
+            if (err.response?.status === 409) {
+                Swal.fire({
+                    title: "⚠️ Pedido ya asignado",
+                    text: "Este pedido ya fue asignado a otra persona.",
+                    icon: "warning",
+                    confirmButtonColor: "#f39c12",
+                    confirmButtonText: "Aceptar"
+                });
+            } else {
+                Swal.fire({
+                    title: "❌ Error inesperado",
+                    text: "Ocurrió un error al intentar asignar el usuario.",
+                    icon: "error",
+                    confirmButtonColor: "#e74c3c",
+                    confirmButtonText: "Cerrar"
+                });
+            }
         } finally {
             await cargarPedidosEmbarques();
         }
     };
 
+
     const liberarUsuarioPaqueteria = async (no_orden) => {
-        if (!window.confirm('¿Liberar este pedido para reasignarlo?')) return;
+        const confirm = await Swal.fire({
+            title: "¿Liberar pedido?",
+            text: `¿Deseas liberar el pedido ${no_orden} para reasignarlo a otro usuario?`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            confirmButtonText: "Sí, liberar",
+            cancelButtonText: "Cancelar"
+        });
+
+        if (!confirm.isConfirmed) return;
+
         try {
-            const res = await axios.put(`http://192.168.3.154:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
+            const res = await axios.put(`http://66.232.105.107:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
+
             if (res.data?.ok) {
-                alert('✅ Pedido liberado');
+                await Swal.fire({
+                    title: "✅ Pedido liberado",
+                    text: `El pedido ${no_orden} fue liberado correctamente.`,
+                    icon: "success",
+                    timer: 2000,
+                    showConfirmButton: false
+                });
             } else {
-                alert('⚠️ ' + (res.data?.message || 'No se pudo liberar'));
+                await Swal.fire({
+                    title: "⚠️ No se pudo liberar",
+                    text: res.data?.message || "Ocurrió un problema al intentar liberar el pedido.",
+                    icon: "warning",
+                    confirmButtonColor: "#f39c12",
+                    confirmButtonText: "Entendido"
+                });
             }
+
         } catch (err) {
-            if (err.response?.status === 409) alert('No se puede liberar: existen registros en v_*');
-            else alert('❌ Error al liberar');
+            if (err.response?.status === 409) {
+                await Swal.fire({
+                    title: "⚠️ No se puede liberar",
+                    text: "Existen registros en las Vlidaciones. El pedido no puede ser liberado.",
+                    icon: "warning",
+                    confirmButtonColor: "#f39c12",
+                    confirmButtonText: "Aceptar"
+                });
+            } else {
+                await Swal.fire({
+                    title: "❌ Error al liberar",
+                    text: "Ocurrió un error inesperado al liberar el pedido.",
+                    icon: "error",
+                    confirmButtonColor: "#e74c3c",
+                    confirmButtonText: "Cerrar"
+                });
+            }
         } finally {
             await cargarPedidosEmbarques();
         }
     };
+
 
     /* ---------- Finalizados ---------- */
     const [pedidosFinalizados, setPedidosFinalizados] = useState([]);
@@ -262,7 +473,7 @@ function Surtiendo() {
     const [qFin, setQFin] = useState(''); // filtro de finalizados
 
     useEffect(() => {
-        axios.get("http://192.168.3.154:3001/api/surtido/Obtener-pedidos-finalizados")
+        axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados")
             .then(res => {
                 const rows = Array.isArray(res.data) ? res.data : [];
                 const map = {};
@@ -330,7 +541,7 @@ function Surtiendo() {
 
                 <Box sx={{ p: 2 }}>
 
-                    {/* ---------- TAB SURTIDO ---------- */}
+                    {/* ----------  TAB SURTIDO  ---------- */}
                     {tabActual === 0 && (
                         <div>
                             <Box p={2}>
@@ -371,10 +582,16 @@ function Surtiendo() {
                                                     </Button>
 
                                                     {progreso === 100 && (
-                                                        <Button size="small" variant="contained" color="success" sx={{ ml: 1 }}
-                                                            onClick={() => finalizarPedido(pedido.no_orden)}>
-                                                            Finalizar Pedido
+                                                        <Button
+                                                            size="small"
+                                                            variant="contained"
+                                                            color="success"
+                                                            sx={{ ml: 1 }}
+                                                            onClick={() => finalizarPedido(pedido.no_orden, pedido.tipo)}
+                                                        >
+                                                            Autorización
                                                         </Button>
+
                                                     )}
                                                 </Box>
 
@@ -696,3 +913,4 @@ function Surtiendo() {
 }
 
 export default Surtiendo;
+

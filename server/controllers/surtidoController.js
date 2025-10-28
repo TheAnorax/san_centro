@@ -11,10 +11,10 @@ const obtenerPedidosSurtiendo = async (req, res) => {
 };
 
 const finalizarPedido = async (req, res) => {
-    const { noOrden } = req.params;
+    const { noOrden, tipo } = req.params;
 
     try {
-        const resultado = await SurtidoModel.moverPedidoASurtidoFinalizado(noOrden);
+        const resultado = await SurtidoModel.moverPedidoASurtidoFinalizado(noOrden, tipo);
         if (resultado.ok) {
             res.status(200).json({ ok: true, message: resultado.mensaje });
         } else {
@@ -25,6 +25,7 @@ const finalizarPedido = async (req, res) => {
         res.status(500).json({ ok: false, message: "Error al finalizar el pedido" });
     }
 };
+
 
 const cerrarPedidoEmbarque = async (req, res) => {
     const { noOrden } = req.params;
@@ -272,6 +273,22 @@ const liberarUsuarioPaqueteria = async (req, res) => {
     }
 };
 
+obtenerPedidoPorOrdenYTipo = async (req, res) => {
+    const { noOrden, tipo } = req.params;
+    try {
+        const productos = await SurtidoModel.obtenerPedidoPorOrdenYTipo(noOrden, tipo);
+
+        if (!productos || productos.length === 0) {
+            return res.status(404).json({ ok: false, message: "No se encontraron productos para este pedido." });
+        }
+
+        res.json(productos);
+    } catch (error) {
+        console.error("❌ Error en obtenerPedidoPorOrdenYTipo:", error);
+        res.status(500).json({ ok: false, message: "Error interno del servidor." });
+    }
+};
+
 
 module.exports = {
     obtenerPedidosSurtiendo,
@@ -282,5 +299,6 @@ module.exports = {
     obtenerUsuariosEmbarques,
     asignarUsuarioPaqueteria,
     getPedidosEmbarquePacking,
-    liberarUsuarioPaqueteria
+    liberarUsuarioPaqueteria,
+    obtenerPedidoPorOrdenYTipo
 };

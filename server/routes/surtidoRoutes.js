@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria } = require('../controllers/surtidoController');
+const { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria
+    , obtenerPedidoPorOrdenYTipo } = require('../controllers/surtidoController');
 
 router.get('/pedidos/pedidos-surtiendo', obtenerPedidosSurtiendo);
 
-router.post('/finalizar/:noOrden', finalizarPedido);
+router.get("/pedido/:noOrden/:tipo", obtenerPedidoPorOrdenYTipo);
+router.post('/finalizar/:noOrden/:tipo', finalizarPedido);
+
 
 router.get('/embarque', obtenerPedidosEmbarque);
 

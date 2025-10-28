@@ -12,10 +12,16 @@ cron.schedule('*/1 * * * *', async () => {
     let movimientos = 0;
 
     // 🔁 1. Verifica si se deben mover de surtido a embarques
+    // for (const noOrden of unicosSurtido) {
+    //     const resultado = await verificarYFinalizarPedido(noOrden);
+    //     if (resultado) movimientos += 1;
+    // }
+
+    // 🔁 1. Desactivado el movimiento automático de pedidos
     for (const noOrden of unicosSurtido) {
-        const resultado = await verificarYFinalizarPedido(noOrden);
-        if (resultado) movimientos += 1;
+        console.log(`⏩ Pedido ${noOrden} en surtido. Movimiento automático desactivado.`);
     }
+
 
     // 🔍 2. Traer todas las bahías activas
     const [bahiasOcupadas] = await pool.query(`
@@ -71,73 +77,95 @@ const getPedidosSurtiendo = async () => {
 
 
 // Mover el pedido completo a la tabla de embarques
-const moverPedidoASurtidoFinalizado = async (noOrden) => {
+const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
+        // 1️⃣ Buscar productos del pedido y tipo específico
         const [productos] = await connection.query(`
-      SELECT * FROM pedidos_surtiendo WHERE no_orden = ?
-    `, [noOrden]);
+            SELECT * 
+            FROM pedidos_surtiendo 
+            WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+        `, [noOrden, tipo]);
 
         if (productos.length === 0) {
-            throw new Error("No se encontraron productos para este pedido.");
+            throw new Error("No se encontraron productos para este pedido y tipo.");
         }
 
+        // 2️⃣ Verificar si ya existe en pedidos_embarques
         const [existe] = await connection.query(`
-      SELECT 1 FROM pedidos_embarques WHERE no_orden = ? LIMIT 1
-    `, [noOrden]);
+            SELECT 1 
+            FROM pedidos_embarques 
+            WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) 
+            LIMIT 1
+        `, [noOrden, tipo]);
+
         if (existe.length > 0) {
-            console.log("⚠️ El pedido ya fue movido a embarques.");
-            await connection.commit(); // ← importante: cerrar transacción
+            console.log(`⚠️ El pedido ${noOrden}-${tipo} ya fue movido a embarques.`);
+            await connection.commit();
             return { ok: true, mensaje: "Ya estaba en embarques." };
         }
 
-        // ✅ Ignora cancelados en la validación de cantidades
+        // 3️⃣ Validar si el pedido está completo (sin incluir cancelados)
         const lineasActivas = productos.filter(p => p.estado !== 'C');
         const incompletos = lineasActivas.filter(p =>
             Number(p.cantidad) !== (Number(p.cant_surtida) + Number(p.cant_no_enviada))
         );
+
         if (incompletos.length > 0) {
-            throw new Error("El pedido aún no está completamente surtido (excluyendo cancelados).");
+            throw new Error(`El pedido ${noOrden}-${tipo} aún no está completamente surtido (excluyendo cancelados).`);
         }
 
-        // 🚚 Inserta en pedidos_embarques
+        // 4️⃣ Mover líneas de surtido a embarques
         for (const p of productos) {
-            // OPCIÓN A (recomendada): preservar estado; C sigue siendo C
             const estadoDestino = (p.estado === 'C') ? 'C' : 'E';
 
-            // OPCIÓN B: si NO quieres llevar líneas canceladas a embarques:
-            // if (p.estado === 'C') continue;
-
-            // 🚚 Inserta en pedidos_embarques (PRESERVANDO el motivo)
             await connection.query(`
-            INSERT INTO pedidos_embarques (
-                no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
-                id_usuario_paqueteria, registro, inicio_surtido, fin_surtido,
-                motivo              -- 👈 NUEVO
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pedidos_embarques (
+                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                    um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
+                    id_usuario_paqueteria, registro, inicio_surtido, fin_surtido, motivo
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
                 p.um, p._bl, p._pz, p._pq, p._inner, p._master, p.ubi_bahia, estadoDestino, p.id_usuario,
-                p.id_usuario_paqueteria, p.registro, p.inicio_surtido, p.fin_surtido,
-                p.motivo
+                p.id_usuario_paqueteria, p.registro, p.inicio_surtido, p.fin_surtido, p.motivo
             ]);
         }
 
-        // 🧹 Elimina de pedidos_surtiendo
-        await connection.query(`DELETE FROM pedidos_surtiendo WHERE no_orden = ?`, [noOrden]);
+        // 5️⃣ Eliminar del surtido una vez insertado en embarques
+        await connection.query(`
+            DELETE FROM pedidos_surtiendo 
+            WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+        `, [noOrden, tipo]);
 
         await connection.commit();
-        return { ok: true, mensaje: "Pedido movido correctamente a embarques." };
+        console.log(`🚚 Pedido ${noOrden}-${tipo} movido correctamente a embarques.`);
+        return { ok: true, mensaje: `Pedido ${noOrden}-${tipo} movido correctamente a embarques.` };
+
     } catch (error) {
         await connection.rollback();
+        console.error(`❌ Error al mover pedido ${noOrden}-${tipo}:`, error.message);
         return { ok: false, mensaje: error.message };
     } finally {
         connection.release();
     }
 };
+
+
+const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
+    const [rows] = await pool.query(
+        `SELECT 
+        no_orden, tipo, codigo_pedido, cantidad, cant_surtida, cant_no_enviada, motivo, unificado,ubi_bahia
+     FROM pedidos_surtiendo
+     WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+     ORDER BY codigo_pedido`,
+        [noOrden, tipo]
+    );
+    return rows;
+};
+
 
 
 const verificarYFinalizarPedido = async (noOrden) => {
@@ -176,6 +204,7 @@ const verificarYFinalizarPedido = async (noOrden) => {
         conn.release();
     }
 };
+
 
 
 const moverPedidoAFinalizado = async (noOrden) => {
@@ -231,6 +260,7 @@ const moverPedidoAFinalizado = async (noOrden) => {
         connection.release();
     }
 };
+
 
 
 
@@ -369,5 +399,5 @@ const liberarUsuarioPaqueteria = async (no_orden) => {
 module.exports = {
     getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado,
     getpedidosFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
-    liberarUsuarioPaqueteria
+    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo
 };

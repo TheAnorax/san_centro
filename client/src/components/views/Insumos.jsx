@@ -83,10 +83,10 @@ const Insumos = () => {
 
     try {
       if (editMode) {
-        await axios.put(`http://192.168.3.154:3001/api/insumos/Editar_insumo/${editId}`, formData);
+        await axios.put(`http://66.232.105.107:3001/api/insumos/Editar_insumo/${editId}`, formData);
         await Swal.fire("Actualizado", "El insumo fue actualizado", "success");
       } else {
-        await axios.post('http://192.168.3.154:3001/api/insumos/Insertar_insumo', formData);
+        await axios.post('http://66.232.105.107:3001/api/insumos/Insertar_insumo', formData);
         await Swal.fire("Guardado", "El insumo fue guardado", "success");
       }
       setFormData(initialFormState);
@@ -99,7 +99,7 @@ const Insumos = () => {
 
   const cargarInsumos = async () => {
     try {
-      const res = await axios.get('http://192.168.3.154:3001/api/insumos/Obtener_insumos');
+      const res = await axios.get('http://66.232.105.107:3001/api/insumos/Obtener_insumos');
       setInsumos(res.data);
     } catch (error) {
       setInsumos([]);
@@ -142,7 +142,7 @@ const Insumos = () => {
         return;
       }
       try {
-        await axios.post('http://192.168.3.154:3001/api/insumos/movimientos', {
+        await axios.post('http://66.232.105.107:3001/api/insumos/movimientos', {
 
           id_insumos: insumo.id_insumos,
           tipo: "SALIDA",
@@ -203,7 +203,7 @@ const Insumos = () => {
         return;
       }
       try {
-        await axios.post('http://192.168.3.154:3001/api/insumos/movimientos', {
+        await axios.post('http://66.232.105.107:3001/api/insumos/movimientos', {
           id_insumos: insumo.id_insumos,
           tipo: "ENTRADA",
           cantidad,
@@ -249,7 +249,7 @@ const Insumos = () => {
     setDescInsumo("Todos los Insumos");
     setMovimientosCargando(true);
     try {
-      const res = await axios.get('http://192.168.3.154:3001/api/insumos/Mostrar_movimientos');
+      const res = await axios.get('http://66.232.105.107:3001/api/insumos/Mostrar_movimientos');
       setMovimientos(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       setMovimientos([]);

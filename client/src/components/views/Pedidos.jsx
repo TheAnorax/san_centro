@@ -59,7 +59,7 @@ function Pedidos() {
 
     const cargarBahias = async () => {
         try {
-            const res = await axios.get("http://192.168.3.154:3001/api/pedidos/bahias");
+            const res = await axios.get("http://66.232.105.107:3001/api/pedidos/bahias");
             setBahias(res.data || []);
         } catch {
             setBahias([]);
@@ -69,7 +69,7 @@ function Pedidos() {
     const cargarTodosPedidos = (callback) => {
         setLoading(true);
         axios
-            .get('http://192.168.3.154:3001/api/pedidos/todos-con-productos')
+            .get('http://66.232.105.107:3001/api/pedidos/todos-con-productos')
             .then(res => setPedidos(res.data || []))
             .finally(() => {
                 setLoading(false);
@@ -81,7 +81,7 @@ function Pedidos() {
 
     useEffect(() => {
         axios
-            .get('http://192.168.3.154:3001/api/pedidos/usuarios-surtidor')
+            .get('http://66.232.105.107:3001/api/pedidos/usuarios-surtidor')
             .then(res => setUsuarios(res.data || []));
         cargarBahias();
         cargarTodosPedidos();
@@ -105,7 +105,7 @@ function Pedidos() {
         setBuscando(true);
         searchTimeout.current = setTimeout(async () => {
             try {
-                const res = await axios.get(`http://192.168.3.154:3001/api/pedidos/productos-por-orden/${searchNoOrden}`);
+                const res = await axios.get(`http://66.232.105.107:3001/api/pedidos/productos-por-orden/${searchNoOrden}`);
                 if (res.data && res.data.info && res.data.items && res.data.items.length > 0) {
                     setPedidos([{ ...res.data.info, productos: res.data.items }]);
                 } else {
@@ -146,7 +146,7 @@ function Pedidos() {
         }
 
         try {
-            const res = await axios.post('http://192.168.3.154:3001/api/pedidos/agregar-pedido-surtiendo', {
+            const res = await axios.post('http://66.232.105.107:3001/api/pedidos/agregar-pedido-surtiendo', {
                 no_orden: pedido.no_orden,
                 tipo: pedido.tipo,
                 bahia,
