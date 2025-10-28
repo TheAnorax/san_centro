@@ -6,10 +6,6 @@ const { handleGuardarTraspaso, handleListadoRecibidos } = require('../controller
 
 const RH_BASE_URL = process.env.RH_BASE_URL || 'http://66.232.105.107:3007/api/RH';
 
-const RH_BASE_URL = process.env.RH_BASE_URL || 'http://66.232.105.107:3007/api/RH';
-
-const RH_BASE_URL = process.env.RH_BASE_URL || 'http://66.232.105.87:3007/api/RH';
-
 
 router.post('/guardarTraspaso', handleGuardarTraspaso);
 

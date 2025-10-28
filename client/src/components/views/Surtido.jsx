@@ -201,7 +201,6 @@ function Surtiendo() {
 
     const finalizarPedido = async (noOrden, tipo) => {
         try {
-<<<<<<< HEAD
             // 1️⃣ Confirmar acción
             const { isConfirmed } = await Swal.fire({
                 title: `¿Finalizar pedido ${noOrden}-${tipo}?`,
@@ -228,51 +227,77 @@ function Surtiendo() {
                 return;
             }
 
-            // 3️⃣ Generar PDF antes de finalizar
-            const doc = new jsPDF();
-            doc.setFontSize(14);
-            doc.text(`Pedido: ${noOrden} - Tipo: ${tipo}`, 14, 18);
-            doc.setFontSize(10);
-            doc.text("Detalle de productos surtidos", 14, 26);
+           // 3️⃣ Generar PDF antes de finalizar
+const doc = new jsPDF();
 
-            const head = [
-                [
-                    "Código",
-                    "Cantidad",
-                    "Cant. Surtida",
-                    "Cant. No Enviada",
-                    "Motivo",
-                    "Unificado",
-                ],
-            ];
+// 🧩 Datos de encabezado
+const totalCodigos = productos.length; // total de registros en la consulta
+const ubi_bahia = productos[0]?.ubi_bahia || "SIN BAHÍA"; // toma la bahía del primer producto
 
-            const body = productos.map((p) => [
-                p.codigo_pedido,
-                p.cantidad,
-                p.cant_surtida,
-                p.cant_no_enviada,
-                p.motivo || "",
-                p.unificado || "",
-            ]);
+// 🏷️ Encabezado
+doc.setFontSize(14);
+doc.text(`Pedido: ${tipo} ${noOrden} (Total códigos: ${totalCodigos})`, 14, 18);
+doc.setFontSize(12);
+doc.text(`Bahías: ${ubi_bahia}`, 14, 26);
 
-            doc.autoTable({
-                startY: 30,
-                head,
-                body,
-                theme: "grid",
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
-                didParseCell: (data) => {
-                    const row = productos[data.row.index];
-                    if (Number(row?.cant_no_enviada || 0) > 0) {
-                        data.cell.styles.fillColor = [255, 220, 220]; // rojo claro
-                        data.cell.styles.textColor = [180, 0, 0]; // texto rojo
-                    }
-                },
-            });
+// 📦 Subtítulo
+doc.setFontSize(10);
+doc.text("Detalle de productos surtidos", 14, 34);
 
-            const nombrePDF = `Surtido_${noOrden}_${tipo}.pdf`;
-            doc.save(nombrePDF);
+// 🧾 Definición de tabla
+const head = [
+  ["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado"],
+];
+
+const body = productos.map((p) => [
+  p.codigo_pedido,
+  p.cantidad,
+  p.cant_surtida,
+  p.cant_no_enviada,
+  p.motivo || "",
+  p.unificado || "",
+]);
+
+// 🧩 Fallback doble para compatibilidad total
+if (typeof doc.autoTable === "function") {
+  doc.autoTable({
+    startY: 38,
+    head,
+    body,
+    theme: "grid",
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
+    didParseCell: (data) => {
+      const row = productos[data.row.index];
+      if (Number(row?.cant_no_enviada || 0) > 0) {
+        data.cell.styles.fillColor = [255, 220, 220]; // rojo claro
+        data.cell.styles.textColor = [180, 0, 0]; // texto rojo
+      }
+    },
+  });
+} else {
+  // fallback si no se inyectó bien jspdf-autotable
+  autoTable(doc, {
+    startY: 38,
+    head,
+    body,
+    theme: "grid",
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
+    didParseCell: (data) => {
+      const row = productos[data.row.index];
+      if (Number(row?.cant_no_enviada || 0) > 0) {
+        data.cell.styles.fillColor = [255, 220, 220];
+        data.cell.styles.textColor = [180, 0, 0];
+      }
+    },
+  });
+}
+
+// 💾 Guardar PDF
+const nombrePDF = `Surtido_${noOrden}_${tipo}.pdf`;
+doc.save(nombrePDF);
+
 
             await Swal.fire({
                 title: "📄 PDF generado",
@@ -286,9 +311,6 @@ function Surtiendo() {
                 `http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`
             );
 
-=======
-            const res = await axios.post(`http://66.232.105.107:3001/api/surtido/pedido-finalizado/${noOrden}`);
->>>>>>> 0fcc9433ac6bc298618b2743f0a9eb4f36438514
             if (res.data.ok) {
                 await Swal.fire({
                     title: "✅ Pedido liberado",
