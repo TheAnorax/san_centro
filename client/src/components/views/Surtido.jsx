@@ -201,7 +201,90 @@ function Surtiendo() {
 
     const finalizarPedido = async (noOrden, tipo) => {
         try {
-            const res = await axios.post(`http://192.168.3.154:3001/api/surtido/pedido-finalizado/${noOrden}`);
+            // 1️⃣ Confirmar acción
+            const { isConfirmed } = await Swal.fire({
+                title: `¿Finalizar pedido ${noOrden}-${tipo}?`,
+                text: "Se generará el PDF y luego se moverá el pedido a embarques.",
+                icon: "question",
+                showCancelButton: true,
+                confirmButtonText: "Sí, finalizar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#3085d6",
+            });
+            if (!isConfirmed) return;
+
+            // 2️⃣ Consultar productos del pedido desde la base
+            const { data: productos } = await axios.get(
+                `http://66.232.105.107:3001/api/surtido/pedido/${noOrden}/${tipo}`
+            );
+
+            if (!productos || productos.length === 0) {
+                await Swal.fire({
+                    title: "Sin datos",
+                    text: `No se encontraron productos para el pedido ${noOrden}-${tipo}.`,
+                    icon: "warning",
+                });
+                return;
+            }
+
+            // 3️⃣ Generar PDF antes de finalizar
+            const doc = new jsPDF();
+            doc.setFontSize(14);
+            doc.text(`Pedido: ${noOrden} - Tipo: ${tipo}`, 14, 18);
+            doc.setFontSize(10);
+            doc.text("Detalle de productos surtidos", 14, 26);
+
+            const head = [
+                [
+                    "Código",
+                    "Cantidad",
+                    "Cant. Surtida",
+                    "Cant. No Enviada",
+                    "Motivo",
+                    "Unificado",
+                ],
+            ];
+
+            const body = productos.map((p) => [
+                p.codigo_pedido,
+                p.cantidad,
+                p.cant_surtida,
+                p.cant_no_enviada,
+                p.motivo || "",
+                p.unificado || "",
+            ]);
+
+            doc.autoTable({
+                startY: 30,
+                head,
+                body,
+                theme: "grid",
+                styles: { fontSize: 8, cellPadding: 2 },
+                headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
+                didParseCell: (data) => {
+                    const row = productos[data.row.index];
+                    if (Number(row?.cant_no_enviada || 0) > 0) {
+                        data.cell.styles.fillColor = [255, 220, 220]; // rojo claro
+                        data.cell.styles.textColor = [180, 0, 0]; // texto rojo
+                    }
+                },
+            });
+
+            const nombrePDF = `Surtido_${noOrden}_${tipo}.pdf`;
+            doc.save(nombrePDF);
+
+            await Swal.fire({
+                title: "📄 PDF generado",
+                text: `Se generó el archivo ${nombrePDF} correctamente.`,
+                icon: "success",
+                confirmButtonText: "Continuar",
+            });
+
+            // 4️⃣ Llamar al backend para mover a embarques
+            const res = await axios.post(
+                `http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`
+            );
+
             if (res.data.ok) {
                 await Swal.fire({
                     title: "✅ Pedido liberado",
@@ -233,6 +316,7 @@ function Surtiendo() {
             });
         }
     };
+
 
 
 
@@ -314,7 +398,7 @@ function Surtiendo() {
         if (!confirm.isConfirmed) return;
 
         try {
-            const res = await axios.put(`http://192.168.3.154:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
+            const res = await axios.put(`http://66.232.105.107:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
             if (res.data?.ok) {
                 await Swal.fire({
                     title: "✅ Pedido liberado",
