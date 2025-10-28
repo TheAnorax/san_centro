@@ -201,6 +201,7 @@ function Surtiendo() {
 
     const finalizarPedido = async (noOrden, tipo) => {
         try {
+<<<<<<< HEAD
             // 1️⃣ Confirmar acción
             const { isConfirmed } = await Swal.fire({
                 title: `¿Finalizar pedido ${noOrden}-${tipo}?`,
@@ -285,6 +286,9 @@ function Surtiendo() {
                 `http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`
             );
 
+=======
+            const res = await axios.post(`http://66.232.105.107:3001/api/surtido/pedido-finalizado/${noOrden}`);
+>>>>>>> 0fcc9433ac6bc298618b2743f0a9eb4f36438514
             if (res.data.ok) {
                 await Swal.fire({
                     title: "✅ Pedido liberado",
