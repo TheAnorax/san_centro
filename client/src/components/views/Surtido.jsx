@@ -201,7 +201,7 @@ function Surtiendo() {
 
     const finalizarPedido = async (noOrden, tipo) => {
         try {
-            const res = await axios.post(`http://192.168.3.154:3001/api/surtido/pedido-finalizado/${noOrden}`);
+            const res = await axios.post(`http://66.232.105.107:3001/api/surtido/pedido-finalizado/${noOrden}`);
             if (res.data.ok) {
                 await Swal.fire({
                     title: "✅ Pedido liberado",
@@ -314,7 +314,7 @@ function Surtiendo() {
         if (!confirm.isConfirmed) return;
 
         try {
-            const res = await axios.put(`http://192.168.3.154:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
+            const res = await axios.put(`http://66.232.105.107:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
             if (res.data?.ok) {
                 await Swal.fire({
                     title: "✅ Pedido liberado",
