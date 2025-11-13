@@ -273,7 +273,7 @@ const liberarUsuarioPaqueteria = async (req, res) => {
     }
 };
 
-obtenerPedidoPorOrdenYTipo = async (req, res) => {
+const obtenerPedidoPorOrdenYTipo = async (req, res) => {
     const { noOrden, tipo } = req.params;
     try {
         const productos = await SurtidoModel.obtenerPedidoPorOrdenYTipo(noOrden, tipo);
@@ -289,6 +289,30 @@ obtenerPedidoPorOrdenYTipo = async (req, res) => {
     }
 };
 
+const getDetallePedido = async (req, res) => {
+    try {
+        const { no_orden, tipo } = req.params;
+
+        if (!no_orden || !tipo) {
+            return res.status(400).json({
+                ok: false,
+                mensaje: "Faltan parámetros no_orden y tipo"
+            });
+        }
+
+        const data = await SurtidoModel.obtenerDetallePedido(no_orden, tipo);
+        return res.json({ ok: true, data });
+
+    } catch (error) {
+        console.error("Error en getDetallePedido:", error);
+        return res.status(500).json({
+            ok: false,
+            mensaje: "Error obteniendo detalle del pedido",
+            error: error.message
+        });
+    }
+};
+
 
 module.exports = {
     obtenerPedidosSurtiendo,
@@ -300,5 +324,6 @@ module.exports = {
     asignarUsuarioPaqueteria,
     getPedidosEmbarquePacking,
     liberarUsuarioPaqueteria,
-    obtenerPedidoPorOrdenYTipo
+    obtenerPedidoPorOrdenYTipo,
+    getDetallePedido
 };

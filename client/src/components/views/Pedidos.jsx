@@ -1,9 +1,14 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Card, CardContent, Typography, Box, Divider, Button, TextField } from '@mui/material';
+import { Card, CardContent, Typography, Box, Divider, Button, TextField, Chip, MenuItem, Select } from '@mui/material';
 import Pagination from '@mui/material/Pagination';
 import { FaTimes } from "react-icons/fa";
 import axios from 'axios';
 import logoSantul from '../../img/general/icono_santul.png';
+import Swal from "sweetalert2";
+
+
+
+
 
 function Pedidos() {
     // Pedidos
@@ -13,7 +18,7 @@ function Pedidos() {
     const [page, setPage] = useState(1);
     const [searchNoOrden, setSearchNoOrden] = useState('');
     const [, setBuscando] = useState(false);
-    const pedidosPorPagina = 10;
+    const pedidosPorPagina = 6;
     const searchTimeout = useRef(null);
 
     // Bahías y usuarios
@@ -26,7 +31,6 @@ function Pedidos() {
 
     // --- Helpers ---
 
-    // 1) Normaliza el nombre de bahía (por si el backend cambia el campo)
     const nombreBahia = (b) =>
         (b?.bahia ?? b?.Bahia ?? b?.nombre ?? b?.codigo ?? b?.id ?? '').toString().trim();
 
@@ -77,7 +81,6 @@ function Pedidos() {
             });
     };
 
-    // --- Effects ---
 
     useEffect(() => {
         axios
@@ -118,7 +121,6 @@ function Pedidos() {
         }, 350);
     }, [searchNoOrden]);
 
-    // --- UI handlers ---
 
     const toggleExpandPedido = (no_orden) => {
         setExpandedPedidos(expanded =>
@@ -137,48 +139,83 @@ function Pedidos() {
     };
 
     const handleAgregarPedido = async (pedido) => {
-        const bahia = bahiasPorPedido[pedido.no_orden];
+        const bahias = bahiasPorPedido[pedido.no_orden] || [];
         const usuario = usuariosPorPedido[pedido.no_orden];
 
-        if (!bahia || !usuario) {
-            alert("Selecciona bahía y usuario.");
+        if (!bahias.length || !usuario) {
+            Swal.fire({
+                icon: "warning",
+                title: "Campos faltantes",
+                text: "Selecciona una o varias bahías y un usuario antes de asignar el pedido.",
+                confirmButtonColor: "#f39c12"
+            });
             return;
         }
 
         try {
-            const res = await axios.post('http://66.232.105.107:3001/api/pedidos/agregar-pedido-surtiendo', {
-                no_orden: pedido.no_orden,
-                tipo: pedido.tipo,
-                bahia,
-                usuario // id_usuario numérico
+            Swal.fire({
+                title: "Asignando pedido...",
+                text: `Por favor espera mientras se asigna el pedido ${pedido.no_orden}.`,
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading(),
             });
 
+            const res = await axios.post(
+                'http://66.232.105.107:3001/api/pedidos/agregar-pedido-surtiendo',
+                {
+                    no_orden: pedido.no_orden,
+                    tipo: pedido.tipo,
+                    bahias, // ⬅️ ahora va arreglo
+                    usuario
+                }
+            );
+
+            Swal.close();
+
             if (res.data && res.data.ok) {
-                alert("Pedido enviado correctamente.");
+                await Swal.fire({
+                    icon: "success",
+                    title: "Pedido asignado correctamente",
+                    text: `El pedido ${pedido.no_orden} fue asignado con éxito.`,
+                    confirmButtonColor: "#3085d6"
+                });
 
-                // 1) Optimista: quitar bahía localmente
-                setBahias(prev => prev.filter(b => nombreBahia(b) !== bahia));
+                // Quitar bahías usadas de la lista
+                setBahias(prev =>
+                    prev.filter(b => !bahias.includes(nombreBahia(b)))
+                );
 
-                // 2) Limpiar selects
-                setBahiasPorPedido(prev => ({ ...prev, [pedido.no_orden]: '' }));
+                // Limpiar selects
+                setBahiasPorPedido(prev => ({ ...prev, [pedido.no_orden]: [] }));
                 setUsuariosPorPedido(prev => ({ ...prev, [pedido.no_orden]: '' }));
 
-                // 3) Re-sincronizar desde backend
                 cargarTodosPedidos();
                 cargarBahias();
             } else {
-                alert("Error: " + (res.data?.message || "No se pudo enviar el pedido."));
+                await Swal.fire({
+                    icon: "error",
+                    title: "Error al asignar",
+                    text: res.data?.message || "No se pudo enviar el pedido.",
+                    confirmButtonColor: "#e74c3c"
+                });
                 cargarBahias();
             }
-        } catch {
-            alert("Error al enviar el pedido.");
+        } catch (err) {
+            Swal.close();
+            Swal.fire({
+                icon: "error",
+                title: "Error de conexión",
+                text: "Ocurrió un error al intentar asignar el pedido.",
+                confirmButtonColor: "#e74c3c"
+            });
             cargarBahias();
         }
     };
 
-    // --- Paginación ---
+
 
     const totalPaginas = Math.ceil(pedidos.length / pedidosPorPagina);
+
     const pedidosMostrados = pedidos.slice(
         (page - 1) * pedidosPorPagina,
         page * pedidosPorPagina
@@ -214,11 +251,29 @@ function Pedidos() {
                 )}
             </Box>
 
+            {totalPaginas > 1 && (
+                <Box align="center" mt={2} mb={2}>
+                    <Pagination
+                        count={totalPaginas}
+                        page={page}
+                        onChange={(e, value) => setPage(value)}
+                        color="primary"
+                        size="large"
+                        shape="rounded"
+                        siblingCount={1}
+                        boundaryCount={1}
+                        showFirstButton
+                        showLastButton
+                    />
+                </Box>
+            )}
+
             <Box p={3} sx={{ background: "#faf9f9", minHeight: "100vh" }}>
                 <Box
                     sx={{
                         height: '80vh',
                         overflowY: 'auto',
+                        pb: 8,
                         pr: 2,
                         borderRadius: 2,
                         border: '1px solid #eee',
@@ -235,13 +290,14 @@ function Pedidos() {
                             const productosToShow = isExpanded ? pedido.productos : pedido.productos.slice(0, 5);
 
                             // Cálculo por pedido
-                            const selectedBahia = bahiasPorPedido[pedido.no_orden];
+                            const bahiasSeleccionadas = bahiasPorPedido[pedido.no_orden] || [];
 
-                            // Si hay lista de libres usamos esa; si no, permitimos cualquier selección (fallback)
                             const selectedBahiaDisponible =
-                                bahiasLibres.length > 0
-                                    ? (!!selectedBahia && bahiasLibres.some(b => nombreBahia(b) === selectedBahia && isBahiaLibre(b)))
-                                    : !!selectedBahia;
+                                bahiasSeleccionadas.length > 0 &&
+                                bahiasSeleccionadas.every(bah =>
+                                    bahiasLibres.some(b => nombreBahia(b) === bah && isBahiaLibre(b))
+                                );
+
 
                             return (
                                 <Card sx={{ mb: 4, boxShadow: 2 }} key={pedido.no_orden}>
@@ -251,28 +307,31 @@ function Pedidos() {
 
                                             {/* Selects y Botón */}
                                             <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                                                <select
-                                                    value={bahiasPorPedido[pedido.no_orden] || ''}
-                                                    onChange={e => handleBahiaChange(pedido.no_orden, e.target.value)}
-                                                    style={{
-                                                        height: 38,
-                                                        borderRadius: 8,
-                                                        border: '1px solid #bbb',
-                                                        fontSize: 16,
-                                                        padding: '0 10px',
-                                                        background: '#faf9f9',
-                                                        minWidth: 140,
-                                                        marginRight: 16
-                                                    }}
+                                                <Select
+                                                    multiple
+                                                    value={bahiasPorPedido[pedido.no_orden] || []}
+                                                    onChange={(e) =>
+                                                        setBahiasPorPedido(prev => ({
+                                                            ...prev,
+                                                            [pedido.no_orden]: typeof e.target.value === 'string'
+                                                                ? e.target.value.split(',')
+                                                                : e.target.value
+                                                        }))
+                                                    }
+                                                    renderValue={(selected) => (
+                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                                            {selected.map((value) => (
+                                                                <Chip key={value} label={value} />
+                                                            ))}
+                                                        </Box>
+                                                    )}
+                                                    sx={{ minWidth: 200 }}
                                                 >
-                                                    <option value="">Selecciona bahía</option>
                                                     {bahiasLibres.map(b => {
                                                         const name = nombreBahia(b);
-                                                        return (
-                                                            <option key={name} value={name}>{name}</option>
-                                                        );
+                                                        return <MenuItem key={name} value={name}>{name}</MenuItem>
                                                     })}
-                                                </select>
+                                                </Select>
 
                                                 <select
                                                     value={usuariosPorPedido[pedido.no_orden] || ''}
@@ -298,7 +357,7 @@ function Pedidos() {
                                                     variant="contained"
                                                     color="primary"
                                                     size="small"
-                                                    disabled={!(selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])}
+                                                    disabled={!(bahiasSeleccionadas.length > 0 && selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])}
                                                     title={
                                                         !(selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])
                                                             ? "Selecciona primero una bahía libre y un usuario"
@@ -308,6 +367,7 @@ function Pedidos() {
                                                 >
                                                     Agregar
                                                 </Button>
+
                                             </Box>
 
                                             <Box flex={1} textAlign="center">
@@ -390,25 +450,9 @@ function Pedidos() {
                             );
                         })
                     )}
-
-                    {totalPaginas > 1 && (
-                        <Box align="center" mt={2} mb={2}>
-                            <Pagination
-                                count={totalPaginas}
-                                page={page}
-                                onChange={(e, value) => setPage(value)}
-                                color="primary"
-                                size="large"
-                                shape="rounded"
-                                siblingCount={1}
-                                boundaryCount={1}
-                                showFirstButton
-                                showLastButton
-                            />
-                        </Box>
-                    )}
                 </Box>
             </Box>
+            
         </div>
     );
 }

@@ -62,16 +62,16 @@ const getUsuarios = async (req, res) => {
 
 const agregarPedidoSurtiendo = async (req, res) => {
     try {
-        // AHORA también recibimos 'tipo'
-        const { no_orden, tipo, bahia, usuario } = req.body;
-        if (!no_orden || !tipo || !bahia || !usuario) {
+        const { no_orden, tipo, bahias, usuario } = req.body;
+
+        if (!no_orden || !tipo || !bahias || !bahias.length || !usuario) {
             return res.status(400).json({ ok: false, message: "Faltan datos" });
         }
 
         const ok = await PedidosModel.agregarPedidoSurtiendo({
             no_orden,
             tipo,
-            bahia,
+            bahias,
             usuario
         });
 
@@ -83,6 +83,8 @@ const agregarPedidoSurtiendo = async (req, res) => {
         return res.status(500).json({ ok: false, message: "Error interno" });
     }
 };
+
+
 
 const liberarUsuarioPaqueteria = async (req, res) => {
     try {

@@ -119,8 +119,6 @@ const Productos = ({ isSwitching }) => {
 
   const columnas = [
     { field: "codigo", headerName: "Código", width: 100 },
-
-    // ✅ Columna nueva para mostrar imagen (usa otro nombre de campo)
     {
       field: "imagen",
       headerName: "Imagen",
@@ -135,15 +133,14 @@ const Productos = ({ isSwitching }) => {
         />
       ),
     },
-
-    // 👇 Las demás columnas
     { field: "descripcion", headerName: "Descripción", width: 250 },
     { field: "um", headerName: "UM", width: 80 },
     { field: "clave", headerName: "Clave", width: 150 },
     { field: "_pz", headerName: "Cantidad en Pieza", width: 100 },
     { field: "_inner", headerName: "Cantidad en INNER", width: 100 },
     { field: "_master", headerName: "Cantidad en MASTER", width: 100 },
-
+    { field: "ubicacion", headerName: "Ubicaccion", width: 100 },
+    { field: "cant_stock_real", headerName: "Inventario", width: 100 },
     {
       field: "acciones",
       headerName: "Acciones",

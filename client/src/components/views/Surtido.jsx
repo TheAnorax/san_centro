@@ -12,7 +12,8 @@ import ClearIcon from '@mui/icons-material/Clear';
 import Swal from "sweetalert2";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-
+import logoPacking from "../../../src/img/general/LOGO_PACKING_LIST.jpg";
+import footerBar from "../../../src/img/general/BARRA.jpg";
 
 
 /* ===================== Helpers robustos ===================== */
@@ -227,76 +228,78 @@ function Surtiendo() {
                 return;
             }
 
-           // 3️⃣ Generar PDF antes de finalizar
-const doc = new jsPDF();
+            // 3️⃣ Generar PDF antes de finalizar
+            const doc = new jsPDF();
 
-// 🧩 Datos de encabezado
-const totalCodigos = productos.length; // total de registros en la consulta
-const ubi_bahia = productos[0]?.ubi_bahia || "SIN BAHÍA"; // toma la bahía del primer producto
 
-// 🏷️ Encabezado
-doc.setFontSize(14);
-doc.text(`Pedido: ${tipo} ${noOrden} (Total códigos: ${totalCodigos})`, 14, 18);
-doc.setFontSize(12);
-doc.text(`Bahías: ${ubi_bahia}`, 14, 26);
 
-// 📦 Subtítulo
-doc.setFontSize(10);
-doc.text("Detalle de productos surtidos", 14, 34);
+            // 🧩 Datos de encabezado
+            const totalCodigos = productos.length; // total de registros en la consulta
+            const ubi_bahia = productos[0]?.ubi_bahia || "SIN BAHÍA"; // toma la bahía del primer producto
 
-// 🧾 Definición de tabla
-const head = [
-  ["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado"],
-];
+            // 🏷️ Encabezado
+            doc.setFontSize(14);
+            doc.text(`Pedido: ${tipo} ${noOrden} (Total códigos: ${totalCodigos})`, 14, 18);
+            doc.setFontSize(12);
+            doc.text(`Bahías: ${ubi_bahia}`, 14, 26);
 
-const body = productos.map((p) => [
-  p.codigo_pedido,
-  p.cantidad,
-  p.cant_surtida,
-  p.cant_no_enviada,
-  p.motivo || "",
-  p.unificado || "",
-]);
+            // 📦 Subtítulo
+            doc.setFontSize(10);
+            doc.text("Detalle de productos surtidos", 14, 34);
 
-// 🧩 Fallback doble para compatibilidad total
-if (typeof doc.autoTable === "function") {
-  doc.autoTable({
-    startY: 38,
-    head,
-    body,
-    theme: "grid",
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
-    didParseCell: (data) => {
-      const row = productos[data.row.index];
-      if (Number(row?.cant_no_enviada || 0) > 0) {
-        data.cell.styles.fillColor = [255, 220, 220]; // rojo claro
-        data.cell.styles.textColor = [180, 0, 0]; // texto rojo
-      }
-    },
-  });
-} else {
-  // fallback si no se inyectó bien jspdf-autotable
-  autoTable(doc, {
-    startY: 38,
-    head,
-    body,
-    theme: "grid",
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
-    didParseCell: (data) => {
-      const row = productos[data.row.index];
-      if (Number(row?.cant_no_enviada || 0) > 0) {
-        data.cell.styles.fillColor = [255, 220, 220];
-        data.cell.styles.textColor = [180, 0, 0];
-      }
-    },
-  });
-}
+            // 🧾 Definición de tabla
+            const head = [
+                ["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado"],
+            ];
 
-// 💾 Guardar PDF
-const nombrePDF = `Surtido_${noOrden}_${tipo}.pdf`;
-doc.save(nombrePDF);
+            const body = productos.map((p) => [
+                p.codigo_pedido,
+                p.cantidad,
+                p.cant_surtida,
+                p.cant_no_enviada,
+                p.motivo || "",
+                p.unificado || "",
+            ]);
+
+            // 🧩 Fallback doble para compatibilidad total
+            if (typeof doc.autoTable === "function") {
+                doc.autoTable({
+                    startY: 38,
+                    head,
+                    body,
+                    theme: "grid",
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
+                    didParseCell: (data) => {
+                        const row = productos[data.row.index];
+                        if (Number(row?.cant_no_enviada || 0) > 0) {
+                            data.cell.styles.fillColor = [255, 220, 220]; // rojo claro
+                            data.cell.styles.textColor = [180, 0, 0]; // texto rojo
+                        }
+                    },
+                });
+            } else {
+                // fallback si no se inyectó bien jspdf-autotable
+                autoTable(doc, {
+                    startY: 38,
+                    head,
+                    body,
+                    theme: "grid",
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    headStyles: { fillColor: [17, 100, 163], textColor: [255, 255, 255] },
+                    didParseCell: (data) => {
+                        const row = productos[data.row.index];
+                        if (Number(row?.cant_no_enviada || 0) > 0) {
+                            data.cell.styles.fillColor = [255, 220, 220];
+                            data.cell.styles.textColor = [180, 0, 0];
+                        }
+                    },
+                });
+            }
+
+            // 💾 Guardar PDF
+            const nombrePDF = `Surtido_${noOrden}_${tipo}.pdf`;
+            doc.save(nombrePDF);
 
 
             await Swal.fire({
@@ -342,8 +345,6 @@ doc.save(nombrePDF);
             });
         }
     };
-
-
 
 
     // Liberar solo si todas las v_* = 0
@@ -512,6 +513,642 @@ doc.save(nombrePDF);
 
     /* ===================== Render ===================== */
 
+    const [busqueda, setBusqueda] = useState('');
+
+    const embarquesFiltrados = embarques.filter((p) => {
+        const texto = busqueda.trim().toLowerCase();
+        if (!texto) return true;
+        return String(p.no_orden).toLowerCase().includes(texto);
+    });
+
+
+    // Generar Packin list
+
+    const generarPDFPackingList = async (noOrden, tipo) => {
+        try {
+            Swal.fire({
+                title: "Generando PDF...",
+                text: "Por favor espera",
+                didOpen: () => Swal.showLoading(),
+                allowOutsideClick: false,
+            });
+
+            const res = await axios.get(
+                `http://66.232.105.107:3001/api/surtido/detalle/${noOrden}/${tipo}`
+            );
+
+            const cajas = res.data.data || res.data;
+            if (!Array.isArray(cajas)) {
+                Swal.fire("❌ Error", "Formato inválido de servidor", "error");
+                return;
+            }
+
+            const doc = new jsPDF();
+
+            // === CONFIGURACIÓN GLOBAL DE FOOTER Y NUMERACIÓN ===
+            doc.autoTableSetDefaults({
+                didDrawPage: (data) => {
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const pageHeight = doc.internal.pageSize.getHeight();
+
+                    // Dibuja la barra inferior (footer)
+                    const footerHeight = 6;
+                    const footerY = pageHeight - footerHeight - 5;
+                    doc.addImage(footerBar, "JPEG", 10, footerY, pageWidth - 20, footerHeight);
+
+                    // Texto de numeración (encima de la barra)
+                    const currentPage = doc.internal.getCurrentPageInfo().pageNumber;
+                    const totalPages = doc.internal.getNumberOfPages();
+
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(8);
+                    doc.setTextColor(255, 255, 255);
+                    doc.text(`Página ${currentPage} de ${totalPages}`, pageWidth - 35, pageHeight - 3);
+                },
+            });
+
+
+            const marginLeft = 10;
+            let y = 26;
+
+            // **** ENCABEZADO SANTUL ****
+            doc.setFillColor(240, 36, 44);
+            doc.rect(10, 10, 190, 8, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10.5);
+            doc.text("FORMATO PARA RECEPCIÓN DEL PEDIDO", 105, 15.5, { align: "center" });
+
+            doc.addImage(logoPacking, "JPEG", 150, 21, 45, 18);
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(14);
+            doc.setTextColor(84, 84, 84);
+            doc.text("Santul Herramientas S.A. de C.V.", marginLeft, y);
+            y += 4;
+
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            doc.text("Henry Ford 257 C y D, Col. Bondojito, Gustavo A. Madero,", marginLeft, y);
+            y += 4;
+            doc.text("Ciudad de México, C.P. 07850, México,", marginLeft, y);
+            y += 4;
+            doc.text("Tel.: 58727290", marginLeft, y);
+            y += 4;
+            doc.text("R.F.C. SHE130912866", marginLeft, y);
+            y += 5;
+
+            doc.setDrawColor(240, 36, 44);
+            doc.setLineWidth(0.5);
+            doc.line(10, y, 200, y);
+            y += 4;
+
+            // Datos del cliente (provisional)
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9.5);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`CLIENTE NO.: XXXX`, marginLeft, y);
+            doc.text(`NOMBRE DEL CLIENTE: XXXXXXXX`, 60, y);
+            y += 4;
+            doc.text(`TELÉFONO: XXXXXXXX`, marginLeft, y);
+            y += 4;
+            doc.text(`DIRECCIÓN: XXXXXXXX`, marginLeft, y);
+            y += 4;
+            doc.text(`No Orden: ${noOrden}-${tipo}`, marginLeft, y);
+            y += 4;
+            doc.text(`FACTURA No.: ----   OC: ----`, marginLeft, y);
+            y += 4;
+            doc.text(`Líneas BD: ${cajas.length} | Líneas PDF: ${cajas.length} | Motivo: 0`, marginLeft, y);
+            y += 3;
+
+
+            // === BLOQUE "INFORMACIÓN IMPORTANTE" ===
+            const bloqueAltura = 18; // altura mayor del recuadro
+            const infoY = y + 1; // pequeño margen arriba
+
+            // Fondo amarillo
+            doc.setFillColor(255, 255, 0);
+            doc.rect(10, infoY, 190, bloqueAltura, "F");
+
+            // Título
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text("INFORMACIÓN IMPORTANTE", 105, infoY + 6, { align: "center" });
+
+            // Texto en bold y con espacio más abajo
+            doc.setFont("helvetica", "bold"); // <- ahora sí negritas
+            doc.setFontSize(7);
+            doc.text(
+                "En caso de detectar cualquier irregularidad (daños, faltantes, cajas mojadas o manipulaciones), Favor de comunicarse de inmediato al departamento de atención al cliente al número: (55) 58727290 EXT.: (8815, 8819) en un Horario de Lunes a Viernes de 8:30 am a 5:00 pm",
+                105,
+                infoY + 13, // más bajito para mejor margen
+                { align: "center", maxWidth: 185 }
+            );
+            y = infoY + bloqueAltura + 3;
+
+            // === CONTAR CAJAS POR TIPO ===
+            let innerMaster = 0;
+            let tarimas = 0;
+            let atados = 0;
+            let cajasArmadas = 0;
+
+            cajas.forEach(caja => {
+                const tipo = (caja.tipo_caja || "").toUpperCase().trim();
+                const numeros = String(caja.cajas || "")
+                    .split(",")
+                    .map(x => x.trim())
+                    .filter(x => x !== "");
+
+                if (tipo === "INNER" || tipo === "MASTER") innerMaster += numeros.length;
+                if (tipo === "TARIMA") tarimas += numeros.length;
+                if (tipo === "ATA" || tipo === "ATADO") atados += numeros.length;
+                if (tipo === "CAJA") cajasArmadas += numeros.length;
+            });
+
+            const totalCajas = innerMaster + tarimas + atados + cajasArmadas;
+
+            // === TABLA DE RESUMEN ===
+            doc.autoTable({
+                startY: y,
+                head: [["INNER/MASTER", "TARIMAS", "ATADOS", "CAJAS ARMADAS", "TOTAL CAJAS"]],
+                body: [[innerMaster, tarimas, atados, cajasArmadas, totalCajas]],
+                theme: "grid",
+                margin: { left: 10 },
+                tableWidth: 190,
+                styles: { fontSize: 9, halign: "center", cellPadding: 3 },
+                headStyles: {
+                    fillColor: [210, 210, 210],
+                    textColor: [0, 0, 0],
+                    fontStyle: "bold"
+                }
+            });
+
+            y = doc.lastAutoTable.finalY + 6;
+
+
+            // ===== TABLAS POR CAJA =====
+            cajas.forEach((caja, index) => {
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(0, 0, 0);
+
+                // Determinar texto según tipo caja
+                const tipoMostrar = (caja.tipo_caja || "").toUpperCase();
+                const titulo = `Productos en ${tipoMostrar} ${caja.cajas}`;
+
+                doc.text(titulo, 105, y, { align: "center" });
+                y += 6;
+
+                doc.autoTable({
+                    startY: y,
+                    columnStyles: {
+                        1: { cellWidth: 85 },
+                    },
+                    headStyles: {
+                        fillColor: [0, 0, 0],
+                        textColor: [255, 255, 255],
+                        fontSize: 7,
+                        fontStyle: "bold"
+                    },
+                    head: [[
+                        "SKU",
+                        "DESCRIPCIÓN",
+                        "CANTIDAD",
+                        "UM",
+                        "PZ",
+                        "PQ",
+                        "INNER",
+                        "MASTER",
+                        "TARIMA",
+                        "ATADOS",
+                        "VALIDA"
+                    ]],
+                    body: caja.productos.map(p => [
+                        p.codigo_producto,
+                        p.descripcion_producto,
+                        p.cantidad,
+                        p.um,
+                        p._pz || 0,
+                        p._pq || 0,
+                        p._inner || 0,
+                        p._master || 0,
+                        tipoMostrar === "TARIMA" ? 1 : 0,
+                        tipoMostrar === "ATADO" ? 1 : 0,
+                        "" // columna VACÍA para firma/validación
+                    ]),
+                    theme: "grid",
+                    margin: { left: 10 },
+                    tableWidth: 190,
+                    styles: {
+                        fontSize: 7,
+                        halign: "center",
+                        cellPadding: 1.3
+                    },
+                    headStyles: {
+                        fillColor: [0, 0, 0],
+                        textColor: [255, 255, 255],
+                        fontSize: 7,
+                        fontStyle: "bold"
+                    },
+                    columnStyles: {
+                        1: { cellWidth: 60 }, // descripción más ancha
+                    }
+                });
+
+                y = doc.lastAutoTable.finalY + 6;
+
+                if (y > 260) {
+                    doc.addPage();
+                    drawFooterSantul(doc);
+                    y = 20;
+                }
+            });
+
+            // === DETALLES DEL PEDIDO (Diseño final compacto) ===
+            let currentY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 5 : y + 5;
+
+            // Configuración del tamaño reducido y centrado
+            const tableWidth = 90; // más angosto
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const leftMargin = (pageWidth - tableWidth) / 2; // centrado
+
+            doc.autoTable({
+                startY: currentY,
+                head: [
+                    [
+                        {
+                            content: "DETALLES DEL PEDIDO",
+                            colSpan: 2,
+                            styles: {
+                                halign: "center",
+                                fillColor: [230, 230, 230],
+                                fontSize: 7,
+                            },
+                        },
+                        {
+                            content: noOrden,
+                            styles: {
+                                halign: "center",
+                                fillColor: [200, 200, 200],
+                                fontSize: 9,
+                            },
+                        },
+                    ],
+                    [
+                        {
+                            content: "IMPORTE DEL PEDIDO\n(SIN IVA)",
+                            styles: { halign: "center", fontSize: 5 },
+                        },
+                        {
+                            content: "TOTAL A PAGAR\n(con IVA)",
+                            styles: { halign: "center", fontSize: 5 },
+                        },
+                        {
+                            content: "PORCENTAJE DE ENTREGA",
+                            styles: { halign: "center", fontSize: 5 },
+                        },
+                    ],
+                ],
+                body: [
+                    [
+                        `$`,
+                        `$`,
+                        "100.00 %",
+                    ],
+                ],
+                theme: "grid",
+                styles: { fontSize: 8, halign: "center" },
+                margin: { left: leftMargin },
+                tableWidth: tableWidth,
+                headStyles: {
+                    fillColor: [245, 245, 245],
+                    textColor: [0, 0, 0],
+                    fontStyle: "bold",
+                    fontSize: 4.5,
+                },
+            });
+
+            y = doc.lastAutoTable.finalY + 6;
+
+            // === TABLA DE CONFIRMACIÓN Y FIRMAS ===
+            currentY = doc.lastAutoTable.finalY + 5;
+            currentY = verificarEspacio(doc, currentY, 1);
+
+            // 1️⃣ CONFIRMACIÓN + FIRMA TRANSPORTISTA
+            doc.autoTable({
+                startY: currentY,
+                body: [
+                    [
+                        {
+                            content:
+                                "Se confirma que las cajas, atados y/o tarimas listadas en esta lista de empaque fueron recibidas cerradas y en buen estado, y así serán entregadas al cliente. Cualquier anomalía se atenderá según lo establecido en el contrato.",
+                            styles: {
+                                fontSize: 7,
+                                halign: "justify",
+                                textColor: [0, 0, 0],
+                                cellPadding: 3,
+                            },
+                        },
+                        {
+                            content: "Firma del Transportista",
+                            styles: {
+                                fontSize: 7,
+                                halign: "center",
+                                fontStyle: "bold",
+                                valign: "bottom",
+                                cellPadding: 3,
+                            },
+                        },
+                    ],
+                ],
+                theme: "grid",
+                styles: { lineColor: [180, 180, 180], lineWidth: 0.25 },
+                columnStyles: {
+                    0: { cellWidth: 150 },
+                    1: { cellWidth: 40 },
+                },
+                margin: { left: 10 },
+                tableWidth: 190,
+            });
+
+            currentY = doc.lastAutoTable.finalY;
+
+
+            // 2️⃣ BLOQUE DE INSTRUCCIONES — Justificado + con bordes
+            const instruccionesTexto = [
+                "• Estimado cliente, nuestro transportista cuenta con ruta asignada por lo que agradeceríamos agilizar el tiempo de recepción de su mercancía. El material viaja consignado por lo que sólo podrá entregarse en la dirección estipulada en este documento.",
+                "• Cualquier retraso en la recepción genera costos adicionales y puede afectar la entrega a otros clientes. En casos repetitivos, podrían cancelarse beneficios como descuentos adicionales.",
+                "• El transportista sólo entregará en planta baja o 'nivel de calle'; si cuenta con alguna política especial de recepción, por favor solicítala con tu asesor de ventas.",
+                "• Si detecta alguna anomalía en el empaque, embalaje, estado de la mercancía o diferencia en las cajas embarcadas, notifíquelo de inmediato en el apartado de observaciones.",
+                "• El transportista no está autorizado a recibir mercancía. Todo reporte de devolución o garantía deberá ser comunicado a su asesor de ventas y se aplicará conforme a la política vigente.",
+                "• Con la firma y/o sello en el presente documento, se da por recibida a entera conformidad la mercancía descrita y se acepta el monto a pagar aquí indicado."
+            ].join("\n\n");
+
+            doc.autoTable({
+                startY: currentY,
+                body: [
+                    [
+                        {
+                            content: instruccionesTexto,
+                            styles: {
+                                fontSize: 7,
+                                halign: "justify",
+                                textColor: [0, 0, 0],
+                                cellPadding: 4,
+                                valign: "top",
+                            },
+                        },
+                    ],
+                ],
+                theme: "grid",
+                styles: { lineColor: [180, 180, 180], lineWidth: 0.25 },
+                columnStyles: {
+                    0: { cellWidth: 190 },
+                },
+                margin: { left: 10 },
+                tableWidth: 190,
+            });
+
+            currentY = doc.lastAutoTable.finalY;
+
+
+
+            // Configuración de texto
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(0, 0, 0);
+
+            // Función para justificación visual con espacios reales
+            function drawJustifiedText(doc, text, x, y, maxWidth, lineHeight) {
+                const words = text.replace(/\s+/g, " ").split(" "); // normaliza espacios
+                let line = "";
+                for (let i = 0; i < words.length; i++) {
+                    const testLine = line + words[i] + " ";
+                    const testWidth = doc.getTextWidth(testLine);
+                    if (testWidth > maxWidth && i > 0) {
+                        const wordsInLine = line.trim().split(" ");
+                        const numSpaces = wordsInLine.length - 1;
+                        let extraSpace = 0;
+                        if (numSpaces > 0)
+                            extraSpace = (maxWidth - doc.getTextWidth(line.trim())) / numSpaces;
+                        let posX = x;
+                        wordsInLine.forEach((word, idx) => {
+                            doc.text(word, posX, y);
+                            if (idx < numSpaces) posX += doc.getTextWidth(word) + extraSpace;
+                        });
+                        line = words[i] + " ";
+                        y += lineHeight;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                doc.text(line.trim(), x, y);
+                return y + lineHeight;
+            }
+
+            // 3️⃣ PAGARÉ + FIRMA CLIENTE
+            const fechaActual = new Date();
+            const fechaHoy = fechaActual.toLocaleDateString("es-MX");
+            const fechaVence = new Date(
+                fechaActual.setMonth(fechaActual.getMonth() + 1)
+            ).toLocaleDateString("es-MX");
+
+            const textoPagare =
+                `En cualquier lugar de este documento donde se estampe la firma por este pagaré debo(emos) y pagaré(mos) ` +
+                `incondicionalmente a la vista y a la orden de SANTUL HERRAMIENTAS S.A. DE C.V., la cantidad de: $` +
+                `( M.N.) En el total a pagar en Cuautitlán, Estado de México, o en la que SANTUL HERRAMIENTAS S.A. DE C.V., juzgue necesario. ` +
+                `Este documento causará intereses al 3% mensual si no se paga a su vencimiento. Expide el ${fechaHoy}, vence el ${fechaVence}.`;
+
+            doc.autoTable({
+                startY: currentY,
+                body: [
+                    [
+                        {
+                            content: textoPagare,
+                            styles: {
+                                fontSize: 7,
+                                halign: "justify",
+                                textColor: [0, 0, 0],
+                                cellPadding: 3,
+                                fillColor: [245, 245, 245], // fondo gris suave
+                            },
+                        },
+                        {
+                            content: "Firma del Cliente",
+                            styles: {
+                                fontSize: 7,
+                                halign: "center",
+                                fontStyle: "bold",
+                                valign: "bottom",
+                                cellPadding: 3,
+                            },
+                        },
+                    ],
+                ],
+                theme: "grid",
+                styles: { lineColor: [180, 180, 180], lineWidth: 0.25 },
+                columnStyles: {
+                    0: { cellWidth: 150 },
+                    1: { cellWidth: 40 },
+                },
+                margin: { left: 10 },
+                tableWidth: 190,
+            });
+
+
+
+            // === BLOQUE DE REFERENCIA BANCARIA + OBSERVACIONES ===
+
+            // === BLOQUE DE REFERENCIA BANCARIA SIN TABLA (alineado) ===
+            let bloqueY = (doc.lastAutoTable && doc.lastAutoTable.finalY)
+                ? doc.lastAutoTable.finalY + 10
+                : y + 10;
+
+            const pageHeight = doc.internal.pageSize.height;
+            const footerHeight = 22;
+
+            // Si no cabe, manda a nueva página
+            if (bloqueY + 40 > pageHeight - footerHeight) {
+                doc.addPage();
+                drawFooterSantul(doc);
+                bloqueY = 25;
+            }
+
+            // --- Título de referencia ---
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text("Referencias bancarias:", 15, bloqueY);
+
+            // --- Encabezados de columnas ---
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            const headerY = bloqueY + 8;
+            doc.text("BANCO", 15, headerY);
+            doc.text("NO. DE CUENTA", 40, headerY);
+            doc.text("SUCURSAL", 75, headerY);
+            doc.text("CLABE", 100, headerY); // ← antes 140
+
+            // --- Datos de cuentas ---
+            doc.setFont("helvetica", "normal");
+            const dataY = headerY + 6;
+            doc.text("BANAMEX", 15, dataY);
+            doc.text("6860432", 40, dataY);
+            doc.text("7006", 75, dataY);
+            doc.text("002180700668604325", 100, dataY); // ← antes 140
+
+            doc.text("BANORTE", 15, dataY + 6);
+            doc.text("0890771176", 40, dataY + 6);
+            doc.text("04", 75, dataY + 6);
+            doc.text("072180008907711766", 100, dataY + 6); // ← antes 140
+
+            doc.text("BANCOMER", 15, dataY + 12);
+            doc.text("CIE 2476827", 40, dataY + 12);
+            doc.text("1838", 75, dataY + 12);
+            doc.text("", 100, dataY + 12); // sin clabe
+
+            // --- Cuadro de observaciones a la derecha ---
+            const obsX = 135; // ← antes 135
+            const obsY = bloqueY + 3;
+            const obsWidth = 65;
+            const obsHeight = 38;
+
+
+            doc.setDrawColor(0);
+            doc.rect(obsX, obsY, obsWidth, obsHeight);
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.text("Observaciones:", obsX + 4, obsY + 7);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+
+            let obsLineY = obsY + 12;
+            [
+                "...........................................................................",
+                "OC: ....................................................................",
+                "...........................................................................",
+                "...........................................................................",
+            ].forEach((linea) => {
+                doc.text(linea, obsX + 4, obsLineY);
+                obsLineY += 7;
+            });
+
+            // --- Texto inferior ---
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.text(
+                "A la firma/sello del presente documento se tiene por recibida de conformidad la mercancía y aceptado el monto a pagar aquí descrita.",
+                105,
+                obsY + obsHeight + 10,
+                { align: "center", maxWidth: 185 }
+            );
+
+
+            // === Agregar numeración de páginas ===
+            const totalPages = doc.internal.getNumberOfPages();
+
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i); // Ir a la página i
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                doc.setTextColor(0, 0, 0);
+
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+
+                // Redibuja la barra en cada página
+                drawFooterSantul(doc);
+
+                // Esquina inferior derecha, justo encima de la barra
+                doc.text(`Página ${i} de ${totalPages}`, pageWidth - 35, pageHeight - 8);
+            }
+
+
+            drawFooterSantul(doc);
+            doc.save(`Packing Lsit ${noOrden}-${tipo}.pdf`);
+            Swal.close();
+            Swal.fire("✅ Packing List generado", "El archivo fue creado con éxito", "success");
+
+        } catch (err) {
+            Swal.close();
+
+            Swal.fire("❌ Error", "No se pudo generar el PDF", "error");
+            console.error(err);
+        }
+    };
+
+    // ==== FUNCIONES AUXILIARES ====
+    function verificarEspacio(doc, currentY, lineasEstimadas = 3) {
+        const maxY = 270; // límite inferior de la hoja
+        const espacio = lineasEstimadas * 5; // alto estimado de líneas
+        if (currentY + espacio > maxY) {
+            doc.addPage();
+            return 20; // reinicia posición Y en nueva página
+        }
+        return currentY;
+    }
+
+
+    function drawFooterSantul(doc) {
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Coloca la barra en el fondo inferior centrada
+        const footerHeight = 6; // alto visible de la barra
+        const footerY = pageHeight - footerHeight - 5; // un poco arriba del borde
+
+        // Inserta la imagen
+        doc.addImage(footerBar, "JPEG", 10, footerY, pageWidth - 20, footerHeight);
+
+        // Texto informativo (si quieres conservarlo)
+    }
+
+
+
     return (
         <div className="place_holder-container fade-in" style={{ height: '95vh', overflowY: 'auto' }}>
             <Box sx={{ width: '100%' }}>
@@ -544,22 +1181,6 @@ doc.save(nombrePDF);
                     {/* ----------  TAB SURTIDO  ---------- */}
                     {tabActual === 0 && (
                         <div>
-                            <Box p={2}>
-                                <Grid container spacing={2}>
-                                    {usuariosResumen.map((u, idx) => (
-                                        <Grid item key={u.nombre + idx} xs={12} sm={6} md={3}>
-                                            <Paper elevation={2} sx={{ p: 2, minHeight: 90 }}>
-                                                <Typography variant="h6">{u.nombre}</Typography>
-                                                <Typography variant="body2">Pedidos: <b>{u.pedidos}</b></Typography>
-                                                <Typography variant="body2">Cantidad de piezas: <b>{u.piezas}</b></Typography>
-                                                <Typography variant="body2" color="success.main">Total surtidas: <b>{u.piezas_surtidas}</b></Typography>
-                                                <Typography variant="body2" color="error.main">No enviadas: <b>{u.piezas_no_enviadas}</b></Typography>
-                                            </Paper>
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            </Box>
-
                             <Box p={3} sx={{ height: 'calc(100vh - 180px)', overflowY: 'auto', background: "#faf9f9" }}>
                                 {pedidos.length === 0 ? (
                                     <Typography color="textSecondary" align="center" mt={4}>No hay pedidos en surtido.</Typography>
@@ -641,10 +1262,47 @@ doc.save(nombrePDF);
                     {/* ---------- TAB EMBARQUES ---------- */}
                     {tabActual === 1 && (
                         <Box sx={{ height: 'calc(100vh - 150px)', overflowY: 'auto', paddingRight: 1 }}>
-                            {embarques.length === 0 ? (
-                                <Typography color="textSecondary" align="center" mt={4}>No hay pedidos en embarques.</Typography>
+                            <Box
+                                display="flex"
+                                alignItems="center"
+                                gap={2}
+                                mb={2}
+                                sx={{ backgroundColor: '#f5f5f5', p: 2, borderRadius: 2 }}
+                            >
+                                <TextField
+                                    label="Buscar por No. Orden"
+                                    variant="outlined"
+                                    size="small"
+                                    value={busqueda || ""}
+                                    onChange={(e) => setBusqueda(e.target.value)}
+                                    placeholder="Ej. 17839"
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchIcon color="action" />
+                                            </InputAdornment>
+                                        ),
+                                        endAdornment: busqueda && (
+                                            <InputAdornment position="end">
+                                                <IconButton onClick={() => setBusqueda("")}>
+                                                    <ClearIcon />
+                                                </IconButton>
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                    sx={{ width: 300 }}
+                                />
+                                <Typography variant="body2" color="textSecondary">
+                                    Resultados: {embarquesFiltrados.length}
+                                </Typography>
+                            </Box>
+
+                            {embarquesFiltrados.length === 0 ? (
+                                <Typography color="textSecondary" align="center" mt={4}>
+                                    No hay pedidos en embarques.
+                                </Typography>
                             ) : (
-                                embarques.map(pedido => {
+                                embarquesFiltrados.map(pedido => {
                                     const rowKey = pedido.key || (pedido.no_orden + pedido.tipo);
 
                                     const total = pedido.productos.reduce(
@@ -840,6 +1498,15 @@ doc.save(nombrePDF);
                                                     <Button variant="outlined" size="small" sx={{ my: 1 }}
                                                         onClick={() => setDetalleExpandido(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}>
                                                         {detalleExpandido[rowKey] ? "Ocultar productos" : "Ver productos"}
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="contained"
+                                                        size="small"
+                                                        sx={{ ml: 1 }}
+                                                        onClick={() => generarPDFPackingList(pedido.no_orden, pedido.tipo)}
+                                                    >
+                                                        Generar PDF
                                                     </Button>
 
                                                     {detalleExpandido[rowKey] && (

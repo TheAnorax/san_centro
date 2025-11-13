@@ -97,17 +97,21 @@ const obtenerIdBahia = async (bahia) => {
 
 
 
-const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahia, usuario }) => {
+const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahias, usuario }) => {
     const id_usuario = Number(usuario);
 
-    if (!no_orden || !tipo || !bahia || !id_usuario) {
+    if (!no_orden || !tipo || !bahias || !bahias.length || !id_usuario) {
         throw new Error("Faltan datos obligatorios para agregar pedido surtiendo");
     }
+
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        // INSERTA EN pedidos_surtiendo
+        // Unir las bahías en un string tipo "A-03, A-04"
+        const bahiasString = bahias.join(', ');
+
+        // ✅ INSERTAR SOLO UNA VEZ EN pedidos_surtiendo
         await conn.query(`
             INSERT INTO pedidos_surtiendo (
                 no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
@@ -120,31 +124,36 @@ const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahia, usuario }) => {
                 registro, inicio_surtido, fin_surtido, unido
             FROM pedidos
             WHERE no_orden = ? AND tipo = ?
-        `, [bahia, usuario, no_orden, tipo]);
+        `, [bahiasString, id_usuario, no_orden, tipo]);
 
-        // ACTUALIZA tabla bahias (opcional)
-        await conn.query(`
-            UPDATE bahias
-            SET estado = 1, id_pdi = ?, ingreso = CURDATE()
-            WHERE bahia = ?
-        `, [no_orden, bahia]);
+        // ✅ POR CADA BAHÍA ACTUALIZAR SU ESTADO
+        for (const bahia of bahias) {
+            await conn.query(`
+                UPDATE bahias
+                SET estado = 1, id_pdi = ?, ingreso = CURDATE()
+                WHERE bahia = ?
+            `, [no_orden, bahia]);
+        }
 
-        // BORRA DE pedidos
+        // ✅ BORRAR EL PEDIDO ORIGINAL SOLO UNA VEZ
         await conn.query(`
             DELETE FROM pedidos
             WHERE no_orden = ? AND tipo = ?
         `, [no_orden, tipo]);
 
         await conn.commit();
-        return true;
+        return { ok: true };
+
     } catch (err) {
         await conn.rollback();
         console.error("Error en agregarPedidoSurtiendo (modelo):", err);
-        return false;
+        return { ok: false };
     } finally {
         conn.release();
     }
 };
+
+
 
 
 const liberarUsuarioPaqueteria = async (no_orden) => {

@@ -74,3 +74,4 @@ async function handleObtenerRecibidos(req, res) {
 }
 
 module.exports = { insertTraspasoRecibido, handleObtenerRecibidos };
+ 

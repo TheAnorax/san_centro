@@ -10,9 +10,9 @@ def surtido():
     url = "http://66.232.105.79:8080/sava/pedi/Service/services.php"
     continua = 1
     conexion = mysql.connector.connect(
-        host="localhost",
+        host="66.232.105.107",
         user="root",
-        password="",
+        password="Santul2025",
         database="san_centro"  # si es necesario
     )
     cursor = conexion.cursor()
@@ -78,38 +78,57 @@ def surtido():
 
 # Programación de horarios igual que ya tienes:
 schedule.every().day.at("05:50").do(surtido)
+
 schedule.every().day.at("06:16").do(surtido)
 schedule.every().day.at("06:56").do(surtido)
+
 schedule.every().day.at("07:16").do(surtido)
 schedule.every().day.at("07:56").do(surtido)
+
 schedule.every().day.at("08:16").do(surtido)
 schedule.every().day.at("08:56").do(surtido)
+
 schedule.every().day.at("09:16").do(surtido)
 schedule.every().day.at("09:56").do(surtido)
+
 schedule.every().day.at("10:16").do(surtido)
 schedule.every().day.at("10:56").do(surtido)
+
 schedule.every().day.at("11:13").do(surtido)
 schedule.every().day.at("11:56").do(surtido)
+
 schedule.every().day.at("12:16").do(surtido)
 schedule.every().day.at("12:56").do(surtido)
+
 schedule.every().day.at("13:16").do(surtido)
 schedule.every().day.at("13:46").do(surtido)
-schedule.every().day.at("14:16").do(surtido)
+
+schedule.every().day.at("14:41").do(surtido)
 schedule.every().day.at("14:56").do(surtido)
+
 schedule.every().day.at("15:16").do(surtido)
 schedule.every().day.at("15:45").do(surtido)
+
 schedule.every().day.at("16:16").do(surtido)
 schedule.every().day.at("16:45").do(surtido)
-schedule.every().day.at("17:11").do(surtido)
-schedule.every().day.at("17:56").do(surtido)
+
+schedule.every().day.at("17:46").do(surtido)
+schedule.every().day.at("17:54").do(surtido)
+
 schedule.every().day.at("18:16").do(surtido)
 schedule.every().day.at("18:37").do(surtido)
+
 schedule.every().day.at("19:16").do(surtido)
 schedule.every().day.at("19:56").do(surtido)
+
 schedule.every().day.at("20:16").do(surtido)
+
 schedule.every().day.at("21:56").do(surtido)
+
 schedule.every().day.at("22:16").do(surtido)
+
 schedule.every().day.at("23:47").do(surtido)
+
 schedule.every().day.at("01:32").do(surtido)
 
 while True:

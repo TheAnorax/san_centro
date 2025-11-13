@@ -4,13 +4,14 @@ import { FaTimes } from 'react-icons/fa';
 import {
   Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, CircularProgress, Alert, Typography, Button, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Grid
+  DialogContent, DialogActions, TextField, Grid, Stack
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import TablePagination from '@mui/material/TablePagination';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import { generarPalletTraspaso } from "../../utils/generarPalletTraspaso";
 
 const API_TRASPASO = 'http://66.232.105.107:3001/api/traspaso';
 
@@ -250,6 +251,7 @@ function Traspaso() {
   const TOTAL_COLS = 14;
 
   return (
+
     <div className="place_holder-container fade-in" style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div className="place_holder-header">
         <span className="place_holder-title">Traspasos</span>
@@ -338,14 +340,42 @@ function Traspaso() {
                             </TableCell>
                             <TableCell>{r.ubicacion}</TableCell>
                             <TableCell>
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                onClick={() => handleOpenDialog(r)}
-                                disabled={yaRecibido}
-                              >
-                                {yaRecibido ? 'Ya Recibido' : 'Guardar Traspaso'}
-                              </Button>
+
+                              <Stack direction="row" spacing={1}>
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  onClick={() => handleOpenDialog(r)}
+                                  disabled={yaRecibido}
+                                >
+                                  {yaRecibido ? "Ya Recibido" : "Guardar Traspaso"}
+                                </Button>
+
+                                <Button
+                                  variant="contained"
+                                  color="success"
+                                  size="small"
+                                  onClick={() =>
+                                    generarPalletTraspaso({
+                                      Codigo: r.Codigo,
+                                      Descripcion: r.Descripcion,
+                                      Cantidad: r.Cantidad,
+                                      dia_envio: r.dia_envio,
+                                      almacen_envio: r.almacen_envio,
+                                      um: r.um,
+                                      _pz: r._pz,
+                                      cajasXCama: 7,
+                                      camasXPallet: 1,
+                                      ubicacion_final: r.ubicacion || "N/A",
+                                    })
+                                  }
+                                >
+                                  Pallet
+                                </Button>
+                              </Stack>
+
+
+
                             </TableCell>
                           </TableRow>
                         );
@@ -493,6 +523,7 @@ function Traspaso() {
       </Dialog>
 
     </div>
+
   );
 }
 

@@ -75,7 +75,6 @@ const getPedidosSurtiendo = async () => {
     return rows;
 };
 
-
 // Mover el pedido completo a la tabla de embarques
 const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
     const connection = await pool.getConnection();
@@ -153,7 +152,6 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
     }
 };
 
-
 const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
     const [rows] = await pool.query(
         `SELECT 
@@ -165,8 +163,6 @@ const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
     );
     return rows;
 };
-
-
 
 const verificarYFinalizarPedido = async (noOrden) => {
     const conn = await pool.getConnection();
@@ -204,8 +200,6 @@ const verificarYFinalizarPedido = async (noOrden) => {
         conn.release();
     }
 };
-
-
 
 const moverPedidoAFinalizado = async (noOrden) => {
     const connection = await pool.getConnection();
@@ -261,9 +255,6 @@ const moverPedidoAFinalizado = async (noOrden) => {
     }
 };
 
-
-
-
 const getpedidosFinalizados = async () => {
     const [rows] = await pool.query(`
                 SELECT 
@@ -297,7 +288,6 @@ const getpedidosFinalizados = async () => {
     return rows;
 };
 
-
 const getPedidosEmbarque = async () => {
     const [rows] = await pool.query(`
         SELECT 
@@ -317,7 +307,6 @@ const getPedidosEmbarque = async () => {
     return rows;
 };
 
-
 const getUsuariosEmbarques = async () => {
     const [rows] = await pool.query(`
         SELECT id, nombre 
@@ -326,7 +315,6 @@ const getUsuariosEmbarques = async () => {
     `);
     return rows; // ✅ solo retorna los datos, sin usar res.json o res.status
 };
-
 
 const actualizarUsuarioPaqueteria = async (no_orden, id_usuario_paqueteria) => {
     const [result] = await pool.query(
@@ -337,9 +325,6 @@ const actualizarUsuarioPaqueteria = async (no_orden, id_usuario_paqueteria) => {
     );
     return result;
 };
-
-
-
 
 const liberarUsuarioPaqueteria = async (no_orden) => {
     if (!no_orden) return { ok: false, code: 400, message: 'Falta no_orden' };
@@ -393,11 +378,55 @@ const liberarUsuarioPaqueteria = async (no_orden) => {
     }
 };
 
+//generar pdf
+
+const obtenerDetallePedido = async (noOrden, tipo) => {
+    const sql = `
+    SELECT
+      pf.no_orden AS pedido,
+      pf.tipo,
+      pf.cajas,
+      pf.tipo_caja,
+      GROUP_CONCAT(
+        CONCAT(
+          '{',
+          '"codigo_producto":', pf.codigo_pedido, ',',
+          '"descripcion_producto":"', REPLACE(prod.descripcion,'"','\\"'), '",',
+          '"cantidad":', pf.cantidad, ',',
+          '"um":"', pf.um, '",',
+          '"_pz":', pf._pz, ',',
+          '"_pq":', pf._pq, ',',
+          '"_inner":', pf._inner, ',',
+          '"_master":', pf._master,
+          '}'
+        )
+        SEPARATOR '||'
+      ) AS productos
+    FROM pedido_finalizado pf
+    LEFT JOIN productos prod ON pf.codigo_pedido = prod.codigo
+    WHERE pf.no_orden = ?
+      AND pf.tipo = ?
+    GROUP BY pf.no_orden, pf.tipo, pf.cajas, pf.tipo_caja
+    ORDER BY pf.cajas ASC;
+  `;
+
+    const [rows] = await pool.execute(sql, [noOrden, tipo]);
+
+    // Convertir el string concatenado a JSON real
+    rows.forEach(row => {
+        row.productos = row.productos
+            ? row.productos.split('||').map(item => JSON.parse(item))
+            : [];
+    });
+
+    return rows;
+};
+
 
 
 
 module.exports = {
     getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado,
     getpedidosFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
-    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo
+    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido
 };
