@@ -1,5 +1,14 @@
+const nodemailer = require("nodemailer");
 const { obtenerInventario } = require('../models/inventarioModel');
+const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 
+const DESTINATARIOS = [
+  "jonathan.alcantara@santul.net",
+];
+
+// ================================================
+// GET Inventario
+// ================================================
 async function todosLosInventarios(req, res) {
   try {
     const inventario = await obtenerInventario();
@@ -13,4 +22,74 @@ async function todosLosInventarios(req, res) {
   }
 }
 
-module.exports = { todosLosInventarios };
+// ================================================
+// ENVIAR CORREO
+// ================================================
+async function solicitarProducto(req, res) {
+  try {
+    const {
+      codigo,
+      descripcion,
+      ubicacion,
+      stock,
+      cantidadSolicitada,
+      solicitante,
+    } = req.body;
+
+    if (!codigo || !cantidadSolicitada || !solicitante) {
+      return res.status(400).json({
+        success: false,
+        message: "Faltan datos obligatorios"
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "j72525264@gmail.com",
+        pass: "bzgq ssbm nomh sqtw",
+      },
+    });
+
+    const html = plantillaCorreoStock({
+      codigo,
+      descripcion,
+      ubicacion,
+      stock,
+      cantidadSolicitada,
+      solicitante,
+    });
+
+    await transporter.sendMail({
+      from: '" 📦 Inventario Almacen 7041" <j72525264@gmail.com>',
+      to: DESTINATARIOS.join(", "),
+      subject: `Solicitud de reposición · Código: ${codigo}`,
+      html,
+      attachments: [
+        {
+          filename: "logob.png",
+          path: __dirname + "/../assets/logob.png",
+          cid: "logo_santul" // 🔥 IGUAL AL HTML
+        }
+      ]
+    });
+
+    return res.json({
+      success: true,
+      message: "Solicitud enviada correctamente"
+    });
+
+  } catch (error) {
+    console.error("❌ Error enviando correo:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error enviando correo",
+      error: error.message
+    });
+  }
+}
+
+module.exports = {
+  todosLosInventarios,
+  solicitarProducto
+};

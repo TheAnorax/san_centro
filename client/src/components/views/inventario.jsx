@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import {
     Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-    CircularProgress, Alert, TablePagination, TextField, InputAdornment, Button
+    CircularProgress, Alert, TablePagination, TextField, InputAdornment, Button, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import Swal from "sweetalert2";
 import axios from 'axios';
 
 const IMG_BASE = 'https://sanced.santulconnect.com:3011/imagenes/img_pz';
@@ -58,6 +59,7 @@ function InventarioListado() {
     }, []);
 
     const handleChangePage = (_event, newPage) => setPage(newPage);
+
     const handleChangeRowsPerPage = (event) => {
         setRowsPerPage(parseInt(event.target.value, 10));
         setPage(0);
@@ -71,6 +73,38 @@ function InventarioListado() {
         .filter(item => (onlyEmpty ? (Number(item.cant_stock_real) || 0) <= 0 : true));
 
     const paginated = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+    //  Mandar correo de inventario casi en 0
+
+
+    const [openModal, setOpenModal] = useState(false);
+    const [cantidadSolicitada, setCantidadSolicitada] = useState("");
+    const [productoSeleccionado, setProductoSeleccionado] = useState(null);
+
+    const user = JSON.parse(localStorage.getItem("user")); // nombre del solicitante
+
+    const abrirModalSolicitud = (row) => {
+        setProductoSeleccionado(row);
+        setCantidadSolicitada("");
+        setOpenModal(true);
+    };
+
+    const enviarSolicitud = async () => {
+        await axios.post("http://66.232.105.107:3001/api/inventario/solicitar-producto", {
+            codigo: productoSeleccionado.codigo_producto,
+            descripcion: productoSeleccionado.descripcion,
+            ubicacion: productoSeleccionado.ubicacion,
+            stock: productoSeleccionado.cant_stock_real,
+            cantidadSolicitada,
+            solicitante: user?.nombre || "Usuario desconocido",
+
+        });
+
+        Swal.fire("Solicitud enviada", "Tu solicitud fue enviada correctamente", "success");
+        setOpenModal(false);
+    };
+
+
 
     return (
         <div className="place_holder-container fade-in">
@@ -160,13 +194,14 @@ function InventarioListado() {
                                             const isEmpty = qty <= 0;
 
                                             return (
+
                                                 <TableRow
                                                     key={`${row.codigo_producto}-${row.id_ubicacion ?? row.ubicacion ?? 'x'}`}
                                                     hover
                                                     sx={{
                                                         ...(isEmpty && {
-                                                            backgroundColor: '#ffe1e1ff',              // ámbar claro
-                                                            borderLeft: '4px solid #ff0000ff',         // barra dorada
+                                                            backgroundColor: '#ffe1e1ff',
+                                                            borderLeft: '4px solid #ff0000ff',
                                                             '&:hover': { backgroundColor: '#f87c7cff' }
                                                         })
                                                     }}
@@ -175,23 +210,65 @@ function InventarioListado() {
                                                     <TableCell><ProductImage code={row.codigo_producto} /></TableCell>
                                                     <TableCell>{row.descripcion}</TableCell>
                                                     <TableCell>{row.ubicacion}</TableCell>
-                                                    <TableCell sx={{ fontWeight: isEmpty ? 700 : 500, color: isEmpty ? '#8a6d3b' : 'inherit' }}>
-                                                        {qty}
-                                                    </TableCell>
+                                                    <TableCell>{qty}</TableCell>
                                                     <TableCell>
                                                         {row.ingreso && (
-                                                            <span style={{ color: "#555", fontWeight: 500 }}>
-                                                                {new Date(row.ingreso).toLocaleString()}
-                                                            </span>
+                                                            <span>{new Date(row.ingreso).toLocaleString()}</span>
+                                                        )}
+                                                    </TableCell>
+
+                                                    {/* ✔ SOLO SE MUESTRA SI EL STOCK ES 0 */}
+                                                    <TableCell>
+                                                        {(qty <= 0) && (
+                                                            <Button
+                                                                variant="contained"
+                                                                color="warning"
+                                                                size="small"
+                                                                onClick={() => abrirModalSolicitud(row)}
+                                                            >
+                                                                Solicitar Producto
+                                                            </Button>
+
                                                         )}
                                                     </TableCell>
                                                 </TableRow>
+
+
+
                                             );
                                         })
                                     )}
                                 </TableBody>
                             </Table>
                         </TableContainer>
+
+
+                        <Dialog open={openModal} onClose={() => setOpenModal(false)}>
+                            <DialogTitle>Solicitar Producto</DialogTitle>
+
+                            <DialogContent>
+                                <p><b>Código:</b> {productoSeleccionado?.codigo_producto}</p>
+                                <p><b>Descripción:</b> {productoSeleccionado?.descripcion}</p>
+                                <p><b>Ubicación:</b> {productoSeleccionado?.ubicacion}</p>
+
+                                <TextField
+                                    label="Cantidad a solicitar"
+                                    type="number"
+                                    fullWidth
+                                    value={cantidadSolicitada}
+                                    onChange={(e) => setCantidadSolicitada(e.target.value)}
+                                    sx={{ mt: 2 }}
+                                />
+                            </DialogContent>
+
+                            <DialogActions>
+                                <Button onClick={() => setOpenModal(false)}>Cancelar</Button>
+                                <Button onClick={enviarSolicitud} variant="contained" color="primary">
+                                    Enviar Solicitud
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+
 
                         <TablePagination
                             component="div"

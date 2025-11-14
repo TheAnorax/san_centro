@@ -83,7 +83,7 @@ const AuthForm = () => {
                 boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
             }}>
                 <img
-                    src={logo_sancedch_blanco} 
+                    src={logo_sancedch_blanco}
                     alt="Logo"
                     style={{ height: 40, marginRight: 15 }}
                 />
@@ -99,7 +99,7 @@ const AuthForm = () => {
                 backgroundColor: '#f5f5f5',
                 p: 2
             }}>
-                <Paper elevation={4} sx={{ p: 4, width: '100%', maxWidth: 420, borderRadius: 5}}>
+                <Paper elevation={4} sx={{ p: 4, width: '100%', maxWidth: 420, borderRadius: 5 }}>
                     <Typography variant="h5" textAlign="center" gutterBottom>
                         {isLogin ? 'Iniciar sesión' : 'Registro de Usuario'}
                     </Typography>
@@ -170,12 +170,12 @@ const AuthForm = () => {
                             {isLogin ? 'Ingresar' : 'Registrar'}
                         </Button>
 
-                        <Button
+                        {/* <Button
                             fullWidth onClick={() => setIsLogin(!isLogin)}
                             sx={{ textTransform: 'none', color: '#f44336' }}
                         >
                             {isLogin ? '¿No tienes cuenta? Registrar' : '¿Ya tienes cuenta? Iniciar sesión'}
-                        </Button>
+                        </Button> */}
                     </form>
                 </Paper>
             </Box>
