@@ -10,6 +10,7 @@ async function insertTraspasoRecibido(datos) {
        estado, ubicacion, usuario_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
+
   const params = [
     datos.No_Orden || null,
     datos.tipo_orden || null,
@@ -24,7 +25,9 @@ async function insertTraspasoRecibido(datos) {
     // fechas
     datos.dia_envio ? new Date(datos.dia_envio) : null,
     datos.almacen_envio || null,
-    datos.tiempo_llegada_estimado ? new Date(datos.tiempo_llegada_estimado) : null,
+    datos.tiempo_llegada_estimado
+      ? new Date(datos.tiempo_llegada_estimado)
+      : null,
 
     // estado / destino / auditoría
     datos.estado || 'F',
@@ -34,20 +37,29 @@ async function insertTraspasoRecibido(datos) {
 
   const [result] = await pool.query(sql, params);
 
-  // inventario (no cambia)
+  // =========================
+  // INSERT EN INVENTARIO
+  // =========================
   const sqlInv = `
     INSERT INTO inventario
-      (ubicacion, codigo_producto, lote, almacen, cant_stock_real, ingreso)
-    VALUES (?, ?, ?, ?, ?, ?)
+      (ubicacion, codigo_producto, lote, almacen, cant_stock_real, ingreso,
+       lote_serie, oc)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
+
   const paramsInv = [
     datos.ubicacion,
     datos.Codigo,
     datos.lote || null,
     datos.almacen_envio || null,
     datos.Cantidad,
-    new Date()
+    new Date(),
+
+    // 🔥 NUEVOS CAMPOS
+    datos.lote_serie || null,
+    datos.oc || null
   ];
+
   const [invResult] = await pool.query(sqlInv, paramsInv);
 
   return {
@@ -55,6 +67,8 @@ async function insertTraspasoRecibido(datos) {
     inventario_id: invResult.insertId
   };
 }
+
+
 
 async function handleObtenerRecibidos(req, res) {
   try {
@@ -74,4 +88,3 @@ async function handleObtenerRecibidos(req, res) {
 }
 
 module.exports = { insertTraspasoRecibido, handleObtenerRecibidos };
- 

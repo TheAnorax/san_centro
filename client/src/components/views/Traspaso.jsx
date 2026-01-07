@@ -83,6 +83,9 @@ function Traspaso() {
   const [modificarCantidad, setModificarCantidad] = useState(false);
   const [cantidadModificada, setCantidadModificada] = useState('');
 
+  const [ocInput, setOcInput] = useState('');
+
+
   useEffect(() => {
     fetchRegistros();
   }, []);
@@ -167,7 +170,10 @@ function Traspaso() {
         tiempo_llegada_estimado: new Date(d.tiempo_llegada_estimado).toISOString(),
         estado: 'F',
         ubicacion: ubicacionInput.trim(),
-        usuario_id: usuarioId
+        usuario_id: usuarioId,
+        lote_serie: d.lote_serie || null,
+        lote: d.lote_serie || null,
+        oc: ocInput
       });
 
       Swal.fire({
@@ -296,7 +302,7 @@ function Traspaso() {
                     <TableCell>Imagen</TableCell>
                     <TableCell>Código</TableCell>
                     <TableCell>Descripción</TableCell>
-                    <TableCell>Clave</TableCell>
+                    <TableCell>Pedimento</TableCell>
                     <TableCell>UM</TableCell>
                     <TableCell>_pz</TableCell>
                     <TableCell>Cantidad</TableCell>
@@ -328,7 +334,7 @@ function Traspaso() {
                             <TableCell><SmartImage code={r.Codigo} /></TableCell>
                             <TableCell>{r.Codigo}</TableCell>
                             <TableCell>{r.Descripcion}</TableCell>
-                            <TableCell>{r.Clave}</TableCell>
+                            <TableCell>{r.lote_serie}</TableCell>
                             <TableCell>{r.um || '—'}</TableCell>
                             <TableCell>{r._pz != null ? r._pz : '—'}</TableCell>
                             <TableCell>{r.Cantidad}</TableCell>
@@ -449,6 +455,9 @@ function Traspaso() {
               <TextField label="Clave" fullWidth value={registroActual.Clave || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={2}>
+              <TextField label="Pedimento" fullWidth value={registroActual.lote_serie || ''} InputProps={{ readOnly: true }} size="small" />
+            </Grid>
+            <Grid item xs={6} md={2}>
               <TextField label="UM" fullWidth value={registroActual.um || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
             <Grid item xs={6} md={2}>
@@ -463,18 +472,6 @@ function Traspaso() {
                 onChange={(e) => setCantidadModificada(e.target.value.replace(/[^0-9]/g, ''))}
                 size="small"
               />
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                <input
-                  type="checkbox"
-                  checked={modificarCantidad}
-                  onChange={() => setModificarCantidad(!modificarCantidad)}
-                  id="modificar-cantidad"
-                  style={{ marginRight: 6 }}
-                />
-                <label htmlFor="modificar-cantidad" style={{ fontSize: 13, cursor: 'pointer' }}>
-                  Modificar cantidad recibida
-                </label>
-              </Box>
             </Grid>
             <Grid item xs={6} md={4}>
               <TextField
@@ -511,6 +508,21 @@ function Traspaso() {
               disabled={saving}
             />
           </Box>
+
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Ingresa la Orden de Compra (OC):
+            </Typography>
+            <TextField
+              label="OC"
+              fullWidth
+              value={ocInput}
+              onChange={(e) => setOcInput(e.target.value)}
+              disabled={saving}
+              placeholder="Ej. OC-123456"
+            />
+          </Box>
+
         </DialogContent>
 
         <DialogActions sx={{ pr: 2, pb: 2 }}>

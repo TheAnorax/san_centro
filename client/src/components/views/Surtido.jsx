@@ -314,24 +314,12 @@ function Surtiendo() {
                 `http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`
             );
 
-            if (res.data.ok) {
-                await Swal.fire({
-                    title: "✅ Pedido liberado",
-                    text: `El pedido ${noOrden}-${tipo} se movió correctamente a embarques.`,
-                    icon: "success",
-                    confirmButtonColor: "#3085d6",
-                    confirmButtonText: "Aceptar",
-                });
-
-                // 🔄 Refrescar datos
-                await cargarPedidosSurtiendo();
-                setEmbarques((prev) => prev.filter((p) => p.no_orden !== noOrden));
-            } else {
+            {
                 Swal.fire({
-                    title: "⚠️ Error al finalizar",
-                    text: res.data.message || "No se pudo finalizar el pedido.",
-                    icon: "warning",
-                    confirmButtonColor: "#f39c12",
+                    title: "Liberado",
+                    text: res.data.message || "Pedidos Liberado",
+                    icon: "success",
+                    confirmButtonColor: "#0ee231ff",
                 });
             }
         } catch (err) {
@@ -428,14 +416,6 @@ function Surtiendo() {
             const res = await axios.put(`http://66.232.105.107:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
             if (res.data?.ok) {
                 await Swal.fire({
-                    title: "✅ Pedido liberado",
-                    text: `El pedido ${no_orden} fue liberado correctamente.`,
-                    icon: "success",
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            } else {
-                await Swal.fire({
                     title: "⚠️ No se pudo liberar",
                     text: res.data?.message || "Ocurrió un problema al intentar liberar el pedido.",
                     icon: "warning",
@@ -443,7 +423,7 @@ function Surtiendo() {
                     confirmButtonText: "Entendido"
                 });
             }
-
+ 
         } catch (err) {
             if (err.response?.status === 409) {
                 await Swal.fire({

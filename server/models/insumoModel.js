@@ -109,7 +109,6 @@ async function registrarMovimiento(data) {
   );
 }
 
-// Consultar movimientos por insumo
 function obtenerMovimientosPorInsumo(id_insumos) {
   return db.query(
     `SELECT * FROM movimientos_insumo WHERE id_insumos = ? ORDER BY fecha DESC`,
@@ -117,7 +116,6 @@ function obtenerMovimientosPorInsumo(id_insumos) {
   );
 }
 
-// Consultar todos los movimientos (opcional)
 async function obtenerTodosLosMovimientos() {
   const [rows] = await pool.query(`
     SELECT 
@@ -131,12 +129,65 @@ async function obtenerTodosLosMovimientos() {
   return rows;
 }
 
+// guardar insumos en mi base de datos 
+
+
+async function guardarSolicitud({ codigo, descripcion, cantidad, area, solicitante }) {
+  const query = `
+    INSERT INTO insumos_solicitudes (codigo, descripcion, cantidad, area, solicitante)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+
+  const values = [codigo, descripcion, cantidad, area, solicitante];
+
+  const [result] = await pool.query(query, values);
+  return result;
+}
+
+async function obtenerSolicitudes() {
+  const [rows] = await pool.query(`
+    SELECT * FROM insumos_solicitudes
+    ORDER BY fecha_solicitud DESC
+  `);
+  return rows;
+}
+
+async function actualizarEstadoSolicitud(id, estado) {
+  let campoFecha = estado === "APROBADO" ? "fecha_aprobado" : "fecha_recibido";
+
+  await pool.query(
+    `UPDATE insumos_solicitudes SET estado=?, ${campoFecha}=NOW() WHERE id=?`,
+    [estado, id]
+  );
+
+  return true;
+}
+
+async function guardarSolicitud({ codigo, descripcion, cantidad, area, solicitante }) {
+  const query = `
+    INSERT INTO insumos_solicitudes (codigo, descripcion, cantidad, area, solicitante)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+
+  const values = [codigo, descripcion, cantidad, area, solicitante];
+
+  const [result] = await pool.query(query, values);
+  return result;
+}
+
+
 
 module.exports = {
+  
   insertarInsumo,
   obtenerInsumos,
   actualizarInsumo,
   registrarMovimiento,
   obtenerMovimientosPorInsumo,
-  obtenerTodosLosMovimientos
+  obtenerTodosLosMovimientos,
+  // nuevos insercciones
+  guardarSolicitud,
+  obtenerSolicitudes,
+  actualizarEstadoSolicitud,
+
 };

@@ -9,7 +9,6 @@ const toDateOrNull = (v) => (v ? new Date(v) : null);
 async function handleGuardarTraspaso(req, res) {
   try {
     const {
-      // 👇 ¡LEE TAMBIÉN ESTOS DOS!
       No_Orden,
       tipo_orden,
 
@@ -28,7 +27,11 @@ async function handleGuardarTraspaso(req, res) {
       estado,
       ubicacion,
       usuario_id,
+
+      // 🔥 NUEVOS
       lote,
+      lote_serie,
+      oc
     } = req.body;
 
     // Validación mínima
@@ -41,7 +44,6 @@ async function handleGuardarTraspaso(req, res) {
     }
 
     const payload = {
-      // 👇 reenvía orden y tipo
       No_Orden: No_Orden ?? null,
       tipo_orden: tipo_orden ?? null,
 
@@ -59,10 +61,14 @@ async function handleGuardarTraspaso(req, res) {
       estado: (estado ?? 'F').toUpperCase(),
       ubicacion: String(ubicacion).trim(),
       usuario_id: usuario_id ?? null,
+
+      // 🔥 AHORA SÍ VIAJAN
       lote: lote ?? null,
+      lote_serie: lote_serie ?? null,
+      oc: oc ?? null,
     };
 
-    console.log('guardarTraspaso payload →', payload); // 👈 útil para verificar que llegan
+    console.log('🚀 guardarTraspaso payload →', payload);
 
     const ids = await insertTraspasoRecibido(payload);
     return res.status(201).json({ ok: true, ...ids });
@@ -75,6 +81,7 @@ async function handleGuardarTraspaso(req, res) {
     });
   }
 }
+
 
 async function handleListadoRecibidos(req, res) {
   try {

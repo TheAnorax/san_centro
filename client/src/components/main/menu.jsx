@@ -45,6 +45,7 @@ import Inventario from "../views/inventario"; // Asegúrate de la ruta
 import Bahias from "../views/bahias";
 import Pedidos from "../views/Pedidos";
 import Surtido from "../views/Surtido";
+import Avance from "../views/Avance";
 
 
 
@@ -66,6 +67,7 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import BallotIcon from '@mui/icons-material/Ballot';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import BarChartIcon from '@mui/icons-material/BarChart';
 
 // ? ┌──────────────────────────────────────────────────────┐ ? \\
 // ? │                                                      │ ? \\
@@ -313,6 +315,15 @@ const Menu = () => {
               </li>
             )}
 
+            {puedeVer("Avance") && (
+              <li className="menu-item">
+                <Link to="/menu/Avance" className="menu-link">
+                  <BarChartIcon className="menu-icon" />
+                  {isOpen && <span>Avance</span>}
+                </Link>
+              </li>
+            )}
+
           </ul>
         </nav>
 
@@ -332,6 +343,7 @@ const Menu = () => {
             {puedeVer("bahias") && (<Route path="/bahias" element={<Bahias />} />)}
             {puedeVer("pedidos") && (<Route path="/pedidos" element={<Pedidos />} />)}
             {puedeVer("surtido") && (<Route path="/surtido" element={<Surtido />} />)}
+            {puedeVer("Avance") && (<Route path="/Avance" element={<Avance />} />)}
 
 
           </Routes>

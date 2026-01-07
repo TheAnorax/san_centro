@@ -232,9 +232,6 @@ function InventarioListado() {
                                                         )}
                                                     </TableCell>
                                                 </TableRow>
-
-
-
                                             );
                                         })
                                     )}
@@ -279,6 +276,7 @@ function InventarioListado() {
                             onRowsPerPageChange={handleChangeRowsPerPage}
                             labelRowsPerPage="Filas por página"
                         />
+                        
                     </Paper>
                 )}
             </Box>

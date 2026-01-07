@@ -41,6 +41,34 @@ const Insumos = () => {
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState(initialFormState);
   const [insumos, setInsumos] = useState([]);
+  const [mostrarCeros, setMostrarCeros] = useState(false);
+
+  // 👉 Solicitudes de insumos
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [openModalSolicitudes, setOpenModalSolicitudes] = useState(false);
+
+
+  // 👉 ESTADOS PARA SOLICITAR INSUMOS
+  const [openSolicitud, setOpenSolicitud] = useState(false);
+  const [insumoParaSolicitar, setInsumoParaSolicitar] = useState(null);
+  const [cantidadSolicitud, setCantidadSolicitud] = useState("");
+
+
+  const insumosFiltrados = mostrarCeros
+    ? insumos.filter(i => Number(i.inventario) === 0)
+    : insumos;
+
+  const abrirModalSolicitud = (insumo) => {
+    setInsumoParaSolicitar(insumo);
+    setCantidadSolicitud("");
+    setOpenSolicitud(true);
+  };
+
+  const cerrarModalSolicitud = () => {
+    setOpenSolicitud(false);
+    setInsumoParaSolicitar(null);
+    setCantidadSolicitud("");
+  };
 
   const handleClose = () => {
     setOpen(false);
@@ -236,6 +264,7 @@ const Insumos = () => {
       </Box>
     );
   }
+  
 
   //Mostrar Los datos que se an realizados
   const [openMovimientos, setOpenMovimientos] = useState(false);
@@ -263,7 +292,59 @@ const Insumos = () => {
     setDescInsumo("");
   };
 
+
+  // INSERCCION DE INSUMOS 
+
+  const solicitarInsumo = async (insumo, cantidad) => {
+    const usuarioData = JSON.parse(localStorage.getItem("user") || "{}");
+
+    try {
+      await axios.post("http://66.232.105.107:3001/api/insumos/enviar-solicitud", {
+        codigo: insumo.codigopropuesto,
+        descripcion: insumo.descripcion,
+        cantidad,
+        area: insumo.area,
+        usuario: JSON.stringify(usuarioData)
+      });
+
+      Swal.fire("Enviado", "La solicitud fue enviada correctamente", "success");
+    } catch (e) {
+      Swal.fire("Error", "No se pudo enviar la solicitud", "error");
+    }
+  };
+
+
+  const cargarSolicitudes = async () => {
+    try {
+      const res = await axios.get("http://66.232.105.107:3001/api/insumos/solicitudes");
+      setSolicitudes(res.data);
+    } catch (error) {
+      Swal.fire("Error", "No se pudieron cargar las solicitudes", "error");
+    }
+  };
+
+
+  const actualizarEstado = async (id, nuevoEstado) => {
+    try {
+      await axios.put(`http://66.232.105.107:3001/api/insumos/solicitudes/${id}/${nuevoEstado}`);
+
+      Swal.fire("Correcto", `Solicitud marcada como ${nuevoEstado}`, "success");
+
+      // ⬇⬇⬇ Agregar estas DOS líneas ⬇⬇⬇
+      cargarSolicitudes();           // refresca la tabla
+      setOpenModalSolicitudes(false); // Cierra el modal
+
+    } catch (e) {
+      Swal.fire("Error", "No se pudo actualizar la solicitud", "error");
+    }
+  };
+
+
+
+
+
   return (
+
     <div className="place_holder-container fade-in">
 
       <div className="place_holder-header">
@@ -277,6 +358,7 @@ const Insumos = () => {
         <Box sx={{ p: 3 }}>
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+
             <Button
               variant="outlined"
               startIcon={<FaPlus />}
@@ -304,14 +386,34 @@ const Insumos = () => {
               Ver Movimientos
             </Button>
 
+            <Button
+              variant="outlined"
+              color={mostrarCeros ? "error" : "success"}
+              onClick={() => setMostrarCeros(!mostrarCeros)}
+            >
+              {mostrarCeros ? "Mostrar Todos" : "Inventario en 0"}
+            </Button>
+
+
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => {
+                cargarSolicitudes();
+                setOpenModalSolicitudes(true);
+              }}
+            >
+              Ver Solicitudes
+            </Button>
 
 
           </Box>
 
           {/* Tabla de Insumos  */}
-          <Box sx={{ mt: 2 }}>
-            <Paper elevation={1} sx={{ width: '100%', overflow: 'auto' }}>
-              <Table size="small">
+          <Paper elevation={1} sx={{ width: '100%' }}>
+            <Box sx={{ maxHeight: 820, overflowY: 'auto' }}>   {/* 👈 SCROLL */}
+              <Table size="small" stickyHeader>
+
                 <TableHead>
                   <TableRow>
                     <TableCell>Código</TableCell>
@@ -328,8 +430,15 @@ const Insumos = () => {
                       <TableCell colSpan={6} align="center">Sin registros</TableCell>
                     </TableRow>
                   ) : (
-                    insumos.map((row, idx) => (
-                      <TableRow key={idx}>
+                    insumosFiltrados.map((row, idx) => (
+
+                      <TableRow
+                        key={idx}
+                        sx={{
+                          backgroundColor: Number(row.inventario) === 0 ? "#ffc0c0ff" : "inherit",
+                        }}
+                      >
+
                         <TableCell>{row.codigopropuesto}</TableCell>
                         <TableCell>{row.descripcion}</TableCell>
                         <TableCell>{row.um}</TableCell>
@@ -357,6 +466,19 @@ const Insumos = () => {
                           >
                             CONSUMIR
                           </Button>
+
+
+                          <Button
+                            variant="contained"
+                            size="small"
+                            color="primary"
+                            onClick={() => abrirModalSolicitud(row)}
+                            sx={{ mr: 1, mb: 1 }}
+                          >
+                            SOLICITAR
+                          </Button>
+
+
                         </TableCell>
 
 
@@ -365,8 +487,9 @@ const Insumos = () => {
                   )}
                 </TableBody>
               </Table>
-            </Paper>
-          </Box>
+            </Box>
+          </Paper>
+
 
           {/* Modal para crear/editar insumo */}
           <Dialog open={open} onClose={handleClose} PaperProps={{ sx: { minWidth: 400 } }}>
@@ -441,6 +564,7 @@ const Insumos = () => {
             </DialogActions>
           </Dialog>
 
+
           {/* Entrada y salida de insumos*/}
           <Dialog open={openMovimiento} onClose={handleCloseMovimiento} maxWidth="xs">
             <DialogTitle>
@@ -459,6 +583,7 @@ const Insumos = () => {
               )}
             </DialogContent>
           </Dialog>
+
 
           {/* Mostrar Movimientos realizados*/}
           <Dialog
@@ -576,11 +701,142 @@ const Insumos = () => {
           </Dialog>
 
 
+
+          {/* SOLICITUD DE INSUMOS  */}
+          <Dialog open={openSolicitud} onClose={cerrarModalSolicitud} maxWidth="xs" fullWidth>
+            <DialogTitle>Solicitar Insumo</DialogTitle>
+
+            <DialogContent>
+              {insumoParaSolicitar && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body1"><strong>Código:</strong> {insumoParaSolicitar.codigopropuesto}</Typography>
+                  <Typography variant="body1"><strong>Descripción:</strong> {insumoParaSolicitar.descripcion}</Typography>
+                  <Typography variant="body1"><strong>Área:</strong> {insumoParaSolicitar.area}</Typography>
+
+                  <TextField
+                    fullWidth
+                    label="Cantidad a solicitar"
+                    type="number"
+                    value={cantidadSolicitud}
+                    onChange={(e) => setCantidadSolicitud(e.target.value)}
+                    sx={{ mt: 2 }}
+                  />
+                </Box>
+              )}
+            </DialogContent>
+
+            <DialogActions>
+              <Button onClick={cerrarModalSolicitud} color="error">
+                Cancelar
+              </Button>
+
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={async () => {
+                  if (!cantidadSolicitud || Number(cantidadSolicitud) <= 0) {
+                    Swal.fire("Error", "Ingresa una cantidad válida", "warning");
+                    return;
+                  }
+
+                  await solicitarInsumo(insumoParaSolicitar, cantidadSolicitud);
+                  cerrarModalSolicitud();
+                }}
+              >
+                ENVIAR SOLICITUD
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+
+          {/* MODAL DE SOLICITUDES */}
+          <Dialog open={openModalSolicitudes} onClose={() => setOpenModalSolicitudes(false)} maxWidth="md" fullWidth>
+            <DialogTitle>Solicitudes de Insumos</DialogTitle>
+
+            <DialogContent>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Código</TableCell>
+                    <TableCell>Descripción</TableCell>
+                    <TableCell>Cantidad</TableCell>
+                    <TableCell>Área</TableCell>
+                    <TableCell>Solicitante</TableCell>
+                    <TableCell>Estado</TableCell>
+                    <TableCell>Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
+
+                <TableBody>
+                  {solicitudes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center">No hay solicitudes</TableCell>
+                    </TableRow>
+                  ) : (
+                    solicitudes.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell>{s.codigo}</TableCell>
+                        <TableCell>{s.descripcion}</TableCell>
+                        <TableCell>{s.cantidad}</TableCell>
+                        <TableCell>{s.area}</TableCell>
+                        <TableCell>{s.solicitante}</TableCell>
+
+                        <TableCell>
+                          {s.estado === "SOLICITADO" && (
+                            <span style={{ color: "orange", fontWeight: "bold" }}>SOLICITADO</span>
+                          )}
+                          {s.estado === "APROBADO" && (
+                            <span style={{ color: "blue", fontWeight: "bold" }}>APROBADO</span>
+                          )}
+                          {s.estado === "RECIBIDO" && (
+                            <span style={{ color: "green", fontWeight: "bold" }}>RECIBIDO</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          {s.estado === "SOLICITADO" && (
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              onClick={() => actualizarEstado(s.id, "APROBADO")}
+                              sx={{ mr: 1 }}
+                            >
+                              Aprobar
+                            </Button>
+                          )}
+
+                          {s.estado === "APROBADO" && (
+                            <Button
+                              variant="contained"
+                              color="success"
+                              onClick={() => actualizarEstado(s.id, "RECIBIDO")}
+                            >
+                              Recibido
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </DialogContent>
+
+            <DialogActions>
+              <Button onClick={() => setOpenModalSolicitudes(false)} color="error">
+                Cerrar
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+
+
         </Box>
       </div>
 
 
     </div>
+
   );
 };
 
