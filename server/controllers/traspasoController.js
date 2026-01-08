@@ -2,6 +2,7 @@
 const {
   insertTraspasoRecibido,
   handleObtenerRecibidos,
+  getInventarioPorCodigo
 } = require('../models/traspasoModel');
 
 const toDateOrNull = (v) => (v ? new Date(v) : null);
@@ -96,8 +97,39 @@ async function handleListadoRecibidos(req, res) {
   }
 }
 
+async function handleGetInventarioPorCodigo(req, res) {
+  try {
+    const { codigo } = req.params;
+
+    if (!codigo) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Código es requerido'
+      });
+    }
+
+    const data = await getInventarioPorCodigo(codigo);
+
+    if (data) {
+      return res.json({ ok: true, data });
+    } else {
+      return res.json({ ok: false, data: null });
+    }
+
+  } catch (error) {
+    console.error('Error en handleGetInventarioPorCodigo:', error);
+    return res.status(500).json({
+      ok: false,
+      message: 'Error al consultar inventario',
+      error: error.message
+    });
+  }
+}
+
+
+
 module.exports = {
   handleGuardarTraspaso,
   handleListadoRecibidos,
+  handleGetInventarioPorCodigo
 };
- 

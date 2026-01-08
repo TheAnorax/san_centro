@@ -77,13 +77,15 @@ function Traspaso() {
   const [errorSave, setErrorSave] = useState('');
   const [traspasoSeleccionado, setTraspasoSeleccionado] = useState(null);
 
-  const [page, setPage] = useState(0);
-  const [groupsPerPage, setGroupsPerPage] = useState(1);
 
   const [modificarCantidad, setModificarCantidad] = useState(false);
   const [cantidadModificada, setCantidadModificada] = useState('');
 
   const [ocInput, setOcInput] = useState('');
+
+  const CHUNK_SIZE = 50;
+  const [visibleCount, setVisibleCount] = useState(CHUNK_SIZE);
+
 
 
   useEffect(() => {
@@ -103,14 +105,16 @@ function Traspaso() {
       const listaRecibidos = resRecibidos.data || [];
 
       // clave incluye No_Orden para no mezclar órdenes distintas
-      const keyRec = (r) => `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
+      const keyRec = (r) => `${r.No_Orden}|${r.Codigo}`;
       const setRecibidosKey = new Set(listaRecibidos.map(keyRec));
+
       const ubicacionMap = new Map(
         listaRecibidos.map(r => [keyRec(r), r.ubicacion])
       );
 
+
       const fusionado = listaPendientes.map(r => {
-        const key = `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
+        const key = `${r.No_Orden}|${r.Codigo}`;
         if (setRecibidosKey.has(key)) {
           return { ...r, estado: 'F', ubicacion: ubicacionMap.get(key) || '' };
         }
@@ -118,7 +122,6 @@ function Traspaso() {
       });
 
       setRegistros(fusionado);
-      setPage(0);
     } catch (err) {
       console.error('Error al obtener traspasos:', err);
       setErrorFetch('No se pudieron cargar los registros de traspaso.');
@@ -127,14 +130,34 @@ function Traspaso() {
     }
   };
 
-  const handleOpenDialog = (registro) => {
+  const handleOpenDialog = async (registro) => {
     setTraspasoSeleccionado(registro);
-    setUbicacionInput('');
     setErrorSave('');
     setModificarCantidad(false);
     setCantidadModificada(registro.Cantidad || '');
+
+    try {
+      const res = await axios.get(
+        `${API_TRASPASO}/inventario-por-codigo/${registro.Codigo}`
+      );
+
+      if (res.data.ok && res.data.data) {
+        setUbicacionInput(res.data.data.ubicacion || '');
+        setOcInput(res.data.data.oc || '');
+      } else {
+        setUbicacionInput('');
+        setOcInput('');
+      }
+
+    } catch (error) {
+      console.error('Error al consultar inventario:', error);
+      setUbicacionInput('');
+      setOcInput('');
+    }
+
     setDialogOpen(true);
   };
+
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
@@ -249,12 +272,38 @@ function Traspaso() {
     return entries; // [ [noOrden, items[]], ... ]
   }, [registrosOrdenados]);
 
-  const paginatedGroups = useMemo(() => {
-    const start = page * groupsPerPage;
-    return grupos.slice(start, start + groupsPerPage);
-  }, [grupos, page, groupsPerPage]);
-
   const TOTAL_COLS = 14;
+
+  //mostrar los que ya se recibieron o ocultarlos 
+  const [verRecibidos, setVerRecibidos] = useState(false);
+
+  const gruposPendientes = grupos.map(([noOrden, items]) => [
+    noOrden,
+    items.filter(r => (r.estado || '').toUpperCase() !== 'F')
+  ]).filter(([_, items]) => items.length > 0);
+
+  const gruposRecibidos = grupos.map(([noOrden, items]) => [
+    noOrden,
+    items.filter(r => (r.estado || '').toUpperCase() === 'F')
+  ]).filter(([_, items]) => items.length > 0);
+
+
+  const gruposVisibles = useMemo(() => {
+    const source = verRecibidos ? gruposRecibidos : gruposPendientes;
+
+    let count = 0;
+    const resultado = [];
+
+    for (const [noOrden, items] of source) {
+      if (count >= visibleCount) break;
+
+      resultado.push([noOrden, items]);
+      count += items.length;
+    }
+
+    return resultado;
+  }, [verRecibidos, gruposPendientes, gruposRecibidos, visibleCount]);
+
 
   return (
 
@@ -291,6 +340,25 @@ function Traspaso() {
         {!loadingFetch && !errorFetch && (
           <>
             {/* Tabla con scroll y header sticky */}
+
+            <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => setVerRecibidos(false)}
+              >
+                Ver pendientes
+              </Button>
+
+              <Button
+                variant="outlined"
+                color="success"
+                onClick={() => setVerRecibidos(true)}
+              >
+                Ver recibidos
+              </Button>
+            </Stack>
+
             <TableContainer
               component={Paper}
               sx={{ mt: 2, flex: 1, minHeight: 0, overflow: 'auto' }}
@@ -316,7 +384,8 @@ function Traspaso() {
                 </TableHead>
 
                 <TableBody>
-                  {paginatedGroups.map(([noOrden, items]) => (
+                  {gruposVisibles.map(([noOrden, items]) => (
+
                     <React.Fragment key={`group-${noOrden}`}>
                       {/* Cabecera de grupo */}
                       <TableRow sx={{ background: '#f7f9fc' }}>
@@ -400,20 +469,6 @@ function Traspaso() {
               </Table>
             </TableContainer>
 
-            {/* Paginación por grupos (fuera del contenedor scrollable) */}
-            <TablePagination
-              component="div"
-              count={grupos.length}
-              page={page}
-              onPageChange={(event, newPage) => setPage(newPage)}
-              rowsPerPage={groupsPerPage}
-              onRowsPerPageChange={(event) => {
-                setGroupsPerPage(parseInt(event.target.value, 10));
-                setPage(0);
-              }}
-              rowsPerPageOptions={[1, 2, 3, 5]}
-              labelRowsPerPage="Órdenes por página:"
-            />
 
           </>
         )}

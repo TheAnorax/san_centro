@@ -1217,6 +1217,7 @@ function Surtiendo() {
                                                                 <TableCell>Cantidad</TableCell>
                                                                 <TableCell>Cant. Surtida</TableCell>
                                                                 <TableCell>Cant. No Enviada</TableCell>
+                                                                <TableCell>Motivo</TableCell>
                                                             </TableRow>
                                                         </TableHead>
                                                         <TableBody>
@@ -1226,6 +1227,7 @@ function Surtiendo() {
                                                                     <TableCell>{prod.cantidad}</TableCell>
                                                                     <TableCell>{prod.cant_surtida}</TableCell>
                                                                     <TableCell>{prod.cant_no_enviada}</TableCell>
+                                                                    <TableCell>{prod.motivo}</TableCell>
                                                                 </TableRow>
                                                             ))}
                                                         </TableBody>
@@ -1377,6 +1379,9 @@ function Surtiendo() {
                                                         <TableHead>
                                                             <TableRow>
                                                                 <TableCell>Código</TableCell>
+                                                                <TableCell>Cantidad</TableCell>
+                                                                <TableCell>Cantidad Surtida</TableCell>
+                                                                <TableCell>Cantidad No Surtida</TableCell>
                                                                 <TableCell>PZ</TableCell>
                                                                 <TableCell>PQ</TableCell>
                                                                 <TableCell>INNER</TableCell>
@@ -1391,6 +1396,9 @@ function Surtiendo() {
                                                             {pedido.productos.map((prod, idx) => (
                                                                 <TableRow key={prod.codigo_pedido + idx}>
                                                                     <TableCell>{prod.codigo_pedido}</TableCell>
+                                                                    <TableCell>{prod.cantidad}</TableCell>
+                                                                    <TableCell>{prod.cant_surtida}</TableCell>
+                                                                    <TableCell>{prod.cant_no_enviada}</TableCell>
                                                                     <TableCell>{prod._pz}</TableCell>
                                                                     <TableCell>{prod._pq}</TableCell>
                                                                     <TableCell>{prod._inner}</TableCell>

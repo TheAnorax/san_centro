@@ -46,8 +46,8 @@ async function solicitarProducto(req, res) {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: "j72525264@gmail.com",
-        pass: "bzgq ssbm nomh sqtw",
+        user: "crossdoog@gmail.com",
+        pass: "lrzm nkgj ysbi gmpt",
       },
     });
 
@@ -60,8 +60,11 @@ async function solicitarProducto(req, res) {
       solicitante,
     });
 
+    // ⏱️ INICIA EL TIMER
+    console.time("envioCorreo");
+
     await transporter.sendMail({
-      from: '" 📦 Inventario Almacen 7041" <j72525264@gmail.com>',
+      from: '" 📦 Inventario Almacen 7240" <crossdoog@gmail.com>',
       to: DESTINATARIOS.join(", "),
       subject: `Solicitud de reposición · Código: ${codigo}`,
       html,
@@ -69,10 +72,13 @@ async function solicitarProducto(req, res) {
         {
           filename: "logob.png",
           path: __dirname + "/../assets/logob.png",
-          cid: "logo_santul" // 🔥 IGUAL AL HTML
+          cid: "logo_santul"
         }
       ]
     });
+
+    // ⏱️ TERMINA EL TIMER
+    console.timeEnd("envioCorreo");
 
     return res.json({
       success: true,
@@ -88,6 +94,7 @@ async function solicitarProducto(req, res) {
     });
   }
 }
+
 
 module.exports = {
   todosLosInventarios,

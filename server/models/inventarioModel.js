@@ -9,7 +9,9 @@ const obtenerInventario = async () => {
       i.almacen,
       i.cant_stock_real,
       i.ingreso,
-      p.descripcion                           AS descripcion
+      p.descripcion                           AS descripcion,
+      i.oc,
+      i.lote_serie
     FROM inventario AS i
     LEFT JOIN productos AS p
       ON p.codigo = CAST(i.codigo_producto AS UNSIGNED)  -- normaliza tipo

@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-const { handleGuardarTraspaso, handleListadoRecibidos } = require('../controllers/traspasoController');
+const { handleGuardarTraspaso, handleListadoRecibidos, handleGetInventarioPorCodigo } = require('../controllers/traspasoController');
 
 const RH_BASE_URL = process.env.RH_BASE_URL || 'http://66.232.105.87:3007/api/RH';
 
@@ -20,6 +20,8 @@ router.get('/pendientes', async (req, res) => {
         res.status(status).json({ ok: false, error: 'Proxy RH falló', detail: err.message });
     }
 });
+
+router.get('/inventario-por-codigo/:codigo', handleGetInventarioPorCodigo);
 
 
 module.exports = router;

@@ -2,7 +2,7 @@ const pool = require('../db');
 
 const actualizarCantidadNoSurtida = async (req, res) => {
   const { pedido, producto, codigo_ped, nuevaCantidadSurtida, motivo } = req.body;
-  const estado = "C";
+  const estado = "S";
 
   const selectQuery = `
     SELECT cantidad, cant_surtida, codigo_pedido, no_orden

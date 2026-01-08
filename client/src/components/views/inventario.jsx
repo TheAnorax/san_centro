@@ -178,6 +178,8 @@ function InventarioListado() {
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Descripcion</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Ubicación</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Cantidad Stock</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Pedimento</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>OC</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Ingreso</TableCell>
                                     </TableRow>
                                 </TableHead>
@@ -211,6 +213,8 @@ function InventarioListado() {
                                                     <TableCell>{row.descripcion}</TableCell>
                                                     <TableCell>{row.ubicacion}</TableCell>
                                                     <TableCell>{qty}</TableCell>
+                                                    <TableCell>{row.lote_serie}</TableCell>
+                                                    <TableCell>{row.oc}</TableCell>
                                                     <TableCell>
                                                         {row.ingreso && (
                                                             <span>{new Date(row.ingreso).toLocaleString()}</span>
