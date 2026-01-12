@@ -25,4 +25,4 @@ const BahiaModel = {
     },
 };
 
-module.exports = BahiaModel;
+module.exports = BahiaModel; 

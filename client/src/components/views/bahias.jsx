@@ -6,18 +6,18 @@ const gridMap = ['A', 'B', 'C', 'D', 'E'];
 const filas = [1, 2, 3, 4, 5];
 
 const coloresEstado = {
-    1: '#e53935',   // Rojo - Ocupado
-    2: '#ffb300',   // Amarillo - En tránsito
-    3: '#2e7d32',   // Verde - Libre
+    1: '#ffb300',   // Rojo - Ocupado
+    2: '#2f00ffff',   // Amarillo - En tránsito
+    3: '#2f00ffff',   // Verde - Libre
     null: '#e0e0e0', // Gris - Sin Ingreso
     undefined: '#e0e0e0',
     '': '#e0e0e0',
 };
 
 const labelsEstado = {
-    1: 'Ocupado',
+    1: 'Surtiendo',
     2: 'En tránsito',
-    3: 'Libre',
+    3: 'En tránsito',
     null: 'Sin Ingreso',
     undefined: 'Sin Ingreso',
     '': 'Sin Ingreso',

@@ -58,6 +58,10 @@ const Usuarios = ({ isSwitching }) => {
     const [qrEmailUrl, setQrEmailUrl] = useState("");
     const [qrPassUrl, setQrPassUrl] = useState("");
 
+    const userData = JSON.parse(localStorage.getItem("user"));
+    const userRole = userData?.rol; // o userData?.rol
+
+
     const mostrarAlerta = (mensaje, tipo = "success") => setAlerta({ open: true, mensaje, tipo });
     const cerrarAlerta = () => setAlerta((a) => ({ ...a, open: false }));
 
@@ -332,20 +336,28 @@ const Usuarios = ({ isSwitching }) => {
                         >
                             Agregar usuario
                         </Button>
-                        <Button
-                            variant="outlined"
-                            sx={{ textTransform: "none", fontWeight: "bold" }}
-                            onClick={() => setOpenRolesModal(true)}
-                        >
-                            Administrar Roles
-                        </Button>
-                        <Button
-                            variant="text"
-                            sx={{ textTransform: "none", fontWeight: "bold", color: "#616161" }}
-                            onClick={() => setOpenPermisos(true)}
-                        >
-                            Permisos
-                        </Button>
+
+                        {userRole === "admin" && (
+                            <Button
+                                variant="outlined"
+                                sx={{ textTransform: "none", fontWeight: "bold" }}
+                                onClick={() => setOpenRolesModal(true)}
+                            >
+                                Administrar Roles
+                            </Button>
+                        )}
+
+                        {userRole === "admin" && (
+                            <Button
+                                variant="text"
+                                sx={{ textTransform: "none", fontWeight: "bold", color: "#616161" }}
+                                onClick={() => setOpenPermisos(true)}
+                            >
+                                Permisos
+                            </Button>
+                        )}
+
+
                     </Box>
                 </Box>
 
@@ -391,16 +403,26 @@ const Usuarios = ({ isSwitching }) => {
                                                     <TableCell>{user.turno}</TableCell>
                                                     <TableCell>
                                                         <Box display="flex" gap={1}>
-                                                            <IconButton size="small" onClick={() => handleOpenDialog(user)} sx={{ color: "#1976d2" }}>
-                                                                <EditIcon />
-                                                            </IconButton>
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => handleEliminarUsuario(user.id)}
-                                                                sx={{ color: "#d32f2f" }}
-                                                            >
-                                                                <DeleteIcon />
-                                                            </IconButton>
+                                                            {userRole === "admin" && (
+                                                                <>
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        onClick={() => handleOpenDialog(user)}
+                                                                        sx={{ color: "#1976d2" }}
+                                                                    >
+                                                                        <EditIcon />
+                                                                    </IconButton>
+
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        onClick={() => handleEliminarUsuario(user.id)}
+                                                                        sx={{ color: "#d32f2f" }}
+                                                                    >
+                                                                        <DeleteIcon />
+                                                                    </IconButton>
+                                                                </>
+                                                            )}
+
 
                                                             <IconButton
                                                                 size="small"
@@ -589,7 +611,7 @@ const Usuarios = ({ isSwitching }) => {
 
             <SnackbarAlert open={alerta.open} mensaje={alerta.mensaje} tipo={alerta.tipo} onClose={cerrarAlerta} />
             <AdminPermisos open={openPermisos} onClose={() => setOpenPermisos(false)} onGuardado={() => setOpenPermisos(false)} />
-                
+
         </div>
     );
 };

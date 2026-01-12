@@ -20,7 +20,7 @@ const BahiaController = {
         }
         try {
             await BahiaModel.liberar(id_bahia);
-            res.json({ success: true, message: 'Bahía liberada' });
+            res.json({ success: true, message: 'Bahía liberada' }); 
         } catch (error) {
             res.status(500).json({ error: 'Error al liberar la bahía' });
         }

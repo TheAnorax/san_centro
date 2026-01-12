@@ -11,6 +11,7 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import JsBarcode from "jsbarcode";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 
 
 const Productos = ({ isSwitching }) => {
@@ -31,6 +32,9 @@ const Productos = ({ isSwitching }) => {
     img_pz: "", img_pq: "", img_inner: "", img_master: ""
   });
   const [productoId, setProductoId] = useState(null);
+
+  const userData = JSON.parse(localStorage.getItem("user"));
+  const userRole = userData?.rol; // o userData?.rol
 
   useEffect(() => {
     setAnimationClass(isSwitching ? "slide-out-down" : "fade-in");
@@ -148,11 +152,13 @@ const Productos = ({ isSwitching }) => {
       renderCell: (params) => (
         <>
           <Button size="small" color="primary" onClick={() => abrirDialog(params.row)}>
-            <EditIcon fontSize="small" />
+            <VisibilityIcon fontSize="small" />
           </Button>
-          <Button size="small" color="error" onClick={() => eliminarProducto(params.row.id)}>
-            <DeleteIcon fontSize="small" />
-          </Button>
+          {userRole === "admin" && (
+            <Button size="small" color="error" onClick={() => eliminarProducto(params.row.id)}>
+              <DeleteIcon fontSize="small" />
+            </Button>
+          )}
         </>
       ),
     }
@@ -201,7 +207,9 @@ const Productos = ({ isSwitching }) => {
           <Paper elevation={4} sx={{ borderRadius: 3, p: 2 }}>
             <Box display="flex" justifyContent="space-between" mb={2}>
               <Typography variant="h6" fontWeight="bold">Lista de productos</Typography>
-              <Button variant="contained" startIcon={<AddIcon />} color="primary" onClick={() => abrirDialog()}>Nuevo producto</Button>
+              {userRole === "admin" && (
+                <Button variant="contained" startIcon={<AddIcon />} color="primary" onClick={() => abrirDialog()}>Nuevo producto</Button>
+              )}
             </Box>
             <Divider sx={{ mb: 2 }} />
             <TextField label="Buscar" variant="outlined" size="small" value={search} onChange={handleSearchChange} sx={{ mb: 2, width: 300 }} />
@@ -278,9 +286,11 @@ const Productos = ({ isSwitching }) => {
         >
           {!modoEdicion && (
             <Box display="flex" justifyContent="flex-end" mt={2}>
-              <Button variant="outlined" color="warning" onClick={() => setModoEdicion(true)}>
-                Habilitar edición
-              </Button>
+              {userRole === "admin" && (
+                <Button variant="outlined" color="warning" onClick={() => setModoEdicion(true)}>
+                  Habilitar edición
+                </Button>
+              )}
             </Box>
           )}
 
