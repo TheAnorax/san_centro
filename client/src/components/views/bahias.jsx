@@ -48,7 +48,7 @@ function BahiasTablero() {
     const [bahias, setBahias] = useState([]);
 
     const cargarBahias = () => {
-        fetch('http://66.232.105.107:3001/api/bahia/Obtener')
+        fetch('http:// :3001/api/bahia/Obtener')
             .then((res) => res.json())
             .then(setBahias);
     };

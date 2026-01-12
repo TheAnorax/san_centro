@@ -86,6 +86,7 @@ function Traspaso() {
   const CHUNK_SIZE = 50;
   const [visibleCount, setVisibleCount] = useState(CHUNK_SIZE);
 
+  const [modoUbicacion, setModoUbicacion] = useState('SUMAR'); // 'SUMAR' | 'NUEVA'
 
 
   useEffect(() => {
@@ -475,10 +476,10 @@ function Traspaso() {
       </Box>
 
 
-
       {/* Modal Guardar Traspaso */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Guardar Traspaso</DialogTitle>
+
         <DialogContent dividers>
           {errorSave && (
             <Box sx={{ mb: 2 }}>
@@ -503,21 +504,27 @@ function Traspaso() {
             <Grid item xs={6} md={3}>
               <TextField label="Código" fullWidth value={registroActual.Codigo || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
+
             <Grid item xs={6} md={5}>
               <TextField label="Descripción" fullWidth value={registroActual.Descripcion || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
+
             <Grid item xs={6} md={2}>
               <TextField label="Clave" fullWidth value={registroActual.Clave || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
+
             <Grid item xs={6} md={2}>
               <TextField label="Pedimento" fullWidth value={registroActual.lote_serie || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
+
             <Grid item xs={6} md={2}>
               <TextField label="UM" fullWidth value={registroActual.um || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
+
             <Grid item xs={6} md={2}>
               <TextField label="_pz" fullWidth value={registroActual._pz != null ? registroActual._pz : ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
+
             <Grid item xs={6} md={2}>
               <TextField
                 label="Cantidad"
@@ -528,6 +535,7 @@ function Traspaso() {
                 size="small"
               />
             </Grid>
+
             <Grid item xs={6} md={4}>
               <TextField
                 label="Día de Envío"
@@ -537,9 +545,11 @@ function Traspaso() {
                 size="small"
               />
             </Grid>
+
             <Grid item xs={6} md={4}>
               <TextField label="Almacén Envío" fullWidth value={registroActual.almacen_envio || ''} InputProps={{ readOnly: true }} size="small" />
             </Grid>
+
             <Grid item xs={6} md={4}>
               <TextField
                 label="Llegada Estimada"
@@ -551,43 +561,94 @@ function Traspaso() {
             </Grid>
           </Grid>
 
+          {/* =======================
+        MODO UBICACIÓN
+    ======================= */}
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+              ¿Cómo deseas guardar este producto?
+            </Typography>
+
+            <Stack direction="row" spacing={2}>
+              <Button
+                variant={modoUbicacion === 'SUMAR' ? 'contained' : 'outlined'}
+                color="primary"
+                onClick={() => setModoUbicacion('SUMAR')}
+              >
+                Sumar en misma ubicación
+              </Button>
+
+              <Button
+                variant={modoUbicacion === 'NUEVA' ? 'contained' : 'outlined'}
+                color="secondary"
+                onClick={() => {
+                  setModoUbicacion('NUEVA');
+                  setUbicacionInput('');
+                }}
+              >
+                Guardar en nueva ubicación
+              </Button>
+            </Stack>
+          </Box>
+
+          {/* =======================
+        UBICACIÓN
+    ======================= */}
           <Box sx={{ mt: 3 }}>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              Ingresa la ubicación donde se guardó este traspaso:
+              Ubicación:
             </Typography>
+
             <TextField
               label="Ubicación"
               fullWidth
               value={ubicacionInput}
               onChange={(e) => setUbicacionInput(e.target.value)}
-              disabled={saving}
+              disabled={saving || modoUbicacion === 'SUMAR'}
+              helperText={
+                modoUbicacion === 'SUMAR'
+                  ? 'Se usará la ubicación existente'
+                  : 'Ingresa la nueva ubicación'
+              }
             />
           </Box>
 
+          {/* =======================
+        OC
+    ======================= */}
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              Ingresa la Orden de Compra (OC):
+              Orden de Compra (OC):
             </Typography>
+
             <TextField
               label="OC"
               fullWidth
               value={ocInput}
               onChange={(e) => setOcInput(e.target.value)}
               disabled={saving}
-              placeholder="Ej. OC-123456"
+              placeholder="Ej. 3321"
             />
           </Box>
 
         </DialogContent>
 
         <DialogActions sx={{ pr: 2, pb: 2 }}>
-          <Button onClick={handleCloseDialog} disabled={saving}>Cancelar</Button>
-          <Button onClick={handleGuardarUbicacion} variant="contained" color="primary" disabled={saving || !ubicacionInput.trim()}>
+          <Button onClick={handleCloseDialog} disabled={saving}>
+            Cancelar
+          </Button>
+
+          <Button
+            onClick={handleGuardarUbicacion}
+            variant="contained"
+            color="primary"
+            disabled={saving || !ubicacionInput.trim()}
+          >
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
         </DialogActions>
-
       </Dialog>
+
 
     </div>
 

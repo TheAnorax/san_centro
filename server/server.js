@@ -32,6 +32,12 @@ app.use((req, res, next) => {
   next();
 });
 
+const path = require('path');
+
+app.use('/uploads/activos', express.static(path.join(__dirname, 'uploads/activos')));
+
+
+
 const authRoutes = require("./routes/authRoutes");
 const usuarioRoutes = require('./routes/usuarioRoutes');
 const rolesRoutes = require('./routes/roles');
@@ -44,6 +50,7 @@ const bahiaRouter = require('./routes/bahiaRouter');
 const pedidosRouter = require('./routes/pedidosRouter');
 const surtidoRouter = require('./routes/surtidoRoutes');
 const kpiRouter = require('./routes/kpiRouter');
+const activosRouter = require('./routes/activosRoutes');
 
 app.use('/api/productos', productosRoutes);
 app.use('/api/usuarios', usuarioRoutes);
@@ -57,6 +64,7 @@ app.use('/api/bahia', bahiaRouter);
 app.use('/api/pedidos', pedidosRouter);
 app.use('/api/surtido', surtidoRouter);
 app.use('/api/kpi', kpiRouter);
+app.use('/api/activos', activosRouter);
 
 
 

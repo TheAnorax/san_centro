@@ -34,6 +34,7 @@ import logo_sancedch_blanco from "../../img/general/logo_SanCed_CH.png";
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 
 
+
 // se importan los componentes a mostr en el menu y placeholder que es la base de todos
 // ? Importar otras interfaces ? \\
 import PlaceHolder from "../views/place_holder";
@@ -46,6 +47,7 @@ import Bahias from "../views/bahias";
 import Pedidos from "../views/Pedidos";
 import Surtido from "../views/Surtido";
 import Avance from "../views/Avance";
+import Activo from "../views/Activos";
 
 
 
@@ -68,6 +70,8 @@ import GridOnIcon from '@mui/icons-material/GridOn';
 import BallotIcon from '@mui/icons-material/Ballot';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import CategoryIcon from '@mui/icons-material/Category';
 
 // ? ┌──────────────────────────────────────────────────────┐ ? \\
 // ? │                                                      │ ? \\
@@ -255,7 +259,7 @@ const Menu = () => {
             {puedeVer("productos") && (
               <li className="menu-item">
                 <Link to="/menu/productos" className="menu-link">
-                  <Inventory2Icon className="menu-icon" />
+                  <CategoryIcon className="menu-icon" />
                   {isOpen && <span>Productos</span>}
                 </Link>
               </li>
@@ -282,7 +286,7 @@ const Menu = () => {
             {puedeVer("inventario") && (
               <li className="menu-item">
                 <Link to="/menu/inventario" className="menu-link">
-                  <WarehouseIcon className="menu-icon" />
+                  <InventoryIcon className="menu-icon" />
                   {isOpen && <span>Inventario</span>}
                 </Link>
               </li>
@@ -324,6 +328,16 @@ const Menu = () => {
               </li>
             )}
 
+            {puedeVer("Activo") && (
+              <li className="menu-item">
+                <Link to="/menu/Activo" className="menu-link">
+                  <WarehouseIcon className="menu-icon" />
+                  {isOpen && <span>Activos</span>}
+                </Link>
+              </li>
+            )}
+
+
           </ul>
         </nav>
 
@@ -344,6 +358,7 @@ const Menu = () => {
             {puedeVer("pedidos") && (<Route path="/pedidos" element={<Pedidos />} />)}
             {puedeVer("surtido") && (<Route path="/surtido" element={<Surtido />} />)}
             {puedeVer("Avance") && (<Route path="/Avance" element={<Avance />} />)}
+            {puedeVer("Activo") && (<Route path="/Activo" element={<Activo />} />)}
 
 
           </Routes>
