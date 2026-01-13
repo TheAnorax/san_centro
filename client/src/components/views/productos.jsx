@@ -143,7 +143,7 @@ const Productos = ({ isSwitching }) => {
     { field: "_pz", headerName: "Cantidad en Pieza", width: 100 },
     { field: "_inner", headerName: "Cantidad en INNER", width: 100 },
     { field: "_master", headerName: "Cantidad en MASTER", width: 100 },
-    { field: "ubicacion", headerName: "Ubicaccion", width: 100 },
+    { field: "ubicacion", headerName: "Ubicaccion", width: 150 },
     { field: "cant_stock_real", headerName: "Inventario", width: 100 },
     {
       field: "acciones",
