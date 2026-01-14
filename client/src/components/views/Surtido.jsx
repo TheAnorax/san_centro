@@ -416,10 +416,10 @@ function Surtiendo() {
             const res = await axios.put(`http://66.232.105.107:3001/api/surtido/liberar-usuario-paqueteria`, { no_orden });
             if (res.data?.ok) {
                 await Swal.fire({
-                    title: "⚠️ No se pudo liberar",
-                    text: res.data?.message || "Ocurrió un problema al intentar liberar el pedido.",
-                    icon: "warning",
-                    confirmButtonColor: "#f39c12",
+                    title: "✅ Pedido liberado",
+                    text: res.data?.message || "El pedido se Libero exitosamente ",
+                    icon: "succefuly",
+                    confirmButtonColor: "#159909",
                     confirmButtonText: "Entendido"
                 });
             }

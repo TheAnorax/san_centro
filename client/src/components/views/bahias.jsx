@@ -6,18 +6,18 @@ const gridMap = ['A', 'B', 'C', 'D', 'E'];
 const filas = [1, 2, 3, 4, 5];
 
 const coloresEstado = {
-    1: '#ffb300',   // Rojo - Ocupado
-    2: '#2f00ffff',   // Amarillo - En tránsito
-    3: '#2f00ffff',   // Verde - Libre
+    1: '#e53935',   // Rojo - Ocupado
+    2: '#ffb300',   // Amarillo - En tránsito
+    3: '#1553ffff',   // Verde - Libre
     null: '#e0e0e0', // Gris - Sin Ingreso
     undefined: '#e0e0e0',
     '': '#e0e0e0',
 };
 
 const labelsEstado = {
-    1: 'Surtiendo',
-    2: 'En tránsito',
-    3: 'En tránsito',
+    1: 'Ocupado',
+    2: 'Surtido',
+    3: 'Embarques',
     null: 'Sin Ingreso',
     undefined: 'Sin Ingreso',
     '': 'Sin Ingreso',
@@ -48,7 +48,7 @@ function BahiasTablero() {
     const [bahias, setBahias] = useState([]);
 
     const cargarBahias = () => {
-        fetch('http:// :3001/api/bahia/Obtener')
+        fetch('http://66.232.105.107:3001/api/bahias/Obtener')
             .then((res) => res.json())
             .then(setBahias);
     };

@@ -382,7 +382,7 @@ const Usuarios = ({ isSwitching }) => {
                                     <Table size="small">
                                         <TableHead>
                                             <TableRow>
-                                                {["ID", "Nombre", "Correo", "Rol", "Turno", "Acciones"].map((title) => (
+                                                {["Nombre", "Correo", "Rol", "Turno", "Acciones"].map((title) => (
                                                     <TableCell key={title} sx={{ fontWeight: 600, fontSize: 14 }}>
                                                         {title}
                                                     </TableCell>
@@ -396,7 +396,6 @@ const Usuarios = ({ isSwitching }) => {
                                                     hover
                                                     sx={{ "&:hover": { backgroundColor: "#f5f5f5" }, transition: "background-color 0.3s" }}
                                                 >
-                                                    <TableCell>{user.id}</TableCell>
                                                     <TableCell>{user.nombre}</TableCell>
                                                     <TableCell>{user.correo}</TableCell>
                                                     <TableCell>{user.rol}</TableCell>
