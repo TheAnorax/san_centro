@@ -62,8 +62,6 @@ cron.schedule('*/1 * * * *', async () => {
     }
 });
 
-
-
 // Obtener todos los pedidos en proceso de surtido
 const getPedidosSurtiendo = async () => {
     const [rows] = await pool.query(`
@@ -76,81 +74,157 @@ const getPedidosSurtiendo = async () => {
 };
 
 // Mover el pedido completo a la tabla de embarques
+// Mover el pedido según su estado real
 const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
     const connection = await pool.getConnection();
+
     try {
         await connection.beginTransaction();
 
-        // 1️⃣ Buscar productos del pedido y tipo específico
+        // 1️⃣ Obtener productos en surtido
         const [productos] = await connection.query(`
-            SELECT * 
-            FROM pedidos_surtiendo 
+            SELECT *
+            FROM pedidos_surtiendo
             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
         `, [noOrden, tipo]);
 
         if (productos.length === 0) {
-            throw new Error("No se encontraron productos para este pedido y tipo.");
+            throw new Error("No se encontraron productos para este pedido.");
         }
 
-        // 2️⃣ Verificar si ya existe en pedidos_embarques
-        const [existe] = await connection.query(`
-            SELECT 1 
-            FROM pedidos_embarques 
-            WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) 
-            LIMIT 1
-        `, [noOrden, tipo]);
-
-        if (existe.length > 0) {
-            console.log(`⚠️ El pedido ${noOrden}-${tipo} ya fue movido a embarques.`);
-            await connection.commit();
-            return { ok: true, mensaje: "Ya estaba en embarques." };
-        }
-
-        // 3️⃣ Validar si el pedido está completo (sin incluir cancelados)
+        // 2️⃣ Validar cuadratura (excluyendo cancelados)
         const lineasActivas = productos.filter(p => p.estado !== 'C');
-        const incompletos = lineasActivas.filter(p =>
-            Number(p.cantidad) !== (Number(p.cant_surtida) + Number(p.cant_no_enviada))
+
+        const errores = lineasActivas.filter(p =>
+            Number(p.cantidad) !==
+            (Number(p.cant_surtida) + Number(p.cant_no_enviada))
         );
 
-        if (incompletos.length > 0) {
-            throw new Error(`El pedido ${noOrden}-${tipo} aún no está completamente surtido (excluyendo cancelados).`);
+        if (errores.length > 0) {
+            throw new Error("El pedido no está correctamente cerrado en surtido.");
         }
 
-        // 4️⃣ Mover líneas de surtido a embarques
-        for (const p of productos) {
-            const estadoDestino = (p.estado === 'C') ? 'C' : 'E';
+        // 3️⃣ Calcular totales
+        const totalSurtido = lineasActivas.reduce(
+            (sum, p) => sum + Number(p.cant_surtida),
+            0
+        );
 
+        const totalNoEnviado = lineasActivas.reduce(
+            (sum, p) => sum + Number(p.cant_no_enviada),
+            0
+        );
+
+        // 🔴 CASO: NO SE SURTIÓ NADA → pedido_finalizado
+        if (totalSurtido === 0 && totalNoEnviado > 0) {
+
+            for (const p of productos) {
+                await connection.query(`
+                    INSERT INTO pedido_finalizado (
+                        no_orden, tipo, codigo_pedido, clave,
+                        cantidad, cant_surtida, cant_no_enviada,
+                        um, _pz, _pq, _inner, _master,
+                        ubi_bahia, estado, id_usuario,
+                        registro, inicio_surtido, fin_surtido,
+                        motivo, registro_fin
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                `, [
+                    p.no_orden,
+                    p.tipo,
+                    p.codigo_pedido,
+                    p.clave,
+                    p.cantidad,
+                    p.cant_surtida,
+                    p.cant_no_enviada,
+                    p.um,
+                    p._pz,
+                    p._pq,
+                    p._inner,
+                    p._master,
+                    p.ubi_bahia,
+                    'NO_ATENDIDO',
+                    p.id_usuario,
+                    p.registro,
+                    p.inicio_surtido,
+                    p.fin_surtido,
+                    p.motivo || 'Sin surtido'
+                ]);
+            }
+
+            // 🔥 AHORA SÍ se borra de surtido
+            await connection.query(`
+                DELETE FROM pedidos_surtiendo
+                WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+            `, [noOrden, tipo]);
+
+            await connection.commit();
+
+            return {
+                ok: true,
+                estadoPedido: 'NO_ATENDIDO',
+                mensaje: `Pedido ${noOrden}-${tipo} finalizado como NO ATENDIDO.`
+            };
+        }
+
+        // 🟡🟢 CASO: HUBO SURTIDO → pedidos_embarques
+        for (const p of productos) {
             await connection.query(`
                 INSERT INTO pedidos_embarques (
-                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                    um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
-                    id_usuario_paqueteria, registro, inicio_surtido, fin_surtido, motivo
+                    no_orden, tipo, codigo_pedido, clave,
+                    cantidad, cant_surtida, cant_no_enviada,
+                    um, _bl, _pz, _pq, _inner, _master,
+                    ubi_bahia, estado, id_usuario,
+                    id_usuario_paqueteria,
+                    registro, inicio_surtido, fin_surtido, motivo
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
-                p.um, p._bl, p._pz, p._pq, p._inner, p._master, p.ubi_bahia, estadoDestino, p.id_usuario,
-                p.id_usuario_paqueteria, p.registro, p.inicio_surtido, p.fin_surtido, p.motivo
+                p.no_orden,
+                p.tipo,
+                p.codigo_pedido,
+                p.clave,
+                p.cantidad,
+                p.cant_surtida,
+                p.cant_no_enviada,
+                p.um,
+                p._bl,
+                p._pz,
+                p._pq,
+                p._inner,
+                p._master,
+                p.ubi_bahia,
+                'E',
+                p.id_usuario,
+                p.id_usuario_paqueteria,
+                p.registro,
+                p.inicio_surtido,
+                p.fin_surtido,
+                p.motivo
             ]);
         }
 
-        // 5️⃣ Eliminar del surtido una vez insertado en embarques
+        // 🔥 Borrar de surtido
         await connection.query(`
-            DELETE FROM pedidos_surtiendo 
+            DELETE FROM pedidos_surtiendo
             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
         `, [noOrden, tipo]);
 
         await connection.commit();
-        console.log(`🚚 Pedido ${noOrden}-${tipo} movido correctamente a embarques.`);
-        return { ok: true, mensaje: `Pedido ${noOrden}-${tipo} movido correctamente a embarques.` };
+
+        return {
+            ok: true,
+            estadoPedido: totalNoEnviado > 0 ? 'PARCIAL' : 'COMPLETO',
+            mensaje: `Pedido ${noOrden}-${tipo} movido a embarques.`
+        };
 
     } catch (error) {
         await connection.rollback();
-        console.error(`❌ Error al mover pedido ${noOrden}-${tipo}:`, error.message);
+        console.error(error.message);
         return { ok: false, mensaje: error.message };
     } finally {
         connection.release();
     }
 };
+
 
 const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
     const [rows] = await pool.query(

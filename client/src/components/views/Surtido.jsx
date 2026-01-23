@@ -314,6 +314,15 @@ function Surtiendo() {
                 `http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`
             );
 
+            // 🔥 ACTUALIZAR UI SIN RECARGAR
+            setPedidos(prev =>
+                prev.filter(p => !(p.no_orden === noOrden && p.tipo === tipo))
+            );
+
+            setEmbarques(prev =>
+                prev.filter(p => !(p.no_orden === noOrden && p.tipo === tipo))
+            );
+
             {
                 Swal.fire({
                     title: "Liberado",
@@ -423,7 +432,7 @@ function Surtiendo() {
                     confirmButtonText: "Entendido"
                 });
             }
- 
+
         } catch (err) {
             if (err.response?.status === 409) {
                 await Swal.fire({
@@ -503,7 +512,6 @@ function Surtiendo() {
 
 
     // Generar Packin list
-
     const generarPDFPackingList = async (noOrden, tipo) => {
         try {
             Swal.fire({
@@ -1562,10 +1570,10 @@ function Surtiendo() {
                     )}
 
                 </Box>
+
             </Box>
         </div>
     );
 }
 
 export default Surtiendo;
-

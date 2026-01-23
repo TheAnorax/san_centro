@@ -48,7 +48,7 @@ function BahiasTablero() {
     const [bahias, setBahias] = useState([]);
 
     const cargarBahias = () => {
-        fetch('http://66.232.105.107:3001/api/bahias/Obtener')
+        fetch('http://66.232.105.107:3001/api/bahia/Obtener')
             .then((res) => res.json())
             .then(setBahias);
     };
@@ -129,7 +129,7 @@ function BahiasTablero() {
                     }}>{col}</div>
                 ))}
             </div>
-            
+
             {/* Grid de bahías */}
             <div style={{
                 display: 'grid',

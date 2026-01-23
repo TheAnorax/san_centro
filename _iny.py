@@ -98,7 +98,7 @@ schedule.every().day.at("11:40").do(surtido)
 schedule.every().day.at("11:56").do(surtido)
 
 schedule.every().day.at("12:16").do(surtido)
-schedule.every().day.at("12:56").do(surtido)
+schedule.every().day.at("12:49").do(surtido)
 
 schedule.every().day.at("13:16").do(surtido)
 schedule.every().day.at("13:46").do(surtido)
