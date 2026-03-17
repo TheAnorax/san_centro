@@ -611,7 +611,7 @@ function Traspaso() {
                   : 'Ingresa la nueva ubicación'
               }
             />
-          </Box>
+          </Box> 
 
           {/* =======================
         OC

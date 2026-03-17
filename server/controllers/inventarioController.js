@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const axios = require("axios");
 const { obtenerInventario } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 
@@ -95,8 +96,48 @@ async function solicitarProducto(req, res) {
   }
 }
 
+// ================================================
+// GET Inventario JDE
+// ================================================
+
+async function obtenerInventarioJDE(req, res) {
+  try {
+
+    const almacen = req.query.almacen || "7240";
+
+    const response = await axios({
+      method: "get",
+      url: "http://santul.verpedidos.com:9010/Santul/Inventarios",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": "LflquX0b1rIzKmr2q8zxFBIdkFiqKMSl1KGo2fLR0wNnz2eAHMLoLZnQN2NabTtA"
+      },
+      data: {
+        Almacen: almacen
+      }
+    });
+
+    res.json(response.data);
+
+  } catch (error) {
+
+    console.error(
+      "❌ Error consultando inventario JDE:",
+      error.response?.data || error.message
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Error consultando inventario JDE",
+      error: error.response?.data || error.message
+    });
+
+  }
+}
+
 
 module.exports = {
   todosLosInventarios,
-  solicitarProducto
+  solicitarProducto,
+  obtenerInventarioJDE
 };

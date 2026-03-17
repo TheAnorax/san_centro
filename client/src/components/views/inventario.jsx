@@ -8,6 +8,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import Swal from "sweetalert2";
 import axios from 'axios';
 
+import * as XLSX from "xlsx";
+
+
+
 const IMG_BASE = 'https://sanced.santulconnect.com:3011/imagenes/img_pz';
 const PLACEHOLDER = 'https://sanced.santulconnect.com:3011/imagenes/placeholder.png';
 
@@ -104,6 +108,60 @@ function InventarioListado() {
         setOpenModal(false);
     };
 
+    const [stockJDE, setStockJDE] = useState({});
+
+    useEffect(() => {
+
+        async function cargarJDE() {
+
+            try {
+
+                const res = await axios.get(
+                    "http://66.232.105.107:3001/api/inventario/inventario-jde",
+                    {
+                        params: { almacen: "7240" }
+                    }
+                );
+
+                const mapa = {};
+
+                (res.data || []).forEach(item => {
+                    mapa[String(item.Clave)] = Number(item.Cant);
+                });
+
+                setStockJDE(mapa);
+
+            } catch (error) {
+                console.error("Error cargando JDE:", error);
+            }
+
+        }
+
+        cargarJDE();
+
+    }, []);
+
+
+    const exportarExcel = () => {
+        // 🔹 Mapear SOLO los campos que quieres
+        const data = filtered.map(row => ({
+            "Código Producto": row.codigo_producto,
+            "Ubicación": row.ubicacion,
+            "Cantidad Stock": Number(row.cant_stock_real) || 0,
+            "Cantidad Stock JDE": stockJDE[row.codigo_producto] ?? 0,
+            "OC": row.oc || ""
+        }));
+
+        // 🔹 Crear hoja
+        const ws = XLSX.utils.json_to_sheet(data);
+
+        // 🔹 Crear libro
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+
+        // 🔹 Descargar archivo
+        XLSX.writeFile(wb, "inventario.xlsx");
+    };
 
 
     return (
@@ -167,6 +225,16 @@ function InventarioListado() {
                             >
                                 {onlyEmpty ? "Ver todos" : "Mostrar vacíos (stock 0)"}
                             </Button>
+
+                            <Button
+                                variant="contained"
+                                color="success"
+                                onClick={exportarExcel}
+                                sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                            >
+                                Exportar Excel
+                            </Button>
+
                         </Box>
 
                         <TableContainer sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -178,6 +246,7 @@ function InventarioListado() {
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Descripcion</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Ubicación</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Cantidad Stock</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Cantidad Stock EN JDE</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Pedimento</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>OC</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Ingreso</TableCell>
@@ -213,6 +282,9 @@ function InventarioListado() {
                                                     <TableCell>{row.descripcion}</TableCell>
                                                     <TableCell>{row.ubicacion}</TableCell>
                                                     <TableCell>{qty}</TableCell>
+                                                    <TableCell>
+                                                        {stockJDE[row.codigo_producto] ?? "-"}
+                                                    </TableCell>
                                                     <TableCell>{row.lote_serie}</TableCell>
                                                     <TableCell>{row.oc}</TableCell>
                                                     <TableCell>
@@ -280,7 +352,7 @@ function InventarioListado() {
                             onRowsPerPageChange={handleChangeRowsPerPage}
                             labelRowsPerPage="Filas por página"
                         />
-                        
+
                     </Paper>
                 )}
             </Box>

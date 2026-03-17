@@ -83,7 +83,6 @@ async function handleGuardarTraspaso(req, res) {
   }
 }
 
-
 async function handleListadoRecibidos(req, res) {
   try {
     return await handleObtenerRecibidos(req, res);

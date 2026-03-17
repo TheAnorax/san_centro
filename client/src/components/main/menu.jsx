@@ -94,7 +94,7 @@ const Menu = () => {
   // const location = useLocation(); // Hook para obtener la ruta actual
   const { usuario } = useContext(UserContext);
   React.useEffect(() => {
-    console.log("🧾 Datos del usuario desde el contexto:", usuario);
+    // console.log("🧾 Datos del usuario desde el contexto:", usuario);
   }, [usuario]);
 
   const [permisos, setPermisos] = useState([]);
@@ -143,9 +143,9 @@ const Menu = () => {
       fetch(`http://66.232.105.107:3001/api/permisos/${usuario.rol_id}`)
         .then(res => res.json())
         .then(data => {
-          console.log("🎯 Permisos recibidos del backend:", data);
+          // console.log("🎯 Permisos recibidos del backend:", data);
           const activos = data.filter(p => p.permitido === 1).map(p => p.seccion);
-          console.log("✅ Secciones permitidas:", activos);
+          // console.log("✅ Secciones permitidas:", activos);
           setPermisos(activos);
         });
     }
