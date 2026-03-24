@@ -19,7 +19,10 @@ const getPedidosData = async (req, res) => {
        p.id_usuario,
       u.cant_stock_real AS cant_stock,
       u.ubicacion AS ubi,
-      'AV' AS pasillo,
+      CASE 
+        WHEN u.ubicacion LIKE 'AV%' THEN 'AV'
+        ELSE 'NORMAL'
+      END AS pasillo,
       prod.descripcion,
       prod.barcode_pz,
       prod.barcode_inner,

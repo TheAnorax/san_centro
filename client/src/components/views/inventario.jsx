@@ -163,6 +163,33 @@ function InventarioListado() {
         XLSX.writeFile(wb, "inventario.xlsx");
     };
 
+    //Modal de Edicion 
+
+    const [openEditModal, setOpenEditModal] = useState(false);
+    const [ubicacionEdit, setUbicacionEdit] = useState("");
+    const [rowEditando, setRowEditando] = useState(null);
+
+    const guardarUbicacion = async () => {
+        try {
+            await axios.put("http://66.232.105.107:3001/api/inventario/actualizar-ubicacion", {
+                id: rowEditando.id_ubicaccion,
+                ubicacion: ubicacionEdit
+            });
+
+            Swal.fire("Actualizado", "Ubicación actualizada correctamente", "success");
+
+            setOpenEditModal(false);
+
+            // 🔄 Recargar inventario
+            const res = await axios.get('http://66.232.105.107:3001/api/inventario/Obtenerinventario');
+            setInventario(res.data || []);
+
+        } catch (error) {
+            setOpenEditModal(false);
+            Swal.fire("Error", "No se pudo actualizar", "error");
+        }
+    };
+
 
     return (
         <div className="place_holder-container fade-in">
@@ -250,6 +277,7 @@ function InventarioListado() {
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Pedimento</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>OC</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Ingreso</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Acciones</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -292,6 +320,19 @@ function InventarioListado() {
                                                             <span>{new Date(row.ingreso).toLocaleString()}</span>
                                                         )}
                                                     </TableCell>
+                                                    <TableCell>
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            onClick={() => {
+                                                                setRowEditando(row);
+                                                                setUbicacionEdit(row.ubicacion || "");
+                                                                setOpenEditModal(true);
+                                                            }}
+                                                        >
+                                                            Editar
+                                                        </Button>
+                                                    </TableCell>
 
                                                     {/* ✔ SOLO SE MUESTRA SI EL STOCK ES 0 */}
                                                     <TableCell>
@@ -315,7 +356,7 @@ function InventarioListado() {
                             </Table>
                         </TableContainer>
 
-
+                        {/* Modal para  Solicitar producto  */}
                         <Dialog open={openModal} onClose={() => setOpenModal(false)}>
                             <DialogTitle>Solicitar Producto</DialogTitle>
 
@@ -338,6 +379,34 @@ function InventarioListado() {
                                 <Button onClick={() => setOpenModal(false)}>Cancelar</Button>
                                 <Button onClick={enviarSolicitud} variant="contained" color="primary">
                                     Enviar Solicitud
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+
+
+                        {/* Modal de editar informacion de producto  */}
+
+                        <Dialog open={openEditModal} onClose={() => setOpenEditModal(false)}>
+                            <DialogTitle>Editar Ubicación</DialogTitle>
+
+                            <DialogContent>
+                                <p><b>ID:</b> {rowEditando?.id_ubicaccion}</p>
+                                <p><b>Producto:</b> {rowEditando?.codigo_producto}</p>
+                                <p><b>Producto:</b> {rowEditando?.descripcion}</p>
+
+                                <TextField
+                                    label="Nueva ubicación"
+                                    fullWidth
+                                    value={ubicacionEdit}
+                                    onChange={(e) => setUbicacionEdit(e.target.value)}
+                                    sx={{ mt: 2 }}
+                                />
+                            </DialogContent>
+
+                            <DialogActions>
+                                <Button onClick={() => setOpenEditModal(false)}>Cancelar</Button>
+                                <Button onClick={guardarUbicacion} variant="contained">
+                                    Guardar
                                 </Button>
                             </DialogActions>
                         </Dialog>

@@ -74,7 +74,13 @@ function Pedidos() {
         setLoading(true);
         axios
             .get('http://66.232.105.107:3001/api/pedidos/todos-con-productos')
-            .then(res => setPedidos(res.data || []))
+            .then(res => {
+                const data = (res.data || []).map(p => ({
+                    ...p,
+                    productos: p.productos || []
+                }));
+                setPedidos(data);
+            })
             .finally(() => {
                 setLoading(false);
                 if (callback) callback();
@@ -212,8 +218,6 @@ function Pedidos() {
         }
     };
 
-
-
     const totalPaginas = Math.ceil(pedidos.length / pedidosPorPagina);
 
     const pedidosMostrados = pedidos.slice(
@@ -287,7 +291,10 @@ function Pedidos() {
                     ) : (
                         pedidosMostrados.map(pedido => {
                             const isExpanded = expandedPedidos.includes(pedido.no_orden);
-                            const productosToShow = isExpanded ? pedido.productos : pedido.productos.slice(0, 5);
+                            const productos = pedido.productos || [];
+                            const productosToShow = isExpanded
+                                ? productos
+                                : productos.slice(0, 5);
 
                             // Cálculo por pedido
                             const bahiasSeleccionadas = bahiasPorPedido[pedido.no_orden] || [];
@@ -405,7 +412,7 @@ function Pedidos() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {productosToShow.map((item, idx) => (
+                                                    {(productosToShow || []).map((item, idx) => (
                                                         <tr key={idx}>
                                                             <td style={{ padding: '2px 6px', textAlign: 'center' }}>{item.codigo_pedido}</td>
                                                             <td style={{ padding: '2px 6px', textAlign: 'center' }}>{item.descripcion}</td>
@@ -427,7 +434,7 @@ function Pedidos() {
                                                         </tr>
                                                     ))}
 
-                                                    {pedido.productos.length > 5 && (
+                                                    {(pedido.productos?.length || 0) > 5 && (
                                                         <tr>
                                                             <td colSpan={4} style={{ textAlign: 'center', paddingTop: 8 }}>
                                                                 <Button
@@ -452,7 +459,7 @@ function Pedidos() {
                     )}
                 </Box>
             </Box>
-            
+
         </div>
     );
 }

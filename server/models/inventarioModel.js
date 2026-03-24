@@ -2,8 +2,9 @@ const pool = require('../db');
 
 
 const obtenerInventario = async () => {
-    const sql = `
+  const sql = `
     SELECT
+      i.id_ubicaccion,
       i.ubicacion,
       i.codigo_producto,
       i.almacen,
@@ -18,8 +19,20 @@ const obtenerInventario = async () => {
     ORDER BY i.ingreso DESC
   `;
 
-    const [rows] = await pool.query(sql);
-    return rows;
+  const [rows] = await pool.query(sql);
+  return rows;
 };
 
-module.exports = { obtenerInventario };
+const actualizarUbicacion = async (id, ubicacion) => {
+  const [result] = await pool.query(
+    `UPDATE inventario 
+         SET ubicacion = ? 
+         WHERE id_ubicaccion = ?`,
+    [ubicacion, id]
+  );
+
+  return result;
+};
+
+
+module.exports = { obtenerInventario, actualizarUbicacion };

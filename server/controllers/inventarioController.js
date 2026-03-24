@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 const axios = require("axios");
-const { obtenerInventario } = require('../models/inventarioModel');
+const { obtenerInventario, actualizarUbicacion } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 
 const DESTINATARIOS = [
@@ -136,8 +136,50 @@ async function obtenerInventarioJDE(req, res) {
 }
 
 
+// ================================================
+// PUT actualizar ubicaccion 
+// ================================================
+
+const actualizarUbicacionController = async (req, res) => {
+  try {
+    const { id, ubicacion } = req.body;
+
+    if (!id || !ubicacion) {
+      return res.status(400).json({
+        ok: false,
+        message: "ID y ubicación son requeridos"
+      });
+    }
+
+    const result = await actualizarUbicacion(id, ubicacion); // 👈 este es el MODEL
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        ok: false,
+        message: "No se encontró el registro"
+      });
+    }
+
+    res.json({
+      ok: true,
+      message: "Ubicación actualizada correctamente"
+    });
+
+  } catch (error) {
+    console.error("Error actualizarUbicacion:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Error en el servidor",
+      error
+    });
+  }
+};
+
+
+
 module.exports = {
   todosLosInventarios,
   solicitarProducto,
-  obtenerInventarioJDE
+  obtenerInventarioJDE,
+  actualizarUbicacion: actualizarUbicacionController
 };

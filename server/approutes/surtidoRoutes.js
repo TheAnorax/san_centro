@@ -5,4 +5,6 @@ const surtidoController = require('../appcontrollers/surtidoController');
 
 router.get('/surtido', surtidoController.obtenerPedidosSurtido);
 
+router.get('/pedidos', pedidosController.getPedidosAgrupados);
+
 module.exports = router;

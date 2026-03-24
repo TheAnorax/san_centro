@@ -39,10 +39,10 @@ const AuthForm = () => {
                     correo: form.correo,
                     password: form.password
                 });
-                console.log('Respuesta completa del backend:', res);
+                
 
                 // Imprimir solo los datos específicos
-                console.log('Datos recibidos:', res.data);
+                
                 const { token, usuario } = res.data;
 
                 // Guardar token y usuario en contexto y localStorage
