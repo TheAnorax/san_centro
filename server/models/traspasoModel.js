@@ -143,7 +143,9 @@ async function handleObtenerRecibidos(req, res) {
       SELECT 
         rt.No_Orden, rt.tipo_orden,
         rt.Codigo, rt.Cantidad, rt.estado, rt.ubicacion,
-        rt.usuario_id, u.nombre AS nombre_usuario
+        rt.usuario_id, u.nombre AS nombre_usuario,
+        rt.created_at
+
       FROM recibir_traspasos rt
       LEFT JOIN usuarios u ON rt.usuario_id = u.id
     `);

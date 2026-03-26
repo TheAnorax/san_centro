@@ -12,6 +12,7 @@ import TablePagination from '@mui/material/TablePagination';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { generarPalletTraspaso } from "../../utils/generarPalletTraspaso";
+import * as XLSX from "xlsx";
 
 const API_TRASPASO = 'http://66.232.105.107:3001/api/traspaso';
 
@@ -106,20 +107,35 @@ function Traspaso() {
       const listaRecibidos = resRecibidos.data || [];
 
       // clave incluye No_Orden para no mezclar órdenes distintas
-      const keyRec = (r) => `${r.No_Orden}|${r.Codigo}`;
+      const keyRec = (r) => `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
       const setRecibidosKey = new Set(listaRecibidos.map(keyRec));
 
-      const ubicacionMap = new Map(
-        listaRecibidos.map(r => [keyRec(r), r.ubicacion])
+      const recibidosMap = new Map(
+        listaRecibidos.map(r => [
+          `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`,
+          r
+        ])
       );
 
-
       const fusionado = listaPendientes.map(r => {
-        const key = `${r.No_Orden}|${r.Codigo}`;
-        if (setRecibidosKey.has(key)) {
-          return { ...r, estado: 'F', ubicacion: ubicacionMap.get(key) || '' };
+        const key = `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
+
+        if (recibidosMap.has(key)) {
+          const rec = recibidosMap.get(key);
+
+          return {
+            ...r,
+            estado: 'F',
+            created_at: rec.created_at || null,
+            ubicacion: rec.ubicacion || ''
+          };
         }
-        return { ...r, ubicacion: '' };
+
+        return {
+          ...r,
+          created_at: null,
+          ubicacion: ''
+        };
       });
 
       setRegistros(fusionado);
@@ -306,6 +322,28 @@ function Traspaso() {
   }, [verRecibidos, gruposPendientes, gruposRecibidos, visibleCount]);
 
 
+  const exportarExcel = () => {
+    const source = verRecibidos ? gruposRecibidos : gruposPendientes;
+
+    const data = [];
+
+    source.forEach(([noOrden, items]) => {
+      items.forEach(r => {
+        data.push({
+          "No Orden": r.No_Orden,
+          "Código": r.Codigo,
+          "Cantidad": r.Cantidad,
+          "Pedimento": r.lote_serie || "",
+        });
+      });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Traspasos");
+    XLSX.writeFile(wb, "traspasos.xlsx");
+  };
+
   return (
 
     <div className="place_holder-container fade-in" style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -357,6 +395,14 @@ function Traspaso() {
                 onClick={() => setVerRecibidos(true)}
               >
                 Ver recibidos
+              </Button>
+
+              <Button
+                variant="contained"
+                color="success"
+                onClick={exportarExcel}
+              >
+                Exportar Excel
               </Button>
             </Stack>
 
@@ -611,7 +657,7 @@ function Traspaso() {
                   : 'Ingresa la nueva ubicación'
               }
             />
-          </Box> 
+          </Box>
 
           {/* =======================
         OC

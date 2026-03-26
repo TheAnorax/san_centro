@@ -53,6 +53,7 @@ function InventarioListado() {
         setLoading(true);
         axios.get('http://66.232.105.107:3001/api/inventario/Obtenerinventario')
             .then(res => {
+                console.log("DATA BACK:", res.data); // 👈 AQUÍ
                 setInventario(res.data || []);
                 setLoading(false);
             })
@@ -295,7 +296,7 @@ function InventarioListado() {
                                             return (
 
                                                 <TableRow
-                                                    key={`${row.codigo_producto}-${row.id_ubicacion ?? row.ubicacion ?? 'x'}`}
+                                                    key={row.id_ubicacion || `${row.codigo_producto}-${row.lote_serie}-${row.ingreso}`}
                                                     hover
                                                     sx={{
                                                         ...(isEmpty && {
