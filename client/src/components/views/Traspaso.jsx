@@ -334,6 +334,17 @@ function Traspaso() {
           "Código": r.Codigo,
           "Cantidad": r.Cantidad,
           "Pedimento": r.lote_serie || "",
+          "Ubicaccion": r.ubicacion || "",
+          "Fecha": r.created_at
+            ? new Date(r.created_at).toLocaleString('es-MX', {
+              timeZone: 'America/Mexico_City',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+            : ""
         });
       });
     });
@@ -423,7 +434,7 @@ function Traspaso() {
                     <TableCell>Cantidad</TableCell>
                     <TableCell>Día de Envío</TableCell>
                     <TableCell>Almacén Envío</TableCell>
-                    <TableCell>Llegada Estimada</TableCell>
+                    <TableCell>Llegada</TableCell>
                     <TableCell>Estado</TableCell>
                     <TableCell>Ubicación Destino</TableCell>
                     <TableCell>Acciones</TableCell>
@@ -456,7 +467,7 @@ function Traspaso() {
                             <TableCell>{r.Cantidad}</TableCell>
                             <TableCell>{r.dia_envio ? new Date(r.dia_envio).toLocaleString() : '—'}</TableCell>
                             <TableCell>{r.almacen_envio || '—'}</TableCell>
-                            <TableCell>{r.tiempo_llegada_estimado ? new Date(r.tiempo_llegada_estimado).toLocaleString() : '—'}</TableCell>
+                            <TableCell>{r.created_at ? new Date(r.created_at).toLocaleString() : '—'}</TableCell>
                             <TableCell>
                               {yaRecibido ? <CheckCircleIcon sx={{ color: 'green' }} /> : <RadioButtonUncheckedIcon sx={{ color: 'gray' }} />}
                             </TableCell>
