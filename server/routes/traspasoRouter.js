@@ -24,4 +24,4 @@ router.get('/pendientes', async (req, res) => {
 router.get('/inventario-por-codigo/:codigo', handleGetInventarioPorCodigo);
 
 
-module.exports = router; 
+module.exports = router;  

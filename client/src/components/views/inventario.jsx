@@ -12,14 +12,14 @@ import * as XLSX from "xlsx";
 
 
 
-const IMG_BASE = 'https://sanced.santulconnect.com:3011/imagenes/img_pz';
-const PLACEHOLDER = 'https://sanced.santulconnect.com:3011/imagenes/placeholder.png';
+const IMG_BASE = 'http://66.232.105.83:9101/images';
+const PLACEHOLDER = 'http://66.232.105.83:9101/images/noimage.png';
 
 function ProductImage({ code }) {
     const [src, setSrc] = useState(`${IMG_BASE}/${encodeURIComponent(code || '')}.jpg`);
 
     useEffect(() => {
-        setSrc(`${IMG_BASE}/${encodeURIComponent(code || '')}.jpg`);
+        setSrc(`${IMG_BASE}/${code}.jpg`);
     }, [code]);
 
     const handleError = () => setSrc(PLACEHOLDER);

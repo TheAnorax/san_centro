@@ -130,7 +130,7 @@ const Productos = ({ isSwitching }) => {
       sortable: false,
       renderCell: (params) => (
         <img
-          src={`https://sanced.santulconnect.com:3011/imagenes/img_pz/${params.row.codigo}.jpg`}
+          src={`http://66.232.105.83:9101/images/${params.row.codigo}.jpg`}
           alt={`Imagen de ${params.row.codigo}`}
           style={{ width: 40, height: 40, objectFit: "contain" }}
           onError={(e) => { e.target.style.display = "none"; }} // Oculta si no existe
@@ -261,7 +261,7 @@ const Productos = ({ isSwitching }) => {
         {productoActual.codigo && (
           <Box display="flex" justifyContent="center" mt={1}>
             <img
-              src={`https://sanced.santulconnect.com:3011/imagenes/img_pz/${productoActual.codigo}.jpg`}
+              src={`http://66.232.105.83:9101/images/${productoActual.codigo}.jpg`}
               alt={`Imagen de producto ${productoActual.codigo}`}
               style={{
                 width: "150px",

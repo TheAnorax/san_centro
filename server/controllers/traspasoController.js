@@ -93,7 +93,7 @@ async function handleListadoRecibidos(req, res) {
       message: 'Error inesperado al solicitar recibidos',
       error: error.message,
     });
-  }
+  } 
 }
 
 async function handleGetInventarioPorCodigo(req, res) {

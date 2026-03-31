@@ -78,6 +78,18 @@ async function insertTraspasoRecibido(datos) {
         }
       }
 
+      if (datos.lote_serie) {
+        if (nuevoLote) {
+          const lotes = new Set(
+            nuevoLote.split(',').map(l => l.trim())
+          );
+          lotes.add(datos.lote_serie);
+          nuevoLote = Array.from(lotes).join(',');
+        } else {
+          nuevoLote = datos.lote_serie;
+        }
+      }
+
       const sqlUpdate = `
         UPDATE inventario
         SET cant_stock_real = ?, oc = ?

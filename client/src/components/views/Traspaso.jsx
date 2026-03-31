@@ -18,12 +18,10 @@ const API_TRASPASO = 'http://66.232.105.107:3001/api/traspaso';
 
 
 function SmartImage({ code, size = 56 }) {
-  const base = 'https://sanced.santulconnect.com:3011/imagenes';
+  const base = 'http://66.232.105.83:9101/images';
   const candidates = [
-    `${base}/img_pz/${code}.jpg`,
-    `${base}/img_pz/${code}.png`,
-    `${base}/img/${code}.jpg`,
-    `${base}/img/${code}.png`,
+    `${base}/${code}.jpg`,
+    `${base}/noimage.png`,
   ];
 
   const [idx, setIdx] = useState(0);
