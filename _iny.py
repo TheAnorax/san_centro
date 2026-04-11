@@ -7,7 +7,7 @@ import json
 
 def surtido():
     print("Inicia Sincronización Surtido " + time.strftime("%D %T"))
-    url = "http://66.232.105.79:8080/sava/pedi/Service/services.php"
+    url = "http://santul.verpedidos.com:9010/Santul/Surtido"
     continua = 1
     conexion = mysql.connector.connect(
         host="66.232.105.107",
@@ -23,7 +23,7 @@ def surtido():
         continua = 0
     if continua == 1:
         try:
-            respuesta = requests.post(url, json={"op": 26, "clave": "rodCedis01"}, timeout=15)
+            respuesta = requests.post(url, json={"Almacen": "7240"}, timeout=15)
         except requests.exceptions.Timeout:
             continua = 0
         if continua == 1:
@@ -34,8 +34,19 @@ def surtido():
             if continua == 1:
                 try:
                     for ord in como_json:
-                        cursor.execute("INSERT INTO tem_surtido(pedido,codigo_pedi,cant_surt,ubicacion,fecha,tipo,um,clave) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                            (ord["orden"], ord["codigo"], ord["cantidad"], ord["ubicacion"], ord["fecha"], ord["tipo"], ord["um"], ord.get("clave", "")))
+                        cursor.execute(
+                            "INSERT INTO tem_surtido(pedido,codigo_pedi,cant_surt,ubicacion,fecha,tipo,um,clave) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                            (
+                                ord["NoOrden"],      # antes: ord["orden"]
+                                ord["Codigo"],       # antes: ord["codigo"]
+                                ord["Cantidad"],     # antes: ord["cantidad"]
+                                ord["Ubicacion"],    # antes: ord["ubicacion"]
+                                ord["Fecha"],        # antes: ord["fecha"]
+                                ord["TpOrden"],      # antes: ord["tipo"]
+                                ord["UM"],           # antes: ord["um"]
+                                ord.get("Clave", "") # antes: ord.get("clave", "")
+                            )
+                        )
                 except:
                     continua = 0
                 if continua == 1:
@@ -43,7 +54,9 @@ def surtido():
                         # INSERT CORREGIDO: usa tabla y columnas correctas
                         cursor.execute("""
                             INSERT INTO pedidos 
-                                (no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada, um, registro, unido)
+                                (no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, 
+                                cant_no_enviada, um, registro, unido,
+                                _bl, _pz, _pq, _inner, _master)
                             SELECT 
                                 T1.pedido AS no_orden,
                                 T1.tipo,
@@ -53,8 +66,13 @@ def surtido():
                                 0 AS cant_surtida,
                                 0 AS cant_no_enviada,
                                 T1.um,
-                                T1.fecha AS registro,
-                                IF(COUNT(*) > 1, 1, 0) AS unido
+                                STR_TO_DATE(T1.fecha, '%Y-%m-%d %H:%i:%s') AS registro,
+                                IF(COUNT(*) > 1, 1, 0) AS unido,
+                                0 AS _bl,
+                                0 AS _pz,
+                                0 AS _pq,
+                                0 AS _inner,
+                                0 AS _master
                             FROM tem_surtido AS T1
                             LEFT JOIN pedidos AS T2
                                 ON T1.pedido = T2.no_orden AND T1.tipo = T2.tipo
@@ -94,7 +112,7 @@ schedule.every().day.at("09:56").do(surtido)
 schedule.every().day.at("10:16").do(surtido)
 schedule.every().day.at("10:56").do(surtido)
 
-schedule.every().day.at("11:40").do(surtido)
+schedule.every().day.at("11:32").do(surtido)
 schedule.every().day.at("11:56").do(surtido)
 
 schedule.every().day.at("12:16").do(surtido)

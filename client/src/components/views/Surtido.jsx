@@ -521,6 +521,11 @@ function Surtiendo() {
                 allowOutsideClick: false,
             });
 
+            const resSanced = await axios.get(
+                `http://66.232.105.107:3001/api/surtido/sanced/${noOrden}`
+            );
+            const cliente = resSanced.data.data || {};
+
             const res = await axios.get(
                 `http://66.232.105.107:3001/api/surtido/detalle/${noOrden}/${tipo}`
             );
@@ -595,19 +600,17 @@ function Surtiendo() {
             doc.setFont("helvetica", "bold");
             doc.setFontSize(9.5);
             doc.setTextColor(0, 0, 0);
-            doc.text(`CLIENTE NO.: XXXX`, marginLeft, y);
-            doc.text(`NOMBRE DEL CLIENTE: XXXXXXXX`, 60, y);
+            doc.text(`CLIENTE NO.: ${cliente.num_consigna || 'S/D'}`, marginLeft, y);
+            doc.text(`NOMBRE DEL CLIENTE: ${cliente.nombre_cliente || 'S/D'}`, 60, y);
             y += 4;
-            doc.text(`TELÉFONO: XXXXXXXX`, marginLeft, y);
+            doc.text(`TELÉFONO: ${cliente.telefono || 'S/D'}`, marginLeft, y);
             y += 4;
-            doc.text(`DIRECCIÓN: XXXXXXXX`, marginLeft, y);
+            doc.text(`DIRECCIÓN: ${cliente.direccion || 'S/D'}`, marginLeft, y);
             y += 4;
             doc.text(`No Orden: ${noOrden}-${tipo}`, marginLeft, y);
             y += 4;
-            doc.text(`FACTURA No.: ----   OC: ----`, marginLeft, y);
+            doc.text(`FACTURA No.: ${cliente.no_factura || '---'}`, marginLeft, y);
             y += 4;
-            doc.text(`Líneas BD: ${cajas.length} | Líneas PDF: ${cajas.length} | Motivo: 0`, marginLeft, y);
-            y += 3;
 
 
             // === BLOQUE "INFORMACIÓN IMPORTANTE" ===
@@ -800,8 +803,8 @@ function Surtiendo() {
                 ],
                 body: [
                     [
-                        `$`,
-                        `$`,
+                        `$${cliente.total || '0.00'}`,
+                        `$${cliente.total_con_iva || '0.00'}`,
                         "100.00 %",
                     ],
                 ],
@@ -1134,7 +1137,7 @@ function Surtiendo() {
 
         // Texto informativo (si quieres conservarlo)
     }
-
+ 
 
 
     return (

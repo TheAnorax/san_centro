@@ -1,4 +1,6 @@
 const SurtidoModel = require('../models/SurtidoModel');
+const axios = require('axios');
+const cron = require('node-cron');
 
 const obtenerPedidosSurtiendo = async (req, res) => {
     try {
@@ -313,6 +315,54 @@ const getDetallePedido = async (req, res) => {
     }
 };
 
+// ===== NUEVO: Sanced =====
+const sincronizarSanced = async (req, res) => {
+    try {
+        const respuesta = await axios.post('http://santul.verpedidos.com:9010/Santul/Sanced');
+        const datos = respuesta.data;
+
+        const soloCD = datos.filter(item => item.TpoOriginal === 'CD');
+
+        let insertados = 0;
+        for (const item of soloCD) {
+            await SurtidoModel.insertarSanced(item);
+            insertados++;
+        }
+
+        res.json({ ok: true, mensaje: `Insertados: ${insertados}` });
+    } catch (error) {
+        console.error('Error en sincronizarSanced:', error.message);
+        res.status(500).json({ ok: false, error: error.message });
+    }
+};
+
+
+cron.schedule('*/1 * * * *', async () => {
+    console.log('⏰ Sincronizando Sanced...');
+    try {
+        const respuesta = await axios.post('http://santul.verpedidos.com:9010/Santul/Sanced');
+        const soloCD = respuesta.data.filter(item => item.TpoOriginal === 'CD');
+        for (const item of soloCD) {
+            await SurtidoModel.insertarSanced(item);
+        }
+        console.log(`✅ Sanced sincronizado: ${soloCD.length} registros`);
+    } catch (error) {
+        console.error('❌ Error en cron Sanced:', error.message);
+    }
+});
+
+
+const obtenerDatosSanced = async (req, res) => {
+    const { noOrden } = req.params;
+    try {
+        const datos = await SurtidoModel.obtenerDatosSanced(noOrden);
+        if (!datos) return res.status(404).json({ ok: false, message: 'No encontrado' });
+        res.json({ ok: true, data: datos });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+};
+
 
 module.exports = {
     obtenerPedidosSurtiendo,
@@ -325,5 +375,7 @@ module.exports = {
     getPedidosEmbarquePacking,
     liberarUsuarioPaqueteria,
     obtenerPedidoPorOrdenYTipo,
-    getDetallePedido
+    getDetallePedido,
+    sincronizarSanced,
+    obtenerDatosSanced
 };

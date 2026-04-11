@@ -3,6 +3,7 @@ const cron = require('node-cron');
 const BahiaModel = require('../models/bahiaModel');
 
 
+
 cron.schedule('*/1 * * * *', async () => {
     console.log("⏰ Verificando pedidos...");
 
@@ -106,13 +107,11 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
 
         // 3️⃣ Calcular totales
         const totalSurtido = lineasActivas.reduce(
-            (sum, p) => sum + Number(p.cant_surtida),
-            0
+            (sum, p) => sum + Number(p.cant_surtida), 0
         );
 
         const totalNoEnviado = lineasActivas.reduce(
-            (sum, p) => sum + Number(p.cant_no_enviada),
-            0
+            (sum, p) => sum + Number(p.cant_no_enviada), 0
         );
 
         // 🔴 CASO: NO SE SURTIÓ NADA → pedido_finalizado
@@ -129,29 +128,28 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                         motivo, registro_fin
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 `, [
-                    p.no_orden,
-                    p.tipo,
-                    p.codigo_pedido,
-                    p.clave,
-                    p.cantidad,
-                    p.cant_surtida,
-                    p.cant_no_enviada,
-                    p.um,
-                    p._pz,
-                    p._pq,
-                    p._inner,
-                    p._master,
-                    p.ubi_bahia,
-                    'NO_ATENDIDO',
-                    p.id_usuario,
-                    p.registro,
-                    p.inicio_surtido,
-                    p.fin_surtido,
+                    p.no_orden, p.tipo, p.codigo_pedido, p.clave,
+                    p.cantidad, p.cant_surtida, p.cant_no_enviada,
+                    p.um, p._pz, p._pq, p._inner, p._master,
+                    p.ubi_bahia, 'NO_ATENDIDO', p.id_usuario,
+                    p.registro, p.inicio_surtido, p.fin_surtido,
                     p.motivo || 'Sin surtido'
                 ]);
             }
 
-            // 🔥 AHORA SÍ se borra de surtido
+            // ← DESCONTAR INVENTARIO antes de borrar (caso NO_ATENDIDO)
+            const [descuentoNA] = await connection.query(`
+                UPDATE inventario i
+                INNER JOIN pedidos_surtiendo ps ON ps.codigo_pedido = i.codigo_producto
+                SET i.cant_stock_real = i.cant_stock_real - ps.cant_surtida
+                WHERE ps.no_orden = ?
+                  AND UPPER(ps.tipo) = UPPER(?)
+                  AND ps.cant_surtida > 0
+                  AND i.cant_stock_real >= ps.cant_surtida
+            `, [noOrden, tipo]);
+            console.log('📉 Inventario descontado (NO_ATENDIDO), filas afectadas:', descuentoNA.affectedRows);
+
+            // 🔥 Borrar de surtido
             await connection.query(`
                 DELETE FROM pedidos_surtiendo
                 WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
@@ -178,29 +176,27 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                     registro, inicio_surtido, fin_surtido, motivo
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                p.no_orden,
-                p.tipo,
-                p.codigo_pedido,
-                p.clave,
-                p.cantidad,
-                p.cant_surtida,
-                p.cant_no_enviada,
-                p.um,
-                p._bl,
-                p._pz,
-                p._pq,
-                p._inner,
-                p._master,
-                p.ubi_bahia,
-                'E',
-                p.id_usuario,
+                p.no_orden, p.tipo, p.codigo_pedido, p.clave,
+                p.cantidad, p.cant_surtida, p.cant_no_enviada,
+                p.um, p._bl, p._pz, p._pq, p._inner, p._master,
+                p.ubi_bahia, 'E', p.id_usuario,
                 p.id_usuario_paqueteria,
-                p.registro,
-                p.inicio_surtido,
-                p.fin_surtido,
+                p.registro, p.inicio_surtido, p.fin_surtido,
                 p.motivo
             ]);
         }
+
+        // ← DESCONTAR INVENTARIO antes de borrar (caso SURTIDO)
+        const [descuento] = await connection.query(`
+            UPDATE inventario i
+            INNER JOIN pedidos_surtiendo ps ON ps.codigo_pedido = i.codigo_producto
+            SET i.cant_stock_real = i.cant_stock_real - ps.cant_surtida
+            WHERE ps.no_orden = ?
+              AND UPPER(ps.tipo) = UPPER(?)
+              AND ps.cant_surtida > 0
+              AND i.cant_stock_real >= ps.cant_surtida
+        `, [noOrden, tipo]);
+        console.log('📉 Inventario descontado (SURTIDO), filas afectadas:', descuento.affectedRows);
 
         // 🔥 Borrar de surtido
         await connection.query(`
@@ -499,11 +495,46 @@ const obtenerDetallePedido = async (noOrden, tipo) => {
     return rows;
 };
 
+// ===== NUEVO: Sanced =====
+const insertarSanced = async (datos) => {
+    const sql = `
+        INSERT INTO sanced 
+            (no_orden, nombre_cliente, num_consigna, tpo_original, fecha,
+             correo, ejecutivo, estado, municipio, direccion, postal,
+             ruta, zona, telefono, referencia, observaciones,
+             no_factura, partidas, piezas, total, total_con_iva)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE
+            total = IF(VALUES(total) > 0, VALUES(total), total),
+            total_con_iva = IF(VALUES(total_con_iva) > 0, VALUES(total_con_iva), total_con_iva),
+            no_factura = IF(VALUES(no_factura) != '0-' AND VALUES(no_factura) != '', VALUES(no_factura), no_factura)
+    `;
+    const valores = [
+        datos.NoOrden, datos.Nombre_Cliente, datos.NumConsigna, datos.TpoOriginal,
+        datos.Fecha, datos.Correo, datos.Ejecutivo, datos.Estado, datos.Municipio,
+        datos.Direccion, datos.Postal, datos.Ruta, datos.Zona, datos.Telefono,
+        datos.Referencia, datos.Observaciones, datos.NoFactura,
+        datos.Partidas, datos.Piezas, datos.Total, datos.TotalConIva
+    ];
+    const [result] = await pool.query(sql, valores);
+    return result;
+};
 
+
+const obtenerDatosSanced = async (noOrden) => {
+    const [rows] = await pool.query(
+        `SELECT nombre_cliente, telefono, direccion, correo, num_consigna,
+                total, total_con_iva, no_factura
+         FROM sanced 
+         WHERE no_orden = ? LIMIT 1`,
+        [noOrden]
+    );
+    return rows[0] || null;
+};
 
 
 module.exports = {
     getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado,
     getpedidosFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
-    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido
+    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido, insertarSanced, obtenerDatosSanced
 };
