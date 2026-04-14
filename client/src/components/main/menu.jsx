@@ -32,6 +32,7 @@ import icono_santul from "../../img/general/icono_santul.png";
 import user_pic_default from "../../img/menu/user_pic_defautl.png";
 import logo_sancedch_blanco from "../../img/general/logo_SanCed_CH.png";
 import WarehouseIcon from '@mui/icons-material/Warehouse';
+import RouteIcon from '@mui/icons-material/Route';
 
 
 
@@ -340,7 +341,7 @@ const Menu = () => {
             {puedeVer("Plan") && (
               <li className="menu-item">
                 <Link to="/menu/Plan" className="menu-link">
-                  <WarehouseIcon className="menu-icon" />
+                  <RouteIcon className="menu-icon" />  {/* ← cambiado */}
                   {isOpen && <span>Plan</span>}
                 </Link>
               </li>

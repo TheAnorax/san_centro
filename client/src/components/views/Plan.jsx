@@ -59,6 +59,11 @@ function Plan() {
     const [rutasDB, setRutasDB] = useState([]);
     const [cargandoRutas, setCargandoRutas] = useState(false);
 
+    // ✅ Fecha filtro (hoy por default)
+    const [fechaFiltro, setFechaFiltro] = useState(
+        new Date().toISOString().split('T')[0]
+    );
+
     // Modal detalles
     const [modalOpen, setModalOpen] = useState(false);
     const [rutaSeleccionada, setRutaSeleccionada] = useState(null);
@@ -83,11 +88,14 @@ function Plan() {
         }
     }, [rutas, pedidos]);
 
-    // ✅ Cargar rutas de BD
-    const cargarRutasDB = async () => {
+    // ✅ Cargar rutas de BD con fecha
+    const cargarRutasDB = async (fecha) => {
         setCargandoRutas(true);
         try {
-            const res = await axios.get('http://66.232.105.107:3001/api/Plan/rutas');
+            const fechaParam = fecha || fechaFiltro;
+            const res = await axios.get(
+                `http://66.232.105.107:3001/api/Plan/rutas?fecha=${fechaParam}`
+            );
             setRutasDB(res.data || []);
         } catch (err) {
             console.error('Error al cargar rutas:', err);
@@ -149,6 +157,10 @@ function Plan() {
                     if (row['Estatus'] !== 'Lista Surtido') return false;
                     if (yaAsignados.has(String(row['No Orden']).trim())) return false;
 
+                    // ✅ Solo tipos CD y VQ
+                    const tipo = String(row['Tipo'] || '').trim().toUpperCase();
+                    if (!['CD', 'VQ'].includes(tipo)) return false;
+
                     const fecha = parsearFecha(row['Fecha Lista Surtido']);
                     if (!fecha || isNaN(fecha)) return false;
                     fecha.setHours(0, 0, 0, 0);
@@ -186,7 +198,7 @@ function Plan() {
             Swal.fire({
                 icon: 'success',
                 title: `${mapeado.length} pedidos cargados`,
-                text: 'Filtrados: Lista Surtido — últimos 3 días hábiles',
+                text: 'Filtrados: Lista Surtido — últimos 3 días hábiles (CD y VQ)',
                 timer: 2500,
                 showConfirmButton: false
             });
@@ -445,7 +457,6 @@ function Plan() {
             {/* ===== TAB 1: PLAN ===== */}
             {tabIndex === 0 && (
                 <Box p={2}>
-                    {/* ===== TOOLBAR ===== */}
                     <Paper sx={{ p: 2, mb: 2 }}>
                         <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
                             <Button variant="contained" component="label"
@@ -478,9 +489,30 @@ function Plan() {
                                 sx={{ textTransform: 'none' }}>
                                 {cargando ? 'Enviando...' : '✅ Enviar Rutas'}
                             </Button>
+
+                            <Button variant="contained" color="error"
+                                onClick={() => {
+                                    Swal.fire({
+                                        icon: 'warning',
+                                        title: '¿Limpiar tabla?',
+                                        text: 'Se eliminarán todos los pedidos de la lista principal.',
+                                        showCancelButton: true,
+                                        confirmButtonText: 'Sí, limpiar',
+                                        cancelButtonText: 'Cancelar'
+                                    }).then(result => {
+                                        if (!result.isConfirmed) return;
+                                        setPedidos([]);
+                                        setSeleccionados([]);
+                                        // ✅ También actualiza el localStorage
+                                        guardarLS(rutas, []);
+                                    });
+                                }}
+                                sx={{ textTransform: 'none' }}>
+                                🗑 Limpiar Tabla
+                            </Button>
+
                         </Box>
 
-                        {/* Asignación masiva */}
                         {seleccionados.length > 0 && (
                             <Box display="flex" gap={2} alignItems="center" mt={2}
                                 sx={{ bgcolor: '#e3f2fd', p: 1.5, borderRadius: 1 }}>
@@ -510,7 +542,6 @@ function Plan() {
                         )}
                     </Paper>
 
-                    {/* ===== TARJETAS DE RUTAS ===== */}
                     {Object.keys(rutas).length > 0 && (
                         <Box display="flex" gap={2} flexWrap="wrap" mb={2}>
                             {Object.entries(rutas).map(([nombre, peds]) => {
@@ -554,7 +585,6 @@ function Plan() {
                         </Box>
                     )}
 
-                    {/* ===== TABLA PRINCIPAL ===== */}
                     {pedidos.length > 0 ? (
                         <Paper sx={{ p: 2 }}>
                             <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
@@ -642,11 +672,28 @@ function Plan() {
             {/* ===== TAB 2: RUTAS GUARDADAS ===== */}
             {tabIndex === 1 && (
                 <Box p={2}>
+                    {/* ✅ Header con selector de fecha */}
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Button variant="outlined" onClick={cargarRutasDB}
-                            disabled={cargandoRutas} size="small">
-                            🔄 Actualizar
-                        </Button>
+                        <Typography variant="h6">Rutas Guardadas</Typography>
+                        <Box display="flex" gap={2} alignItems="center">
+                            <TextField
+                                type="date"
+                                size="small"
+                                label="Fecha"
+                                value={fechaFiltro}
+                                onChange={e => {
+                                    setFechaFiltro(e.target.value);
+                                    cargarRutasDB(e.target.value);
+                                }}
+                                InputLabelProps={{ shrink: true }}
+                            />
+                            <Button variant="outlined"
+                                onClick={() => cargarRutasDB()}
+                                disabled={cargandoRutas}
+                                size="small">
+                                🔄 Actualizar
+                            </Button>
+                        </Box>
                     </Box>
 
                     {cargandoRutas ? (
@@ -655,12 +702,11 @@ function Plan() {
                         </Box>
                     ) : rutasDB.length === 0 ? (
                         <Box textAlign="center" mt={5} color="#888">
-                            <Typography>No hay rutas guardadas.</Typography>
+                            <Typography>No hay rutas guardadas para esta fecha.</Typography>
                         </Box>
                     ) : (
                         rutasDB.map(ruta => (
                             <Box key={ruta.routeName} mb={4}>
-                                {/* Header de la ruta */}
                                 <Box display="flex" alignItems="center" gap={2} mb={1}
                                     sx={{ bgcolor: '#f5f5f5', p: 1.5, borderRadius: 1 }}>
                                     <Typography variant="h6" fontWeight={700}>
@@ -701,8 +747,7 @@ function Plan() {
                                                     <TableCell>{pedido.NO_ORDEN}</TableCell>
                                                     <TableCell>
                                                         <Chip label={pedido.tipo_original || pedido.TIPO}
-                                                            size="small"
-                                                            sx={{ bgcolor: '#e3f2fd' }} />
+                                                            size="small" sx={{ bgcolor: '#e3f2fd' }} />
                                                     </TableCell>
                                                     <TableCell>{pedido.NO_FACTURA || '—'}</TableCell>
                                                     <TableCell>{pedido.NOMBRE_DEL_CLIENTE}</TableCell>
@@ -719,17 +764,14 @@ function Plan() {
                                                     </TableCell>
                                                     <TableCell>{pedido.TRANSPORTE || '—'}</TableCell>
                                                     <TableCell>
-                                                        <Typography
-                                                            variant="body2"
-                                                            fontWeight={700}
+                                                        <Typography variant="body2" fontWeight={700}
                                                             sx={{
                                                                 color:
                                                                     pedido.status_pedido === 'FINALIZADO' ? '#2e7d32' :
                                                                         pedido.status_pedido === 'EMBARQUE' ? '#1565c0' :
                                                                             pedido.status_pedido === 'SURTIDO' ? '#e65100' :
-                                                                                '#c62828', // NO ASIGNADO
-                                                            }}
-                                                        >
+                                                                                '#c62828'
+                                                            }}>
                                                             {pedido.status_pedido}
                                                         </Typography>
                                                     </TableCell>

@@ -89,7 +89,10 @@ const insertarRutas = async (rutas) => {
     }
 };
 
-const obtenerRutas = async () => {
+const obtenerRutas = async (fecha) => {
+    // Si no viene fecha, usa hoy
+    const fechaFiltro = fecha || new Date().toISOString().split('T')[0];
+
     const [rows] = await pool.query(`
         SELECT 
             r.id,
@@ -112,7 +115,6 @@ const obtenerRutas = async () => {
             r.tipo_original,
             r.created_at,
 
-            -- ✅ Status del pedido
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM pedido_finalizado pf 
@@ -130,8 +132,9 @@ const obtenerRutas = async () => {
             END AS status_pedido
 
         FROM rutas r
+        WHERE DATE(r.created_at) = ?
         ORDER BY r.routeName ASC, r.created_at DESC
-    `);
+    `, [fechaFiltro]);
 
     const agrupadas = {};
     rows.forEach(row => {
@@ -153,5 +156,4 @@ const obtenerRutas = async () => {
 
     return Object.values(agrupadas);
 };
-
 module.exports = { insertarRutas, obtenerRutas };

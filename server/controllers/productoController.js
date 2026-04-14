@@ -1,6 +1,5 @@
 const Producto = require('../models/productoModel');
 
-// Obtener todos los productos con ubicación y stock real
 exports.getProductos = async (req, res) => {
   try {
     const [productos] = await Producto.getAll();
@@ -11,7 +10,6 @@ exports.getProductos = async (req, res) => {
   }
 };
 
-// Obtener un producto por ID (con su ubicación y stock real)
 exports.getProductoById = async (req, res) => {
   try {
     const [producto] = await Producto.getById(req.params.id);
@@ -25,7 +23,6 @@ exports.getProductoById = async (req, res) => {
   }
 };
 
-// Crear un nuevo producto
 exports.createProducto = async (req, res) => {
   try {
     const [result] = await Producto.create(req.body);
@@ -36,7 +33,6 @@ exports.createProducto = async (req, res) => {
   }
 };
 
-// Actualizar un producto existente
 exports.updateProducto = async (req, res) => {
   try {
     await Producto.update(req.params.id, req.body);
@@ -47,7 +43,6 @@ exports.updateProducto = async (req, res) => {
   }
 };
 
-// Eliminar un producto
 exports.deleteProducto = async (req, res) => {
   try {
     await Producto.delete(req.params.id);
@@ -55,5 +50,16 @@ exports.deleteProducto = async (req, res) => {
   } catch (error) {
     console.error("Error al eliminar producto:", error);
     res.status(500).json({ error: 'Error al eliminar producto' });
+  }
+};
+
+// ✅ NUEVA
+exports.getCodigosNegados = async (req, res) => {
+  try {
+    const [datos] = await Producto.getCodigosNegados();
+    res.status(200).json(datos);
+  } catch (error) {
+    console.error("Error al obtener códigos negados:", error);
+    res.status(500).json({ error: 'Error al obtener códigos negados' });
   }
 };
