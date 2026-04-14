@@ -27,9 +27,23 @@ const getPedidosConProductos = async () => {
     const [rows] = await pool.query(`
         SELECT 
             p.no_orden, p.tipo, p.registro,
-            pr.codigo_pedido, pr.clave, pr.cantidad, pr.um, pr.ubi_bahia as ubi, pr.estado, pr.avance,
+            pr.codigo_pedido, pr.clave, pr.cantidad, pr.um, 
+            pr.ubi_bahia as ubi, pr.estado, pr.avance,
             productos.descripcion,
-            inventario.ubicacion
+            inventario.ubicacion,
+
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM pedidos_embarques pe 
+                    WHERE pe.no_orden = pr.no_orden
+                ) THEN 'EN EMBARQUE'
+                WHEN EXISTS (
+                    SELECT 1 FROM pedidos_surtiendo ps 
+                    WHERE ps.no_orden = pr.no_orden
+                ) THEN 'EN SURTIDO'
+                ELSE 'PENDIENTE'
+            END AS estado_proceso
+
         FROM pedidos AS pr
         INNER JOIN (
             SELECT DISTINCT no_orden, tipo, registro
@@ -37,6 +51,11 @@ const getPedidosConProductos = async () => {
         ) AS p ON p.no_orden = pr.no_orden
         LEFT JOIN productos ON pr.codigo_pedido = productos.codigo
         LEFT JOIN inventario ON pr.codigo_pedido = inventario.codigo_producto
+
+        WHERE NOT EXISTS (
+            SELECT 1 FROM pedido_finalizado pf
+            WHERE pf.no_orden = pr.no_orden
+        )
         ORDER BY p.no_orden DESC, pr.id_pedi ASC
     `);
 
@@ -48,6 +67,7 @@ const getPedidosConProductos = async () => {
                 no_orden: row.no_orden,
                 tipo: row.tipo,
                 registro: row.registro,
+                estado_proceso: row.estado_proceso, // ✅ NUEVO
                 productos: []
             };
         }
@@ -63,6 +83,7 @@ const getPedidosConProductos = async () => {
             ubicacion: row.ubicacion
         });
     });
+
     return Object.values(pedidosMap);
 };
 

@@ -51,6 +51,7 @@ const pedidosRouter = require('./routes/pedidosRouter');
 const surtidoRouter = require('./routes/surtidoRoutes');
 const kpiRouter = require('./routes/kpiRouter');
 const activosRouter = require('./routes/activosRoutes');
+const planRouter = require('./routes/planRoutes');
 
 app.use('/api/productos', productosRoutes);
 app.use('/api/usuarios', usuarioRoutes);
@@ -65,6 +66,7 @@ app.use('/api/pedidos', pedidosRouter);
 app.use('/api/surtido', surtidoRouter);
 app.use('/api/kpi', kpiRouter);
 app.use('/api/activos', activosRouter);
+app.use('/api/Plan',planRouter);
 
 
 

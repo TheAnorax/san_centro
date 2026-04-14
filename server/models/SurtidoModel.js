@@ -137,18 +137,6 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                 ]);
             }
 
-            // ← DESCONTAR INVENTARIO antes de borrar (caso NO_ATENDIDO)
-            const [descuentoNA] = await connection.query(`
-                UPDATE inventario i
-                INNER JOIN pedidos_surtiendo ps ON ps.codigo_pedido = i.codigo_producto
-                SET i.cant_stock_real = i.cant_stock_real - ps.cant_surtida
-                WHERE ps.no_orden = ?
-                  AND UPPER(ps.tipo) = UPPER(?)
-                  AND ps.cant_surtida > 0
-                  AND i.cant_stock_real >= ps.cant_surtida
-            `, [noOrden, tipo]);
-            console.log('📉 Inventario descontado (NO_ATENDIDO), filas afectadas:', descuentoNA.affectedRows);
-
             // 🔥 Borrar de surtido
             await connection.query(`
                 DELETE FROM pedidos_surtiendo
@@ -185,18 +173,6 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                 p.motivo
             ]);
         }
-
-        // ← DESCONTAR INVENTARIO antes de borrar (caso SURTIDO)
-        const [descuento] = await connection.query(`
-            UPDATE inventario i
-            INNER JOIN pedidos_surtiendo ps ON ps.codigo_pedido = i.codigo_producto
-            SET i.cant_stock_real = i.cant_stock_real - ps.cant_surtida
-            WHERE ps.no_orden = ?
-              AND UPPER(ps.tipo) = UPPER(?)
-              AND ps.cant_surtida > 0
-              AND i.cant_stock_real >= ps.cant_surtida
-        `, [noOrden, tipo]);
-        console.log('📉 Inventario descontado (SURTIDO), filas afectadas:', descuento.affectedRows);
 
         // 🔥 Borrar de surtido
         await connection.query(`

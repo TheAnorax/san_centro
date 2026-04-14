@@ -48,7 +48,7 @@ import Pedidos from "../views/Pedidos";
 import Surtido from "../views/Surtido";
 import Avance from "../views/Avance";
 import Activo from "../views/Activos";
-
+import Plan from "../views/Plan";
 
 
 
@@ -337,6 +337,14 @@ const Menu = () => {
               </li>
             )}
 
+            {puedeVer("Plan") && (
+              <li className="menu-item">
+                <Link to="/menu/Plan" className="menu-link">
+                  <WarehouseIcon className="menu-icon" />
+                  {isOpen && <span>Plan</span>}
+                </Link>
+              </li>
+            )}
 
           </ul>
         </nav>
@@ -359,6 +367,7 @@ const Menu = () => {
             {puedeVer("surtido") && (<Route path="/surtido" element={<Surtido />} />)}
             {puedeVer("Avance") && (<Route path="/Avance" element={<Avance />} />)}
             {puedeVer("Activo") && (<Route path="/Activo" element={<Activo />} />)}
+            {puedeVer("Plan") && (<Route path="/Plan" element={<Plan />} />)}
 
 
           </Routes>

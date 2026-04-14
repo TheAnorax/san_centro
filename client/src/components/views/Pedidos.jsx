@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Card, CardContent, Typography, Box, Divider, Button, TextField, Chip, MenuItem, Select } from '@mui/material';
+import { Card, CardContent, Typography, Box, Divider, Button, TextField, Chip, MenuItem, Select, Tooltip } from '@mui/material';
 import Pagination from '@mui/material/Pagination';
 import { FaTimes } from "react-icons/fa";
 import axios from 'axios';
@@ -360,20 +360,52 @@ function Pedidos() {
                                                     ))}
                                                 </select>
 
-                                                <Button
-                                                    variant="contained"
-                                                    color="primary"
-                                                    size="small"
-                                                    disabled={!(bahiasSeleccionadas.length > 0 && selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])}
+
+
+                                                <Tooltip
                                                     title={
-                                                        !(selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])
-                                                            ? "Selecciona primero una bahía libre y un usuario"
-                                                            : ""
+                                                        pedido.estado_proceso === 'EN EMBARQUE'
+                                                            ? '🚛 Este pedido ya está siendo embarcado, no se puede reasignar.'
+                                                            : pedido.estado_proceso === 'EN SURTIDO'
+                                                                ? '📦 Este pedido ya está siendo surtido por un usuario.'
+                                                                : !(selectedBahiaDisponible && usuariosPorPedido[pedido.no_orden])
+                                                                    ? '⚠️ Selecciona primero una bahía libre y un usuario'
+                                                                    : '✅ Listo para asignar'
                                                     }
-                                                    onClick={() => handleAgregarPedido(pedido)}
+                                                    arrow
+                                                    placement="top"
                                                 >
-                                                    Agregar
-                                                </Button>
+                                                    <span> {/* ← span necesario para que Tooltip funcione con botón disabled */}
+                                                        <Button
+                                                            variant="contained"
+                                                            size="small"
+                                                            disabled={
+                                                                pedido.estado_proceso !== 'PENDIENTE' ||
+                                                                !(bahiasSeleccionadas.length > 0 &&
+                                                                    selectedBahiaDisponible &&
+                                                                    usuariosPorPedido[pedido.no_orden])
+                                                            }
+                                                            onClick={() => handleAgregarPedido(pedido)}
+                                                            sx={{
+                                                                '&.Mui-disabled': {
+                                                                    bgcolor: pedido.estado_proceso === 'EN EMBARQUE'
+                                                                        ? '#1565c0 !important'
+                                                                        : pedido.estado_proceso === 'EN SURTIDO'
+                                                                            ? '#e65100 !important'
+                                                                            : undefined,
+                                                                    color: pedido.estado_proceso !== 'PENDIENTE'
+                                                                        ? '#fff !important'
+                                                                        : undefined,
+                                                                }
+                                                            }}
+                                                        >
+                                                            {pedido.estado_proceso !== 'PENDIENTE'
+                                                                ? pedido.estado_proceso
+                                                                : 'Agregar'
+                                                            }
+                                                        </Button>
+                                                    </span>
+                                                </Tooltip>
 
                                             </Box>
 
