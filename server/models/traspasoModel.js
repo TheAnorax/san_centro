@@ -169,14 +169,30 @@ async function handleObtenerRecibidos(req, res) {
 }
 
 async function getInventarioPorCodigo(codigo) {
-  const sql = `
-    SELECT ubicacion, oc, cant_stock_real
-    FROM inventario
-    WHERE codigo_producto = ?
-    LIMIT 1
-  `;
 
-  const [rows] = await pool.query(sql, [codigo]);
+  // Busca por código interno O por cualquier barcode
+  const [rows] = await pool.query(
+    `SELECT 
+       i.*,
+       p.descripcion,
+       p.barcode_pz,
+       p.barcode_master,
+       p.barcode_inner,
+       p.img_pz,
+       p._pz,
+       p._master,
+       p._inner
+     FROM inventario i
+     LEFT JOIN productos p ON p.codigo = i.codigo_producto
+     WHERE 
+       i.codigo_producto = ?
+       OR p.barcode_pz = ?
+       OR p.barcode_master = ?
+       OR p.barcode_inner = ?
+     LIMIT 1`,
+    [codigo, codigo, codigo, codigo]
+  );
+
   return rows.length > 0 ? rows[0] : null;
 }
 
