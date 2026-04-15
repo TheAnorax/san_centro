@@ -1,4 +1,3 @@
-// src/services/traspasoService.js (o donde tengas este helper)
 const pool = require('../db');
 
 async function insertTraspasoRecibido(datos) {
@@ -7,9 +6,6 @@ async function insertTraspasoRecibido(datos) {
   try {
     await connection.beginTransaction();
 
-    // =========================
-    // 1. INSERT EN recibir_traspasos (SIN lote)
-    // =========================
     const sql = `
       INSERT INTO recibir_traspasos
         (No_Orden, tipo_orden,
@@ -22,28 +18,21 @@ async function insertTraspasoRecibido(datos) {
     const params = [
       datos.No_Orden || null,
       datos.tipo_orden || null,
-
       datos.Codigo,
       datos.Descripcion,
       datos.Clave || null,
       datos.um || null,
       datos._pz != null ? datos._pz : null,
       datos.Cantidad,
-
       datos.dia_envio ? new Date(datos.dia_envio) : null,
       datos.almacen_envio || null,
       datos.tiempo_llegada_estimado ? new Date(datos.tiempo_llegada_estimado) : null,
-
       datos.estado || 'F',
       datos.ubicacion || null,
       datos.usuario_id || null
     ];
 
     const [result] = await connection.query(sql, params);
-
-    // =========================
-    // 2. INVENTARIO: SUMAR SI EXISTE, INSERTAR SI NO
-    // =========================
 
     const sqlCheck = `
       SELECT id_ubicaccion, cant_stock_real, oc
@@ -58,52 +47,31 @@ async function insertTraspasoRecibido(datos) {
     ]);
 
     if (rows.length > 0) {
-      // 👉 YA EXISTE → SUMAR + CONCATENAR OC
       const actual = rows[0];
 
       const nuevaCantidad =
         Number(actual.cant_stock_real || 0) + Number(datos.Cantidad || 0);
 
       let nuevaOC = actual.oc || '';
-
       if (datos.oc) {
-        if (nuevaOC) {
-          const ocs = new Set(
-            nuevaOC.split(',').map(o => o.trim())
-          );
-          ocs.add(datos.oc);
-          nuevaOC = Array.from(ocs).join(',');
-        } else {
-          nuevaOC = datos.oc;
-        }
+        const ocs = new Set(nuevaOC.split(',').map(o => o.trim()));
+        ocs.add(datos.oc);
+        nuevaOC = Array.from(ocs).join(',');
       }
 
+      let nuevoLote = actual.lote_serie || '';
       if (datos.lote_serie) {
-        if (nuevoLote) {
-          const lotes = new Set(
-            nuevoLote.split(',').map(l => l.trim())
-          );
-          lotes.add(datos.lote_serie);
-          nuevoLote = Array.from(lotes).join(',');
-        } else {
-          nuevoLote = datos.lote_serie;
-        }
+        const lotes = new Set(nuevoLote.split(',').map(l => l.trim()));
+        lotes.add(datos.lote_serie);
+        nuevoLote = Array.from(lotes).join(',');
       }
 
-      const sqlUpdate = `
-        UPDATE inventario
-        SET cant_stock_real = ?, oc = ?
-        WHERE id_ubicaccion = ?
-      `;
-
-      await connection.query(sqlUpdate, [
-        nuevaCantidad,
-        nuevaOC,
-        actual.id_ubicaccion
-      ]);
+      await connection.query(
+        'UPDATE inventario SET cant_stock_real = ?, oc = ? WHERE id_ubicaccion = ?',
+        [nuevaCantidad, nuevaOC, actual.id_ubicaccion]
+      );
 
       await connection.commit();
-
       return {
         recibir_traspasos_id: result.insertId,
         inventario_id: actual.id_ubicaccion,
@@ -111,14 +79,11 @@ async function insertTraspasoRecibido(datos) {
       };
 
     } else {
-      // 👉 NO EXISTE → INSERT NORMAL
-      const sqlInv = `
+      const [invResult] = await connection.query(`
         INSERT INTO inventario
           (ubicacion, codigo_producto, almacen, cant_stock_real, lote_serie, oc, ingreso)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `;
-
-      const paramsInv = [
+      `, [
         datos.ubicacion,
         datos.Codigo,
         datos.almacen_envio || null,
@@ -126,12 +91,9 @@ async function insertTraspasoRecibido(datos) {
         datos.lote_serie || null,
         datos.oc || null,
         new Date()
-      ];
-
-      const [invResult] = await connection.query(sqlInv, paramsInv);
+      ]);
 
       await connection.commit();
-
       return {
         recibir_traspasos_id: result.insertId,
         inventario_id: invResult.insertId,
@@ -157,7 +119,6 @@ async function handleObtenerRecibidos(req, res) {
         rt.Codigo, rt.Cantidad, rt.estado, rt.ubicacion,
         rt.usuario_id, u.nombre AS nombre_usuario,
         rt.created_at
-
       FROM recibir_traspasos rt
       LEFT JOIN usuarios u ON rt.usuario_id = u.id
     `);
@@ -168,32 +129,144 @@ async function handleObtenerRecibidos(req, res) {
   }
 }
 
-async function getInventarioPorCodigo(codigo) {
 
-  // Busca por código interno O por cualquier barcode
-  const [rows] = await pool.query(
-    `SELECT 
-       i.*,
-       p.descripcion,
-       p.barcode_pz,
-       p.barcode_master,
-       p.barcode_inner,
-       p.img_pz,
-       p._pz,
-       p._master,
-       p._inner
-     FROM inventario i
-     LEFT JOIN productos p ON p.codigo = i.codigo_producto
-     WHERE 
-       i.codigo_producto = ?
-       OR p.barcode_pz = ?
-       OR p.barcode_master = ?
-       OR p.barcode_inner = ?
-     LIMIT 1`,
+async function getInventarioPorCodigo(codigo) {
+  const [rows] = await pool.query(`
+    SELECT 
+      i.*,
+      p.descripcion,
+      p.um,
+      p.barcode_pz,
+      p.barcode_master,
+      p.barcode_inner,
+      p.img_pz,
+      p._pz,
+      p._master,
+      p._inner
+    FROM inventario i
+    LEFT JOIN productos p ON p.codigo = i.codigo_producto
+    WHERE 
+      i.codigo_producto = ?
+      OR p.barcode_pz = ?
+      OR p.barcode_master = ?
+      OR p.barcode_inner = ?
+    LIMIT 1`,
     [codigo, codigo, codigo, codigo]
   );
 
   return rows.length > 0 ? rows[0] : null;
 }
 
-module.exports = { insertTraspasoRecibido, handleObtenerRecibidos, getInventarioPorCodigo };
+
+// ✅ Una sola función — actualiza productos + inventario + historial
+async function updateProductoCompleto(codigo, datos, modificadoPor) {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // 1️⃣ Obtener valores actuales de productos
+    const [actualProducto] = await connection.query(
+      'SELECT _pz, _inner, _master, barcode_pz, barcode_inner, barcode_master, um FROM productos WHERE codigo = ?',
+      [codigo]
+    );
+
+    if (actualProducto.length === 0) throw new Error('Producto no encontrado');
+
+    // 2️⃣ Obtener valores actuales de inventario
+    const [actualInv] = await connection.query(
+      'SELECT ubicacion, cant_stock_real FROM inventario WHERE codigo_producto = ? LIMIT 1',
+      [codigo]
+    );
+
+    if (actualInv.length === 0) throw new Error('Inventario no encontrado');
+
+    const prodActual = actualProducto[0];
+    const invActual = actualInv[0];
+
+    // 3️⃣ Normalizar um a mayúsculas
+    const umMayusculas = datos.um?.toString().toUpperCase() ?? null;
+
+    // 4️⃣ Actualizar tabla productos
+    await connection.query(`
+      UPDATE productos 
+      SET _pz = ?, _inner = ?, _master = ?,
+          barcode_pz = ?, barcode_inner = ?, barcode_master = ?,
+          um = ?
+      WHERE codigo = ?
+    `, [
+      datos._pz, datos._inner, datos._master,
+      datos.barcode_pz, datos.barcode_inner, datos.barcode_master,
+      umMayusculas,
+      codigo
+    ]);
+
+    // 5️⃣ Actualizar tabla inventario
+    await connection.query(
+      'UPDATE inventario SET ubicacion = ?, cant_stock_real = ? WHERE codigo_producto = ?',
+      [datos.ubicacion, datos.cant_stock_real, codigo]
+    );
+
+    // 6️⃣ Historial — productos
+    const camposProducto = [
+      '_pz', '_inner', '_master',
+      'barcode_pz', 'barcode_inner', 'barcode_master',
+      'um'  // ✅
+    ];
+
+    for (const campo of camposProducto) {
+      const anterior = prodActual[campo]?.toString() ?? '';
+      const nuevo = campo === 'um'
+        ? umMayusculas ?? ''
+        : datos[campo]?.toString() ?? '';
+
+      if (anterior !== nuevo) {
+        await connection.query('INSERT INTO productos_historial SET ?', [{
+          producto_id: codigo,
+          codigo,
+          campo,
+          valor_anterior: anterior,
+          valor_nuevo: nuevo,
+          modificado_por: modificadoPor,
+        }]);
+      }
+    }
+
+    // 7️⃣ Historial — inventario
+    const camposInventario = [
+      { campo: 'ubicacion', anterior: invActual.ubicacion, nuevo: datos.ubicacion },
+      { campo: 'cant_stock_real', anterior: invActual.cant_stock_real, nuevo: datos.cant_stock_real },
+    ];
+
+    for (const c of camposInventario) {
+      if (c.anterior?.toString() !== c.nuevo?.toString()) {
+        await connection.query('INSERT INTO productos_historial SET ?', [{
+          producto_id: codigo,
+          codigo,
+          campo: c.campo,
+          valor_anterior: c.anterior?.toString() ?? '',
+          valor_nuevo: c.nuevo?.toString() ?? '',
+          modificado_por: modificadoPor,
+        }]);
+      }
+    }
+
+    await connection.commit();
+    return { ok: true };
+
+  } catch (err) {
+    await connection.rollback();
+    console.error('❌ Error en updateProductoCompleto:', err);
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+
+module.exports = {
+  insertTraspasoRecibido,
+  handleObtenerRecibidos,
+  getInventarioPorCodigo,
+  updateProductoCompleto
+};

@@ -515,7 +515,7 @@ function Surtiendo() {
     const generarPDFPackingList = async (noOrden, tipo) => {
         try {
             Swal.fire({
-                title: "Generando PDF...",
+                title: "Generando Packing List...",
                 text: "Por favor espera",
                 didOpen: () => Swal.showLoading(),
                 allowOutsideClick: false,
@@ -1530,7 +1530,7 @@ function Surtiendo() {
                                                         sx={{ ml: 1 }}
                                                         onClick={() => generarPDFPackingList(pedido.no_orden, pedido.tipo)}
                                                     >
-                                                        Generar PDF
+                                                        Generar Packing List
                                                     </Button>
 
                                                     {detalleExpandido[rowKey] && (

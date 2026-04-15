@@ -16,6 +16,7 @@ import SearchIcon from "@mui/icons-material/Search";   // ✅ agregado
 import ClearIcon from "@mui/icons-material/Clear";     // ✅ agregado
 import JsBarcode from "jsbarcode";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import { useGridRowSelection } from "@mui/x-data-grid/internals";
 
 const Productos = ({ isSwitching }) => {
   const navigate = useNavigate();
@@ -297,7 +298,7 @@ const Productos = ({ isSwitching }) => {
 
       <div className="place_holder-content">
 
-        {(userRole === 'admin' || userRole === 'master') && (
+        {(userRole === 'admin' || userRole === 'master' || userRole === 'supervisor') && (
           <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#fff' }}>
             <Tabs value={tabIndex} onChange={(e, v) => {
               setTabIndex(v);
@@ -385,7 +386,7 @@ const Productos = ({ isSwitching }) => {
         )}
 
         {/* TAB 2: HISTORIAL ✅ */}
-        {tabIndex === 2 && (userRole === 'admin' || userRole === 'master') && (
+        {tabIndex === 2 && (userRole === 'admin' || userRole === 'master' || userRole === 'supervisor') && (
           <Box p={2}>
             <Typography variant="h6" gutterBottom>🕐 Historial de modificaciones</Typography>
 
