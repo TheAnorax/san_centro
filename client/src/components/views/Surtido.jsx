@@ -1137,7 +1137,7 @@ function Surtiendo() {
 
         // Texto informativo (si quieres conservarlo)
     }
- 
+
 
 
     return (
@@ -1486,13 +1486,38 @@ function Surtiendo() {
 
                                             return (
                                                 <Paper key={rowKey} sx={{ mb: 2, p: 2 }}>
-                                                    <Typography variant="subtitle1" fontWeight="bold">
-                                                        {pedido?.tipo} : {pedido?.no_orden}
-                                                    </Typography>
+                                                     
+                                                    {(() => {
+                                                        const fechasEmbarque = prods
+                                                            .map(p => p?.fin_embarque ? new Date(p.fin_embarque) : null)
+                                                            .filter(Boolean);
+                                                        const ultimaFecha = fechasEmbarque.length > 0
+                                                            ? new Date(Math.max(...fechasEmbarque))
+                                                            : null;
 
-                                                    <Typography variant="body2" sx={{ mb: 1 }}>
-                                                        Total: <b>{total}</b> &nbsp;|&nbsp; Surtida: <b>{surtida}</b> &nbsp;|&nbsp; No enviada: <b>{noEnviada}</b>
-                                                    </Typography>
+                                                        return (
+                                                            <>
+                                                                <Typography variant="subtitle1" fontWeight="bold">
+                                                                    {pedido?.tipo} : {pedido?.no_orden}
+                                                                </Typography>
+
+                                                                {ultimaFecha && (
+                                                                    <Typography variant="body2" sx={{ color: '#d21919', fontWeight: 600, mb: 0.5 }}>
+                                                                        🕐 Fin de embarque: {ultimaFecha.toLocaleString("es-MX", {
+                                                                            dateStyle: "short",
+                                                                            timeStyle: "medium"
+                                                                        })}
+                                                                    </Typography>
+                                                                )}
+
+                                                                <Typography variant="body2" sx={{ mb: 1 }}>
+                                                                    Total: <b>{total}</b> &nbsp;|&nbsp;
+                                                                    Surtida: <b>{surtida}</b> &nbsp;|&nbsp;
+                                                                    No enviada: <b>{noEnviada}</b>
+                                                                </Typography>
+                                                            </>
+                                                        );
+                                                    })()}
 
                                                     <Button variant="outlined" size="small" sx={{ my: 1 }}
                                                         onClick={() => setDetalleExpandido(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}>
