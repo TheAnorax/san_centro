@@ -263,10 +263,35 @@ async function updateProductoCompleto(codigo, datos, modificadoPor) {
   }
 }
 
+async function getProductosPorUbicacion(ubicacion) {
+  const [rows] = await pool.query(`
+    SELECT 
+      i.ubicacion,
+      i.codigo_producto,
+      i.cant_stock_real,
+      p.descripcion,
+      p.clave,
+      p.um,
+      p.barcode_pz,
+      p.barcode_inner,
+      p.barcode_master,
+      p._pz,
+      p._inner,
+      p._master
+    FROM inventario i
+    LEFT JOIN productos p ON p.codigo = i.codigo_producto
+    WHERE i.ubicacion = ?
+    ORDER BY i.codigo_producto ASC
+  `, [ubicacion]);
+
+  return rows;
+}
+
 
 module.exports = {
   insertTraspasoRecibido,
   handleObtenerRecibidos,
   getInventarioPorCodigo,
-  updateProductoCompleto
+  updateProductoCompleto,
+  getProductosPorUbicacion
 };

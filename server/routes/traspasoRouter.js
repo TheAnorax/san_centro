@@ -7,6 +7,7 @@ const {
   handleListadoRecibidos,
   handleGetInventarioPorCodigo,
   handleUpdateProducto  // ✅ nueva
+  ,handleGetProductosPorUbicacion
 } = require('../controllers/traspasoController');
 
 const RH_BASE_URL = process.env.RH_BASE_URL || 'http://66.232.105.87:3007/api/RH';
@@ -29,5 +30,7 @@ router.get('/inventario-por-codigo/:codigo', handleGetInventarioPorCodigo);
 // ✅ NUEVAS rutas para consulta y edición desde app móvil
 router.get('/producto/:codigo', handleGetInventarioPorCodigo);
 router.put('/producto/:codigo', handleUpdateProducto);
+
+router.get('/ubicacion/:ubicacion', handleGetProductosPorUbicacion);
 
 module.exports = router;

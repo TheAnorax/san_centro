@@ -2,7 +2,8 @@ const {
   insertTraspasoRecibido,
   handleObtenerRecibidos,
   getInventarioPorCodigo,
-  updateProductoCompleto  // ✅ nombre correcto
+  updateProductoCompleto,  // ✅ nombre correcto
+  getProductosPorUbicacion  
 } = require('../models/traspasoModel');
 
 const toDateOrNull = (v) => (v ? new Date(v) : null);
@@ -135,9 +136,37 @@ async function handleUpdateProducto(req, res) {
   }
 }
 
+// ✅ NUEVA — buscar por ubicación
+async function handleGetProductosPorUbicacion(req, res) {
+  try {
+    const { ubicacion } = req.params;
+
+    if (!ubicacion) {
+      return res.status(400).json({ ok: false, message: 'Ubicación es requerida' });
+    }
+
+    const data = await getProductosPorUbicacion(ubicacion.toUpperCase().trim());
+
+    if (data.length === 0) {
+      return res.json({ ok: false, data: [], message: 'No hay productos en esta ubicación' });
+    }
+
+    return res.json({ ok: true, data, total: data.length });
+
+  } catch (error) {
+    console.error('Error en handleGetProductosPorUbicacion:', error);
+    return res.status(500).json({
+      ok: false,
+      message: 'Error al consultar ubicación',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   handleGuardarTraspaso,
   handleListadoRecibidos,
   handleGetInventarioPorCodigo,
-  handleUpdateProducto
+  handleUpdateProducto,
+  handleGetProductosPorUbicacion  
 };
