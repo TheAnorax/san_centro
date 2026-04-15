@@ -36,19 +36,72 @@ const Producto = {
         return db.query(query);
     },
 
+    // ✅ AGREGADO - faltaba getById
+    getById: (id) => {
+        return db.query('SELECT * FROM productos WHERE id = ?', [id]);
+    },
+
     create: (producto) => {
         return db.query('INSERT INTO productos SET ?', [producto]);
     },
 
-    update: (id, producto) => {
-        return db.query('UPDATE productos SET ? WHERE id = ?', [producto, id]);
+    update: (id, producto, nombreUsuario) => {
+        // 🔥 Quitar TODOS los campos que NO están en la tabla productos
+        const {
+            ubicacion,
+            almacen,
+            cant_stock_real,
+            modificado_por,  // ✅ este faltaba quitar
+            ...soloProducto
+        } = producto;
+
+        return new Promise(async (resolve, reject) => {
+            try {
+                // 1️⃣ Obtener valores actuales antes de actualizar
+                const [actual] = await db.query(
+                    'SELECT * FROM productos WHERE id = ?', [id]
+                );
+                const productoActual = actual[0];
+
+                // 2️⃣ Detectar qué campos cambiaron
+                const cambios = [];
+                for (const campo in soloProducto) {
+                    const valorAnterior = productoActual[campo]?.toString() ?? '';
+                    const valorNuevo = soloProducto[campo]?.toString() ?? '';
+
+                    if (valorAnterior !== valorNuevo) {
+                        cambios.push({
+                            producto_id: id,
+                            codigo: soloProducto.codigo,
+                            campo,
+                            valor_anterior: valorAnterior,
+                            valor_nuevo: valorNuevo,
+                            modificado_por: nombreUsuario,
+                        });
+                    }
+                }
+
+                // 3️⃣ Hacer el UPDATE
+                await db.query('UPDATE productos SET ? WHERE id = ?', [soloProducto, id]);
+
+                // 4️⃣ Insertar historial solo si hubo cambios
+                if (cambios.length > 0) {
+                    for (const cambio of cambios) {
+                        await db.query('INSERT INTO productos_historial SET ?', [cambio]);
+                    }
+                }
+
+                resolve({ ok: true, cambios: cambios.length });
+            } catch (err) {
+                reject(err);
+            }
+        });
     },
 
     delete: (id) => {
         return db.query('DELETE FROM productos WHERE id = ?', [id]);
     },
 
-    // ✅ Códigos negados
     getCodigosNegados: () => {
         const query = `
             SELECT 
@@ -74,6 +127,23 @@ const Producto = {
                 pf.tipo,
                 pf.registro_fin
             ORDER BY pf.registro_fin DESC
+        `;
+        return db.query(query);
+    },
+
+    // ✅ Obtener historial completo
+    getHistorial: () => {
+        const query = `
+            SELECT 
+                campo,
+                valor_anterior,
+                valor_nuevo,
+                modificado_por,
+                codigo,
+                fecha
+            FROM productos_historial
+            ORDER BY fecha DESC
+            LIMIT 500
         `;
         return db.query(query);
     }

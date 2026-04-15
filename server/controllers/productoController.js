@@ -35,7 +35,10 @@ exports.createProducto = async (req, res) => {
 
 exports.updateProducto = async (req, res) => {
   try {
-    await Producto.update(req.params.id, req.body);
+    // 🔥 Tomar el nombre del usuario desde el body
+    const nombreUsuario = req.body.modificado_por || 'Desconocido';
+
+    await Producto.update(req.params.id, req.body, nombreUsuario);
     res.status(200).json({ message: 'Producto actualizado correctamente' });
   } catch (error) {
     console.error("Error al actualizar producto:", error);
@@ -53,7 +56,6 @@ exports.deleteProducto = async (req, res) => {
   }
 };
 
-// ✅ NUEVA
 exports.getCodigosNegados = async (req, res) => {
   try {
     const [datos] = await Producto.getCodigosNegados();
@@ -61,5 +63,16 @@ exports.getCodigosNegados = async (req, res) => {
   } catch (error) {
     console.error("Error al obtener códigos negados:", error);
     res.status(500).json({ error: 'Error al obtener códigos negados' });
+  }
+};
+
+// ✅ NUEVO - Obtener historial de cambios
+exports.getHistorial = async (req, res) => {
+  try {
+    const [datos] = await Producto.getHistorial(req.params.id);
+    res.status(200).json(datos);
+  } catch (error) {
+    console.error("Error al obtener historial:", error);
+    res.status(500).json({ error: 'Error al obtener historial' });
   }
 };
