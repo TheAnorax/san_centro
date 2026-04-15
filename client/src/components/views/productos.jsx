@@ -386,6 +386,7 @@ const Productos = ({ isSwitching }) => {
         )}
 
         {/* TAB 2: HISTORIAL ✅ */}
+        {/* TAB 2: HISTORIAL ✅ */}
         {tabIndex === 2 && (userRole === 'admin' || userRole === 'master' || userRole === 'supervisor') && (
           <Box p={2}>
             <Typography variant="h6" gutterBottom>🕐 Historial de modificaciones</Typography>
@@ -420,46 +421,106 @@ const Productos = ({ isSwitching }) => {
               </Typography>
             </Box>
 
-            <Box sx={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: 2 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Fecha</TableCell>
-                    <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Código</TableCell>
-                    <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Campo modificado</TableCell>
-                    <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Valor anterior</TableCell>
-                    <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Valor nuevo</TableCell>
-                    <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Modificado por</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {historialFiltrado.map((h, i) => (
-                    <TableRow key={i} sx={{ '&:hover': { backgroundColor: '#f9f9f9' }, borderLeft: '3px solid #3498db' }}>
-                      <TableCell sx={{ whiteSpace: 'nowrap', fontSize: 12 }}>
-                        {h.fecha ? new Date(h.fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : '-'}
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{h.codigo}</TableCell>
-                      <TableCell>
-                        <Box component="span" sx={{ backgroundColor: '#e3f2fd', color: '#1565c0', px: 1, py: 0.3, borderRadius: 1, fontSize: 12, fontWeight: 600 }}>
-                          {h.campo}
-                        </Box>
-                      </TableCell>
-                      <TableCell sx={{ color: '#c62828', fontSize: 12 }}>{h.valor_anterior || '-'}</TableCell>
-                      <TableCell sx={{ color: '#2e7d32', fontWeight: 600, fontSize: 12 }}>{h.valor_nuevo || '-'}</TableCell>
-                      <TableCell sx={{ fontSize: 12 }}>👤 {h.modificado_por}</TableCell>
-                    </TableRow>
-                  ))}
+            {/* ✅ AGRUPAR POR PERSONA */}
+            {(() => {
+              // Agrupar historial filtrado por modificado_por
+              const agrupado = historialFiltrado.reduce((acc, h) => {
+                const persona = h.modificado_por || 'Desconocido';
+                if (!acc[persona]) acc[persona] = [];
+                acc[persona].push(h);
+                return acc;
+              }, {});
 
-                  {historialFiltrado.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ color: '#999', py: 4 }}>
-                        No hay registros en el historial.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </Box>
+              return Object.entries(agrupado).map(([persona, registros]) => (
+                <Box key={persona} mb={3}>
+                  {/* CABECERA DE PERSONA */}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      mb: 1,
+                      px: 2,
+                      py: 1,
+                      backgroundColor: '#1565c0',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>
+                      👤 {persona}
+                    </Typography>
+                    <Chip
+                      label={`${registros.length} cambios`}
+                      size="small"
+                      sx={{ backgroundColor: '#fff', color: '#1565c0', fontWeight: 700 }}
+                    />
+                  </Box>
+
+                  {/* TABLA DE ESA PERSONA */}
+                  <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 2, overflow: 'hidden' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Fecha</TableCell>
+                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Código</TableCell>
+                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Campo modificado</TableCell>
+                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Valor anterior</TableCell>
+                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Valor nuevo</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {registros.map((h, i) => (
+                          <TableRow
+                            key={i}
+                            sx={{
+                              '&:hover': { backgroundColor: '#f9f9f9' },
+                              borderLeft: '3px solid #3498db'
+                            }}
+                          >
+                            <TableCell sx={{ whiteSpace: 'nowrap', fontSize: 12 }}>
+                              {h.fecha
+                                ? new Date(h.fecha).toLocaleString('es-MX', {
+                                  dateStyle: 'short',
+                                  timeStyle: 'medium'
+                                })
+                                : '-'}
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{h.codigo}</TableCell>
+                            <TableCell>
+                              <Box
+                                component="span"
+                                sx={{
+                                  backgroundColor: '#e3f2fd',
+                                  color: '#1565c0',
+                                  px: 1, py: 0.3,
+                                  borderRadius: 1,
+                                  fontSize: 12,
+                                  fontWeight: 600
+                                }}
+                              >
+                                {h.campo}
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={{ color: '#c62828', fontSize: 12 }}>
+                              {h.valor_anterior || '-'}
+                            </TableCell>
+                            <TableCell sx={{ color: '#2e7d32', fontWeight: 600, fontSize: 12 }}>
+                              {h.valor_nuevo || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                </Box>
+              ));
+            })()}
+
+            {historialFiltrado.length === 0 && (
+              <Box sx={{ textAlign: 'center', color: '#999', py: 4 }}>
+                No hay registros en el historial.
+              </Box>
+            )}
           </Box>
         )}
 
