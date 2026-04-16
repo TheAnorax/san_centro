@@ -35,9 +35,7 @@ exports.createProducto = async (req, res) => {
 
 exports.updateProducto = async (req, res) => {
   try {
-    // 🔥 Tomar el nombre del usuario desde el body
     const nombreUsuario = req.body.modificado_por || 'Desconocido';
-
     await Producto.update(req.params.id, req.body, nombreUsuario);
     res.status(200).json({ message: 'Producto actualizado correctamente' });
   } catch (error) {
@@ -66,7 +64,6 @@ exports.getCodigosNegados = async (req, res) => {
   }
 };
 
-// ✅ NUEVO - Obtener historial de cambios
 exports.getHistorial = async (req, res) => {
   try {
     const [datos] = await Producto.getHistorial(req.params.id);
@@ -74,5 +71,16 @@ exports.getHistorial = async (req, res) => {
   } catch (error) {
     console.error("Error al obtener historial:", error);
     res.status(500).json({ error: 'Error al obtener historial' });
+  }
+};
+
+// ✅ NUEVA — códigos más solicitados
+exports.getCodigosMasSolicitados = async (req, res) => {
+  try {
+    const [datos] = await Producto.getCodigosMasSolicitados();
+    res.status(200).json(datos);
+  } catch (error) {
+    console.error("Error al obtener códigos más solicitados:", error);
+    res.status(500).json({ error: 'Error al obtener códigos más solicitados' });
   }
 };

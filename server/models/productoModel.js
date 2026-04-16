@@ -36,7 +36,6 @@ const Producto = {
         return db.query(query);
     },
 
-    // ✅ AGREGADO - faltaba getById
     getById: (id) => {
         return db.query('SELECT * FROM productos WHERE id = ?', [id]);
     },
@@ -46,24 +45,21 @@ const Producto = {
     },
 
     update: (id, producto, nombreUsuario) => {
-        // 🔥 Quitar TODOS los campos que NO están en la tabla productos
         const {
             ubicacion,
             almacen,
             cant_stock_real,
-            modificado_por,  // ✅ este faltaba quitar
+            modificado_por,
             ...soloProducto
         } = producto;
 
         return new Promise(async (resolve, reject) => {
             try {
-                // 1️⃣ Obtener valores actuales antes de actualizar
                 const [actual] = await db.query(
                     'SELECT * FROM productos WHERE id = ?', [id]
                 );
                 const productoActual = actual[0];
 
-                // 2️⃣ Detectar qué campos cambiaron
                 const cambios = [];
                 for (const campo in soloProducto) {
                     const valorAnterior = productoActual[campo]?.toString() ?? '';
@@ -81,10 +77,8 @@ const Producto = {
                     }
                 }
 
-                // 3️⃣ Hacer el UPDATE
                 await db.query('UPDATE productos SET ? WHERE id = ?', [soloProducto, id]);
 
-                // 4️⃣ Insertar historial solo si hubo cambios
                 if (cambios.length > 0) {
                     for (const cambio of cambios) {
                         await db.query('INSERT INTO productos_historial SET ?', [cambio]);
@@ -131,7 +125,29 @@ const Producto = {
         return db.query(query);
     },
 
-    // ✅ Obtener historial completo
+    // ✅ NUEVA — códigos más solicitados por número de órdenes
+    getCodigosMasSolicitados: () => {
+        const query = `
+            SELECT 
+                pf.codigo_pedido,
+                p.descripcion,
+                p.clave,
+                p.img_pz,
+                COUNT(DISTINCT pf.no_orden) AS total_ordenes,
+                SUM(pf.cantidad) AS total_cantidad
+            FROM pedido_finalizado pf
+            LEFT JOIN productos p ON pf.codigo_pedido = p.codigo
+            GROUP BY 
+                pf.codigo_pedido,
+                p.descripcion,
+                p.clave,
+                p.img_pz
+            ORDER BY total_ordenes DESC
+            LIMIT 50
+        `;
+        return db.query(query);
+    },
+
     getHistorial: () => {
         const query = `
             SELECT 
