@@ -266,7 +266,7 @@ function InventarioListado() {
                         </Box>
 
                         <TableContainer sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                            <Table stickyHeader sx={{ minWidth: 800, background: "#fff" }}>
+                            <Table stickyHeader sx={{ minWidth: 800, background: "#f8f1f1" }}>
                                 <TableHead>
                                     <TableRow sx={{ background: "#ffe7e1" }}>
                                         <TableCell sx={{ fontWeight: "bold", color: "#e23b22" }}>Código Producto</TableCell>

@@ -129,7 +129,6 @@ async function handleObtenerRecibidos(req, res) {
   }
 }
 
-
 async function getInventarioPorCodigo(codigo) {
   const [rows] = await pool.query(`
     SELECT 
@@ -157,69 +156,46 @@ async function getInventarioPorCodigo(codigo) {
   return rows.length > 0 ? rows[0] : null;
 }
 
-
 // ✅ Una sola función — actualiza productos + inventario + historial
 async function updateProductoCompleto(codigo, datos, modificadoPor) {
   const connection = await pool.getConnection();
-
   try {
     await connection.beginTransaction();
 
-    // 1️⃣ Obtener valores actuales de productos
+    // 1️⃣ Obtener valores actuales
     const [actualProducto] = await connection.query(
-      'SELECT _pz, _inner, _master, barcode_pz, barcode_inner, barcode_master, um FROM productos WHERE codigo = ?',
+      'SELECT barcode_pz, barcode_inner, barcode_master FROM productos WHERE codigo = ?',
       [codigo]
     );
-
     if (actualProducto.length === 0) throw new Error('Producto no encontrado');
 
-    // 2️⃣ Obtener valores actuales de inventario
     const [actualInv] = await connection.query(
-      'SELECT ubicacion, cant_stock_real FROM inventario WHERE codigo_producto = ? LIMIT 1',
+      'SELECT ubicacion FROM inventario WHERE codigo_producto = ? LIMIT 1',
       [codigo]
     );
-
     if (actualInv.length === 0) throw new Error('Inventario no encontrado');
 
     const prodActual = actualProducto[0];
     const invActual = actualInv[0];
 
-    // 3️⃣ Normalizar um a mayúsculas
-    const umMayusculas = datos.um?.toString().toUpperCase() ?? null;
-
-    // 4️⃣ Actualizar tabla productos
+    // 2️⃣ Actualizar barcodes en productos
     await connection.query(`
       UPDATE productos 
-      SET _pz = ?, _inner = ?, _master = ?,
-          barcode_pz = ?, barcode_inner = ?, barcode_master = ?,
-          um = ?
+      SET barcode_pz = ?, barcode_inner = ?, barcode_master = ?
       WHERE codigo = ?
-    `, [
-      datos._pz, datos._inner, datos._master,
-      datos.barcode_pz, datos.barcode_inner, datos.barcode_master,
-      umMayusculas,
-      codigo
-    ]);
+    `, [datos.barcode_pz, datos.barcode_inner, datos.barcode_master, codigo]);
 
-    // 5️⃣ Actualizar tabla inventario
+    // 3️⃣ Actualizar ubicacion en inventario
     await connection.query(
-      'UPDATE inventario SET ubicacion = ?, cant_stock_real = ? WHERE codigo_producto = ?',
-      [datos.ubicacion, datos.cant_stock_real, codigo]
+      'UPDATE inventario SET ubicacion = ? WHERE codigo_producto = ?',
+      [datos.ubicacion, codigo]
     );
 
-    // 6️⃣ Historial — productos
-    const camposProducto = [
-      '_pz', '_inner', '_master',
-      'barcode_pz', 'barcode_inner', 'barcode_master',
-      'um'  // ✅
-    ];
-
+    // 4️⃣ Historial — barcodes
+    const camposProducto = ['barcode_pz', 'barcode_inner', 'barcode_master'];
     for (const campo of camposProducto) {
       const anterior = prodActual[campo]?.toString() ?? '';
-      const nuevo = campo === 'um'
-        ? umMayusculas ?? ''
-        : datos[campo]?.toString() ?? '';
-
+      const nuevo = datos[campo]?.toString() ?? '';
       if (anterior !== nuevo) {
         await connection.query('INSERT INTO productos_historial SET ?', [{
           producto_id: codigo,
@@ -232,23 +208,16 @@ async function updateProductoCompleto(codigo, datos, modificadoPor) {
       }
     }
 
-    // 7️⃣ Historial — inventario
-    const camposInventario = [
-      { campo: 'ubicacion', anterior: invActual.ubicacion, nuevo: datos.ubicacion },
-      { campo: 'cant_stock_real', anterior: invActual.cant_stock_real, nuevo: datos.cant_stock_real },
-    ];
-
-    for (const c of camposInventario) {
-      if (c.anterior?.toString() !== c.nuevo?.toString()) {
-        await connection.query('INSERT INTO productos_historial SET ?', [{
-          producto_id: codigo,
-          codigo,
-          campo: c.campo,
-          valor_anterior: c.anterior?.toString() ?? '',
-          valor_nuevo: c.nuevo?.toString() ?? '',
-          modificado_por: modificadoPor,
-        }]);
-      }
+    // 5️⃣ Historial — ubicacion
+    if (invActual.ubicacion?.toString() !== datos.ubicacion?.toString()) {
+      await connection.query('INSERT INTO productos_historial SET ?', [{
+        producto_id: codigo,
+        codigo,
+        campo: 'ubicacion',
+        valor_anterior: invActual.ubicacion?.toString() ?? '',
+        valor_nuevo: datos.ubicacion?.toString() ?? '',
+        modificado_por: modificadoPor,
+      }]);
     }
 
     await connection.commit();
