@@ -247,14 +247,15 @@ const verificarYFinalizarPedido = async (noOrden) => {
     }
 };
 
-const moverPedidoAFinalizado = async (noOrden) => {
+const moverPedidoAFinalizado = async (noOrden, tipo) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
         const [productos] = await connection.query(
-            `SELECT * FROM pedidos_embarques WHERE no_orden = ?`,
-            [noOrden]
+            `SELECT * FROM pedidos_embarques 
+             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
+            [noOrden, tipo]  // 🔥 agrega tipo
         );
 
         if (productos.length === 0) {
@@ -263,20 +264,19 @@ const moverPedidoAFinalizado = async (noOrden) => {
 
         for (const p of productos) {
             const estadoFinal = (p.estado === 'C') ? 'C' : 'F';
-
             await connection.query(`
                 INSERT INTO pedido_finalizado (
-                no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                um,  _pz, _pq, _inner, _master,
-                v_pz, v_pq, v_inner, v_master,
-                ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
-                inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
-                unido, registro_surtido, registro_embarque, caja, motivo,
-                unificado, registro_fin, id_usuario_surtido,
-                fusion, tipo_caja, cajas
+                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                    um, _pz, _pq, _inner, _master,
+                    v_pz, v_pq, v_inner, v_master,
+                    ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
+                    inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
+                    unido, registro_surtido, registro_embarque, caja, motivo,
+                    unificado, registro_fin, id_usuario_surtido,
+                    fusion, tipo_caja, cajas
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
+            `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
                 p.um, p._pz, p._pq, p._inner, p._master,
                 p.v_pz, p.v_pq, p.v_inner, p.v_master,
@@ -284,15 +284,21 @@ const moverPedidoAFinalizado = async (noOrden) => {
                 p.id_usuario, p.id_usuario_paqueteria, p.registro,
                 p.inicio_surtido, p.fin_surtido, p.inicio_embarque, p.fin_embarque,
                 p.unido, p.registro_surtido, p.registro_embarque, p.caja, p.motivo,
-                p.unificado, null, null, // registro_fin, id_usuario_surtido
+                p.unificado, null, null,
                 p.fusion, p.tipo_caja, p.cajas
             ]);
         }
 
-        await connection.query(`DELETE FROM pedidos_embarques WHERE no_orden = ?`, [noOrden]);
+        // 🔥 Borrar también por tipo
+        await connection.query(
+            `DELETE FROM pedidos_embarques 
+             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
+            [noOrden, tipo]
+        );
 
         await connection.commit();
         return { ok: true, mensaje: "Pedido finalizado correctamente." };
+
     } catch (error) {
         await connection.rollback();
         return { ok: false, mensaje: error.message };
@@ -300,7 +306,6 @@ const moverPedidoAFinalizado = async (noOrden) => {
         connection.release();
     }
 };
-
 const getpedidosFinalizados = async () => {
     const [rows] = await pool.query(`
                 SELECT 

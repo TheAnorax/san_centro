@@ -12,22 +12,6 @@ const obtenerPedidosSurtiendo = async (req, res) => {
     }
 };
 
-const finalizarPedido = async (req, res) => {
-    const { noOrden, tipo } = req.params;
-
-    try {
-        const resultado = await SurtidoModel.moverPedidoASurtidoFinalizado(noOrden, tipo);
-        if (resultado.ok) {
-            res.status(200).json({ ok: true, message: resultado.mensaje });
-        } else {
-            res.status(400).json({ ok: false, message: resultado.mensaje });
-        }
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ ok: false, message: "Error al finalizar el pedido" });
-    }
-};
-
 
 const cerrarPedidoEmbarque = async (req, res) => {
     const { noOrden } = req.params;
@@ -363,6 +347,25 @@ const obtenerDatosSanced = async (req, res) => {
     }
 };
 
+const finalizarPedido = async (req, res) => {
+    const { noOrden, tipo } = req.params;
+    console.log("🔥 finalizarPedido llamado:", noOrden, tipo); // ← para debug
+
+    try {
+        // 🔥 USA SurtidoModel.moverPedidoAFinalizado
+        const resultado = await SurtidoModel.moverPedidoAFinalizado(noOrden, tipo);
+        console.log("✅ resultado:", resultado);
+
+        if (!resultado.ok) {
+            return res.status(400).json({ message: resultado.mensaje });
+        }
+
+        res.json({ message: resultado.mensaje });
+    } catch (error) {
+        console.error("❌ Error en finalizarPedido:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
 
 module.exports = {
     obtenerPedidosSurtiendo,

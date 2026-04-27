@@ -215,8 +215,10 @@ function Surtiendo() {
             if (!isConfirmed) return;
 
             // 2️⃣ Consultar productos del pedido desde la base
+            // Cambia a query params
             const { data: productos } = await axios.get(
-                `http://66.232.105.107:3001/api/surtido/pedido/${noOrden}/${tipo}`
+                `http://66.232.105.107:3001/api/surtido/pedido`,
+                { params: { noOrden, tipo } }
             );
 
             if (!productos || productos.length === 0) {
@@ -456,6 +458,50 @@ function Surtiendo() {
         }
     };
 
+    const finalizarDesdeEmbarque = async (noOrden, tipo) => {
+        try {
+            // 1️⃣ Confirmar
+            const { isConfirmed } = await Swal.fire({
+                title: `¿Finalizar pedido ${noOrden}-${tipo}?`,
+                text: "Se generará el Packing List y se moverá a finalizados.",
+                icon: "question",
+                showCancelButton: true,
+                confirmButtonText: "Sí, finalizar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#3085d6",
+            });
+            if (!isConfirmed) return;
+
+            // 2️⃣ Generar Packing List (ya tienes esta función)
+            await generarPDFPackingList(noOrden, tipo);
+
+            // 3️⃣ Mover a finalizados en backend
+            const res = await axios.post(
+                `http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`
+            );
+
+            // 4️⃣ Actualizar UI
+            setEmbarques(prev =>
+                prev.filter(p => !(String(p.no_orden) === String(noOrden) && p.tipo === tipo))
+            );
+
+            Swal.fire({
+                title: "✅ Pedido Finalizado",
+                text: res.data.message || "Pedido movido a finalizados",
+                icon: "success",
+                confirmButtonColor: "#0ee231ff",
+            });
+
+        } catch (err) {
+            console.error(err);
+            Swal.fire({
+                title: "❌ Error",
+                text: "Ocurrió un problema al finalizar el pedido.",
+                icon: "error",
+                confirmButtonColor: "#e74c3c",
+            });
+        }
+    };
 
     /* ---------- Finalizados ---------- */
     const [pedidosFinalizados, setPedidosFinalizados] = useState([]);
@@ -1138,7 +1184,39 @@ function Surtiendo() {
         // Texto informativo (si quieres conservarlo)
     }
 
+    const [modalUbicacion, setModalUbicacion] = useState({ open: false, pedido: null, cliente: null });
+    const [miUbicacion, setMiUbicacion] = useState(null);
+    const [loadingModal, setLoadingModal] = useState(false);
 
+    const abrirModalUbicacion = async (noOrden, tipo) => {
+        setLoadingModal(true);
+        setModalUbicacion({ open: true, pedido: { noOrden, tipo }, cliente: null });
+
+        try {
+            // Obtener datos del cliente
+            const res = await axios.get(
+                `http://66.232.105.107:3001/api/surtido/sanced/${noOrden}`
+            );
+            const cliente = res.data.data || {};
+
+            // Obtener mi ubicación actual
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    setMiUbicacion({
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
+                    });
+                },
+                () => setMiUbicacion(null)
+            );
+
+            setModalUbicacion({ open: true, pedido: { noOrden, tipo }, cliente });
+        } catch {
+            setModalUbicacion({ open: true, pedido: { noOrden, tipo }, cliente: {} });
+        } finally {
+            setLoadingModal(false);
+        }
+    };
 
     return (
         <div className="place_holder-container fade-in" style={{ height: '95vh', overflowY: 'auto' }}>
@@ -1365,7 +1443,7 @@ function Surtiendo() {
 
                                                         {progreso === 100 && (
                                                             <Button size="small" variant="contained" color="success" sx={{ ml: 1 }}
-                                                                onClick={() => finalizarPedido(pedido.no_orden)}>
+                                                                onClick={() => finalizarDesdeEmbarque(pedido.no_orden, pedido.tipo)}>
                                                                 Finalizar Pedido
                                                             </Button>
                                                         )}
@@ -1486,7 +1564,7 @@ function Surtiendo() {
 
                                             return (
                                                 <Paper key={rowKey} sx={{ mb: 2, p: 2 }}>
-                                                     
+
                                                     {(() => {
                                                         const fechasEmbarque = prods
                                                             .map(p => p?.fin_embarque ? new Date(p.fin_embarque) : null)
@@ -1531,6 +1609,17 @@ function Surtiendo() {
                                                         onClick={() => generarPDFPackingList(pedido.no_orden, pedido.tipo)}
                                                     >
                                                         Generar Packing List
+                                                    </Button>
+
+
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        color="info"
+                                                        sx={{ ml: 1 }}
+                                                        onClick={() => abrirModalUbicacion(pedido.no_orden, pedido.tipo)}
+                                                    >
+                                                        📍 Ver Ubicación
                                                     </Button>
 
                                                     {detalleExpandido[rowKey] && (
@@ -1598,10 +1687,115 @@ function Surtiendo() {
                     )}
 
                 </Box>
-
             </Box>
+
+            {/* ========== MODAL UBICACIÓN ========== */}
+            {modalUbicacion.open && (
+                <div style={{
+                    position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+                    background: "rgba(0,0,0,0.6)", zIndex: 9999,
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                }}>
+                    <div style={{
+                        background: "#fff", borderRadius: "12px", padding: "24px",
+                        width: "90%", maxWidth: "700px", maxHeight: "90vh", overflowY: "auto"
+                    }}>
+                        {/* HEADER */}
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                            <Typography variant="h6" fontWeight="bold">
+                                📍 {modalUbicacion.pedido?.noOrden} - {modalUbicacion.pedido?.tipo}
+                            </Typography>
+                            <IconButton onClick={() => setModalUbicacion({ open: false, pedido: null, cliente: null })}>
+                                <ClearIcon />
+                            </IconButton>
+                        </Box>
+
+                        {loadingModal ? (
+                            <Box textAlign="center" py={4}>
+                                <Typography>Cargando datos...</Typography>
+                            </Box>
+                        ) : (
+                            <>
+                                {/* DATOS GENERALES */}
+                                <Paper variant="outlined" sx={{ p: 2, mb: 2, background: "#f9f9f9" }}>
+                                    <Typography variant="subtitle1" fontWeight="bold" mb={1}>📋 Datos Generales</Typography>
+                                    <Grid container spacing={1}>
+                                        <Grid item xs={6}>
+                                            <Typography variant="body2"><b>Cliente:</b> {modalUbicacion.cliente?.nombre_cliente || "S/D"}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="body2"><b>No. Cliente:</b> {modalUbicacion.cliente?.num_consigna || "S/D"}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="body2"><b>Factura:</b> {modalUbicacion.cliente?.no_factura || "---"}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="body2"><b>Teléfono:</b> {modalUbicacion.cliente?.telefono || "S/D"}</Typography>
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <Typography variant="body2"><b>Dirección:</b> {modalUbicacion.cliente?.direccion || "S/D"}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="body2"><b>Total:</b> ${modalUbicacion.cliente?.total || "0.00"}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="body2"><b>Total con IVA:</b> ${modalUbicacion.cliente?.total_con_iva || "0.00"}</Typography>
+                                        </Grid>
+                                    </Grid>
+                                </Paper>
+
+                                {/* MAPA */}
+                                <Paper variant="outlined" sx={{ p: 1, mb: 2 }}>
+                                    <Typography variant="subtitle1" fontWeight="bold" mb={1}>🗺️ Mapa</Typography>
+                                    {modalUbicacion.cliente?.direccion ? (
+                                        <iframe
+                                            title="mapa-cliente"
+                                            width="100%"
+                                            height="300"
+                                            style={{ border: 0, borderRadius: "8px" }}
+                                            loading="lazy"
+                                            src={`https://www.google.com/maps?q=${encodeURIComponent(modalUbicacion.cliente.direccion)}&output=embed`}
+                                        />
+                                    ) : (
+                                        <Typography color="textSecondary" textAlign="center" py={2}>
+                                            No hay dirección disponible.
+                                        </Typography>
+                                    )}
+                                </Paper>
+
+                                {/* BOTONES */}
+                                <Box display="flex" gap={1} flexWrap="wrap">
+                                    {modalUbicacion.cliente?.direccion && (
+                                        <Button variant="contained" color="primary" size="small"
+                                            onClick={() => {
+                                                const destino = encodeURIComponent(modalUbicacion.cliente.direccion);
+                                                const origen = miUbicacion ? `${miUbicacion.lat},${miUbicacion.lng}` : "";
+                                                const url = origen
+                                                    ? `https://www.google.com/maps/dir/${origen}/${destino}`
+                                                    : `https://www.google.com/maps/search/${destino}`;
+                                                window.open(url, "_blank");
+                                            }}>
+                                            🚗 Cómo llegar
+                                        </Button>
+                                    )}
+                                    {!miUbicacion && (
+                                        <Typography variant="body2" color="textSecondary" alignSelf="center">
+                                            ⚠️ Activa tu ubicación para ver tiempo estimado
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+
+
         </div>
     );
+
+
 }
 
 export default Surtiendo;

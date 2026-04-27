@@ -21,7 +21,7 @@ router.put('/asignar-usuario-paqueteria', asignarUsuarioPaqueteria);
 
 router.get('/packing/:tipo/:no_orden', getPedidosEmbarquePacking);
 
-router.put('/liberar-u suario-paqueteria', liberarUsuarioPaqueteria);
+router.put('/liberar-usuario-paqueteria', liberarUsuarioPaqueteria);
 
 router.get("/detalle/:no_orden/:tipo", getDetallePedido);
 
