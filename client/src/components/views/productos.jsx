@@ -586,7 +586,7 @@ const Productos = ({ isSwitching }) => {
                           const newValue = e.target.value;
                           setProductoActual((prev) => {
                             const updated = { ...prev, [key]: newValue };
-                            if (key.includes("barcode") && newValue && newValue !== "NULL") {
+                            if (key.includes("barcode") && newValue && newValue !== "NULL") { 
                               setTimeout(() => {
                                 if (document.getElementById(`${key}-barcode`)) {
                                   JsBarcode(`#${key}-barcode`, newValue, { format: "CODE128", displayValue: true, fontSize: 14, height: 40 });

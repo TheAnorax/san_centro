@@ -356,6 +356,7 @@ function Traspaso() {
   return (
 
     <div className="place_holder-container fade-in" style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      
       <div className="place_holder-header">
         <span className="place_holder-title">Traspasos</span>
         <button className="place_holder-close" onClick={() => (window.location.href = '/menu')}>

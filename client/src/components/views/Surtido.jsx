@@ -216,11 +216,10 @@ function Surtiendo() {
 
             // 2️⃣ Consultar productos del pedido desde la base
             // Cambia a query params
+            // 🔥 CAMBIAR ESTO
             const { data: productos } = await axios.get(
-                `http://66.232.105.107:3001/api/surtido/pedido`,
-                { params: { noOrden, tipo } }
+                `http://66.232.105.107:3001/api/surtido/pedido/${noOrden}/${tipo}`
             );
-
             if (!productos || productos.length === 0) {
                 await Swal.fire({
                     title: "Sin datos",

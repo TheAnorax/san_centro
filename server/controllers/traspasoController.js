@@ -2,8 +2,9 @@ const {
   insertTraspasoRecibido,
   handleObtenerRecibidos,
   getInventarioPorCodigo,
-  updateProductoCompleto,  // ✅ nombre correcto
-  getProductosPorUbicacion  
+  updateProductoCompleto,
+  getProductosPorUbicacion,
+  handleGuardarIncidencia  // 🔥 AGREGAR
 } = require('../models/traspasoModel');
 
 const toDateOrNull = (v) => (v ? new Date(v) : null);
@@ -45,7 +46,6 @@ async function handleGuardarTraspaso(req, res) {
       oc: oc ?? null,
     };
 
-    console.log('🚀 guardarTraspaso payload →', payload);
     const ids = await insertTraspasoRecibido(payload);
     return res.status(201).json({ ok: true, ...ids });
 
@@ -75,19 +75,15 @@ async function handleListadoRecibidos(req, res) {
 async function handleGetInventarioPorCodigo(req, res) {
   try {
     const { codigo } = req.params;
-
     if (!codigo) {
       return res.status(400).json({ ok: false, message: 'Código es requerido' });
     }
-
     const data = await getInventarioPorCodigo(codigo);
-
     if (data) {
       return res.json({ ok: true, data });
     } else {
       return res.json({ ok: false, data: null });
     }
-
   } catch (error) {
     console.error('Error en handleGetInventarioPorCodigo:', error);
     return res.status(500).json({
@@ -98,27 +94,25 @@ async function handleGetInventarioPorCodigo(req, res) {
   }
 }
 
-// ✅ actualizar producto + inventario + historial
 async function handleUpdateProducto(req, res) {
   try {
     const { codigo } = req.params;
     const {
       _pz, _inner, _master,
       barcode_pz, barcode_inner, barcode_master,
-      ubicacion, cant_stock_real,  // ✅ agregados
-      um,                           // ✅ agregado
+      ubicacion, cant_stock_real,
+      um,
       modificado_por
     } = req.body;
 
     if (!codigo) {
       return res.status(400).json({ ok: false, message: 'Código es requerido' });
     }
-
     if (!modificado_por) {
       return res.status(400).json({ ok: false, message: 'Falta el usuario que modifica' });
     }
 
-    await updateProductoCompleto(  // ✅ nombre correcto
+    await updateProductoCompleto(
       codigo,
       { _pz, _inner, _master, barcode_pz, barcode_inner, barcode_master, ubicacion, cant_stock_real, um },
       modificado_por
@@ -136,23 +130,17 @@ async function handleUpdateProducto(req, res) {
   }
 }
 
-// ✅ NUEVA — buscar por ubicación
 async function handleGetProductosPorUbicacion(req, res) {
   try {
     const { ubicacion } = req.params;
-
     if (!ubicacion) {
       return res.status(400).json({ ok: false, message: 'Ubicación es requerida' });
     }
-
     const data = await getProductosPorUbicacion(ubicacion.toUpperCase().trim());
-
     if (data.length === 0) {
       return res.json({ ok: false, data: [], message: 'No hay productos en esta ubicación' });
     }
-
     return res.json({ ok: true, data, total: data.length });
-
   } catch (error) {
     console.error('Error en handleGetProductosPorUbicacion:', error);
     return res.status(500).json({
@@ -168,5 +156,6 @@ module.exports = {
   handleListadoRecibidos,
   handleGetInventarioPorCodigo,
   handleUpdateProducto,
-  handleGetProductosPorUbicacion  
+  handleGetProductosPorUbicacion,
+  handleGuardarIncidencia  // 🔥 AGREGAR
 };

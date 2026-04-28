@@ -257,10 +257,40 @@ async function getProductosPorUbicacion(ubicacion) {
 }
 
 
+
+const handleGuardarIncidencia = async (req, res) => {
+  try {
+    const {
+      no_orden,
+      tipo_orden,
+      codigo,
+      descripcion,
+      cantidad_esperada,
+      cantidad_recibida,
+      usuario_id
+    } = req.body;
+
+    const diferencia = cantidad_esperada - cantidad_recibida;
+
+    await pool.query(
+      `INSERT INTO incidencias_recibo 
+       (no_orden, tipo_orden, codigo, descripcion, cantidad_esperada, cantidad_recibida, diferencia, usuario_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [no_orden, tipo_orden, codigo, descripcion, cantidad_esperada, cantidad_recibida, diferencia, usuario_id]
+    );
+
+    res.json({ ok: true, message: 'Incidencia guardada correctamente' });
+  } catch (error) {
+    console.error('Error al guardar incidencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al guardar incidencia' });
+  }
+};
+
 module.exports = {
   insertTraspasoRecibido,
   handleObtenerRecibidos,
   getInventarioPorCodigo,
   updateProductoCompleto,
-  getProductosPorUbicacion
+  getProductosPorUbicacion,
+  handleGuardarIncidencia
 };

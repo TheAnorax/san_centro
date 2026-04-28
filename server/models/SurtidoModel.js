@@ -198,7 +198,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
 };
 
 
-const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
+const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) =>  {
     const [rows] = await pool.query(
         `SELECT 
         no_orden, tipo, codigo_pedido, cantidad, cant_surtida, cant_no_enviada, motivo, unificado,ubi_bahia

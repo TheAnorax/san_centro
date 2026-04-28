@@ -40,8 +40,17 @@ const Producto = {
         return db.query('SELECT * FROM productos WHERE id = ?', [id]);
     },
 
+    // 🔥 CORREGIDO — filtra campos que no son columnas de productos
     create: (producto) => {
-        return db.query('INSERT INTO productos SET ?', [producto]);
+        const {
+            modificado_por,
+            ubicacion,
+            almacen,
+            cant_stock_real,
+            ...soloProducto
+        } = producto;
+
+        return db.query('INSERT INTO productos SET ?', [soloProducto]);
     },
 
     update: (id, producto, nombreUsuario) => {
@@ -125,7 +134,6 @@ const Producto = {
         return db.query(query);
     },
 
-    // ✅ NUEVA — códigos más solicitados por número de órdenes
     getCodigosMasSolicitados: () => {
         const query = `
             SELECT 

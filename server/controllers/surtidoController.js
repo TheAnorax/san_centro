@@ -349,11 +349,24 @@ const obtenerDatosSanced = async (req, res) => {
 
 const finalizarPedido = async (req, res) => {
     const { noOrden, tipo } = req.params;
-    console.log("🔥 finalizarPedido llamado:", noOrden, tipo); // ← para debug
+    console.log("🔥 finalizarPedido llamado:", noOrden, tipo);
 
     try {
-        // 🔥 USA SurtidoModel.moverPedidoAFinalizado
-        const resultado = await SurtidoModel.moverPedidoAFinalizado(noOrden, tipo);
+        // 🔥 Primero intenta mover de surtido → embarques
+        const enSurtido = await SurtidoModel.obtenerPedidoPorOrdenYTipo(noOrden, tipo);
+
+        let resultado;
+
+        if (enSurtido && enSurtido.length > 0) {
+            // 🟢 Está en surtido → mover a embarques
+            console.log("📦 Pedido en surtido, moviendo a embarques...");
+            resultado = await SurtidoModel.moverPedidoASurtidoFinalizado(noOrden, tipo);
+        } else {
+            // 🚚 Ya está en embarques → mover a finalizado
+            console.log("🚚 Pedido en embarques, moviendo a finalizado...");
+            resultado = await SurtidoModel.moverPedidoAFinalizado(noOrden, tipo);
+        }
+
         console.log("✅ resultado:", resultado);
 
         if (!resultado.ok) {
