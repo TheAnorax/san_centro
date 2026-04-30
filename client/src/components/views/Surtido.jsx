@@ -1601,14 +1601,29 @@ function Surtiendo() {
                                                         {detalleExpandido[rowKey] ? "Ocultar productos" : "Ver productos"}
                                                     </Button>
 
-                                                    <Button
-                                                        variant="contained"
-                                                        size="small"
-                                                        sx={{ ml: 1 }}
-                                                        onClick={() => generarPDFPackingList(pedido.no_orden, pedido.tipo)}
-                                                    >
-                                                        Generar Packing List
-                                                    </Button>
+                                                    {(() => {
+                                                        const prod0 = prods[0];
+                                                        const tieneFactura = prod0?.no_factura &&
+                                                            prod0.no_factura !== '---' &&
+                                                            prod0.no_factura !== '' &&
+                                                            prod0.no_factura !== '0-';
+                                                        const tieneTotal = Number(prod0?.total || 0) > 0 ||
+                                                            Number(prod0?.total_con_iva || 0) > 0;
+                                                        const puedeGenerar = tieneFactura && tieneTotal;
+
+                                                        return (
+                                                            <Button
+                                                                variant="contained"
+                                                                size="small"
+                                                                sx={{ ml: 1 }}
+                                                                disabled={!puedeGenerar}
+                                                                title={!puedeGenerar ? 'Necesita factura y totales para generar el Packing List' : ''}
+                                                                onClick={() => generarPDFPackingList(pedido.no_orden, pedido.tipo)}
+                                                            >
+                                                                Generar Packing List
+                                                            </Button>
+                                                        );
+                                                    })()}
 
 
                                                     <Button

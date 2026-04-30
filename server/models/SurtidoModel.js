@@ -198,7 +198,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
 };
 
 
-const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) =>  {
+const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
     const [rows] = await pool.query(
         `SELECT 
         no_orden, tipo, codigo_pedido, cantidad, cant_surtida, cant_no_enviada, motivo, unificado,ubi_bahia
@@ -306,35 +306,40 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
         connection.release();
     }
 };
+
 const getpedidosFinalizados = async () => {
     const [rows] = await pool.query(`
-                SELECT 
-                    pf.no_orden,
-                    pf.tipo,
-                    pf.id_usuario,
-                    u.nombre AS nombre_usuario,
-                    pf.id_usuario_paqueteria,
-                    a.nombre AS nombre_paqueteria,
-                    pf.codigo_pedido,
-                    pf.cantidad,
-                    pf.cant_surtida,
-                    pf.cant_no_enviada,
-                    pf.ubi_bahia,
-                    pf._pz,
-                    pf._inner,
-                    pf._master,
-                    pf.inicio_surtido,
-                    pf.fin_surtido,
-                    pf.v_master,
-                    pf.v_pz,
-                    pf.v_inner,
-                    pf.v_master,
-                    pf.inicio_embarque,
-                    pf.fin_embarque
-                FROM pedido_finalizado pf
-                LEFT JOIN usuarios u ON pf.id_usuario = u.id
-                LEFT JOIN usuarios a ON pf.id_usuario_paqueteria = a.id
-                ORDER BY pf.no_orden DESC;
+        SELECT 
+            pf.no_orden,
+            pf.tipo,
+            pf.id_usuario,
+            u.nombre AS nombre_usuario,
+            pf.id_usuario_paqueteria,
+            a.nombre AS nombre_paqueteria,
+            pf.codigo_pedido,
+            pf.cantidad,
+            pf.cant_surtida,
+            pf.cant_no_enviada,
+            pf.ubi_bahia,
+            pf._pz,
+            pf._inner,
+            pf._master,
+            pf.inicio_surtido,
+            pf.fin_surtido,
+            pf.v_master,
+            pf.v_pz,
+            pf.v_inner,
+            pf.inicio_embarque,
+            pf.fin_embarque,
+            -- 🔥 DATOS DE SANCED
+            s.no_factura,
+            s.total,
+            s.total_con_iva
+        FROM pedido_finalizado pf
+        LEFT JOIN usuarios u ON pf.id_usuario = u.id
+        LEFT JOIN usuarios a ON pf.id_usuario_paqueteria = a.id
+        LEFT JOIN sanced s ON pf.no_orden = s.no_orden  -- 🔥 JOIN
+        ORDER BY pf.no_orden DESC;
     `);
     return rows;
 };
