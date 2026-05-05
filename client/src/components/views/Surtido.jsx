@@ -848,8 +848,8 @@ function Surtiendo() {
                 ],
                 body: [
                     [
-                        `$${cliente.total || '0.00'}`,
-                        `$${cliente.total_con_iva || '0.00'}`,
+                        `$${formatMoney(cliente.total)}`,
+                        `$${formatMoney(cliente.total_con_iva)}`,
                         "100.00 %",
                     ],
                 ],
@@ -1216,6 +1216,11 @@ function Surtiendo() {
             setLoadingModal(false);
         }
     };
+
+    const formatMoney = (value) => {
+    const num = parseFloat(value || 0);
+    return num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
     return (
         <div className="place_holder-container fade-in" style={{ height: '95vh', overflowY: 'auto' }}>
@@ -1750,10 +1755,10 @@ function Surtiendo() {
                                             <Typography variant="body2"><b>Dirección:</b> {modalUbicacion.cliente?.direccion || "S/D"}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2"><b>Total:</b> ${modalUbicacion.cliente?.total || "0.00"}</Typography>
+                                            <Typography variant="body2"><b>Total:</b> ${formatMoney(modalUbicacion.cliente?.total)}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2"><b>Total con IVA:</b> ${modalUbicacion.cliente?.total_con_iva || "0.00"}</Typography>
+                                            <Typography variant="body2"><b>Total con IVA:</b> ${formatMoney(modalUbicacion.cliente?.total_con_iva)}</Typography>
                                         </Grid>
                                     </Grid>
                                 </Paper>

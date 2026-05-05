@@ -441,46 +441,58 @@ const liberarUsuarioPaqueteria = async (no_orden) => {
 
 const obtenerDetallePedido = async (noOrden, tipo) => {
     const sql = `
-    SELECT
-      pf.no_orden AS pedido,
-      pf.tipo,
-      pf.cajas,
-      pf.tipo_caja,
-      GROUP_CONCAT(
-        CONCAT(
-          '{',
-          '"codigo_producto":', pf.codigo_pedido, ',',
-          '"descripcion_producto":"', REPLACE(prod.descripcion,'"','\\"'), '",',
-          '"cantidad":', pf.cantidad, ',',
-          '"um":"', pf.um, '",',
-          '"_pz":', pf._pz, ',',
-          '"_pq":', pf._pq, ',',
-          '"_inner":', pf._inner, ',',
-          '"_master":', pf._master,
-          '}'
-        )
-        SEPARATOR '||'
-      ) AS productos
-    FROM pedido_finalizado pf
-    LEFT JOIN productos prod ON pf.codigo_pedido = prod.codigo
-    WHERE pf.no_orden = ?
-      AND pf.tipo = ?
-    GROUP BY pf.no_orden, pf.tipo, pf.cajas, pf.tipo_caja
-    ORDER BY pf.cajas ASC;
-  `;
+        SELECT
+            pf.no_orden AS pedido,
+            pf.tipo,
+            pf.cajas,
+            pf.tipo_caja,
+            pf.codigo_pedido,
+            pf.cantidad,
+            pf.um,
+            COALESCE(pf._pz, 0)     AS _pz,
+            COALESCE(pf._pq, 0)     AS _pq,
+            COALESCE(pf._inner, 0)  AS _inner,
+            COALESCE(pf._master, 0) AS _master,
+            prod.descripcion        AS descripcion_producto
+        FROM pedido_finalizado pf
+        LEFT JOIN productos prod ON pf.codigo_pedido = prod.codigo
+        WHERE pf.no_orden = ?
+          AND pf.tipo = ?
+        ORDER BY pf.cajas ASC;
+    `;
 
     const [rows] = await pool.execute(sql, [noOrden, tipo]);
 
-    // Convertir el string concatenado a JSON real
-    rows.forEach(row => {
-        row.productos = row.productos
-            ? row.productos.split('||').map(item => JSON.parse(item))
-            : [];
-    });
+    // Agrupar por pedido/tipo/cajas/tipo_caja en JavaScript
+    const grupos = new Map();
 
-    return rows;
+    for (const row of rows) {
+        const key = `${row.pedido}||${row.tipo}||${row.cajas}||${row.tipo_caja}`;
+
+        if (!grupos.has(key)) {
+            grupos.set(key, {
+                pedido:    row.pedido,
+                tipo:      row.tipo,
+                cajas:     row.cajas,
+                tipo_caja: row.tipo_caja,
+                productos: [],
+            });
+        }
+
+        grupos.get(key).productos.push({
+            codigo_producto:      row.codigo_pedido,
+            descripcion_producto: row.descripcion_producto || '',
+            cantidad:             row.cantidad,
+            um:                   row.um,
+            _pz:                  row._pz,
+            _pq:                  row._pq,
+            _inner:               row._inner,
+            _master:              row._master,
+        });
+    }
+
+    return [...grupos.values()];
 };
-
 // ===== NUEVO: Sanced =====
 const insertarSanced = async (datos) => {
     const sql = `
