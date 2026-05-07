@@ -16,7 +16,7 @@ import SearchIcon from "@mui/icons-material/Search";   // ✅ agregado
 import ClearIcon from "@mui/icons-material/Clear";     // ✅ agregado
 import JsBarcode from "jsbarcode";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { useGridRowSelection } from "@mui/x-data-grid/internals";
+
 
 const Productos = ({ isSwitching }) => {
   const navigate = useNavigate();
@@ -37,7 +37,7 @@ const Productos = ({ isSwitching }) => {
   });
   const [productoId, setProductoId] = useState(null);
 
-  const [tabIndex, setTabIndex] = useState(0); // ✅ tabIndex es el que controla todo
+  const [tabIndex, setTabIndex] = useState(0);
   const [negados, setNegados] = useState([]);
   const [loadingNegados, setLoadingNegados] = useState(false);
   const [filtroNegados, setFiltroNegados] = useState('');
@@ -65,7 +65,10 @@ const Productos = ({ isSwitching }) => {
     try {
       const res = await fetch("http://66.232.105.107:3001/api/productos");
       const data = await res.json();
-      const productosConId = data.map((item, index) => ({ id: item.id || index, ...item }));
+      const productosConId = data.map((item, index) => ({
+        ...item,
+        id: item.id ?? index  // ← usa ?? en lugar de ||
+      }));
       setProductos(productosConId);
       setFilteredProductos(productosConId);
     } catch (error) {
@@ -386,7 +389,6 @@ const Productos = ({ isSwitching }) => {
         )}
 
         {/* TAB 2: HISTORIAL ✅ */}
-        {/* TAB 2: HISTORIAL ✅ */}
         {tabIndex === 2 && (userRole === 'admin' || userRole === 'master' || userRole === 'supervisor') && (
           <Box p={2}>
             <Typography variant="h6" gutterBottom>🕐 Historial de modificaciones</Typography>
@@ -586,7 +588,7 @@ const Productos = ({ isSwitching }) => {
                           const newValue = e.target.value;
                           setProductoActual((prev) => {
                             const updated = { ...prev, [key]: newValue };
-                            if (key.includes("barcode") && newValue && newValue !== "NULL") { 
+                            if (key.includes("barcode") && newValue && newValue !== "NULL") {
                               setTimeout(() => {
                                 if (document.getElementById(`${key}-barcode`)) {
                                   JsBarcode(`#${key}-barcode`, newValue, { format: "CODE128", displayValue: true, fontSize: 14, height: 40 });
@@ -625,6 +627,8 @@ const Productos = ({ isSwitching }) => {
           {alerta.mensaje}
         </Alert>
       </Snackbar>
+
+      
     </div>
   );
 };
