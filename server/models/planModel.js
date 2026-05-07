@@ -156,4 +156,49 @@ const obtenerRutas = async (fecha) => {
 
     return Object.values(agrupadas);
 };
-module.exports = { insertarRutas, obtenerRutas };
+
+
+const obtenerPedidosPorFecha = async (fecha) => {
+    const fechaFiltro = fecha || new Date().toISOString().split('T')[0];
+
+    const [rows] = await pool.query(`
+        SELECT 
+            id, no_orden, nombre_cliente, num_consigna,
+            tpo_original, fecha, fecha_factura, correo, ejecutivo,
+            estado, municipio, direccion, postal,
+            ruta, zona, telefono, referencia,
+            observaciones, no_factura, partidas,
+            piezas, total, total_con_iva,
+            registro, status, entrega
+        FROM sanced
+        WHERE DATE_FORMAT(fecha_factura, '%Y-%m') = ?
+        ORDER BY fecha_factura ASC, registro DESC
+    `, [fechaFiltro]);
+
+    return rows;
+};
+
+
+// ✅ NUEVA - Actualizar status y entrega de un pedido
+const actualizarStatusEntrega = async (no_orden, status, entrega) => {
+    const [result] = await pool.query(`
+        UPDATE sanced 
+        SET status = ?, entrega = ?
+        WHERE no_orden = ?
+    `, [status || null, entrega || null, no_orden]);
+
+    return result;
+};
+
+const registrarEntregaPaqueteria = async (data) => {
+    const { no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega } = data;
+    const [result] = await pool.query(`
+        INSERT INTO entregas_paqueteria 
+        (no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `, [no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega]);
+    return result;
+};
+
+
+module.exports = { insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria };

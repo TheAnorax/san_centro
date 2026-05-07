@@ -28,4 +28,52 @@ const obtenerRutasPlan = async (req, res) => {
     }
 };
 
-module.exports = { insertarRutasPlan, obtenerRutasPlan };
+// ✅ NUEVA - Obtener pedidos sanced por fecha
+const obtenerPedidosPorFecha = async (req, res) => {
+    const { fecha } = req.query;
+    try {
+        const pedidos = await planModel.obtenerPedidosPorFecha(fecha);
+        res.status(200).json({ ok: true, data: pedidos });
+    } catch (error) {
+        console.error('❌ Error:', error.message);
+        res.status(500).json({ ok: false, message: 'Error al obtener pedidos.' });
+    }
+};
+
+// ✅ NUEVA - Actualizar status y entrega
+const actualizarStatusEntrega = async (req, res) => {
+    const { no_orden, status, entrega } = req.body;
+
+    if (!no_orden) {
+        return res.status(400).json({ ok: false, message: 'no_orden es requerido.' });
+    }
+
+    try {
+        await planModel.actualizarStatusEntrega(no_orden, status, entrega);
+        res.status(200).json({ ok: true, message: 'Actualizado correctamente.' });
+    } catch (error) {
+        console.error('❌ Error:', error.message);
+        res.status(500).json({ ok: false, message: 'Error al actualizar.' });
+    }
+};
+
+const registrarEntregaPaqueteria = async (req, res) => {
+    const { no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega } = req.body;
+    if (!no_orden) return res.status(400).json({ ok: false, message: 'no_orden requerido' });
+    try {
+        await planModel.registrarEntregaPaqueteria({ no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega });
+        res.status(200).json({ ok: true, message: 'Entrega registrada correctamente.' });
+    } catch (error) {
+        res.status(500).json({ ok: false, message: 'Error al registrar entrega.' });
+    }
+};
+
+
+
+module.exports = { 
+    insertarRutasPlan, 
+    obtenerRutasPlan,
+    obtenerPedidosPorFecha,    // 👈 nueva
+    actualizarStatusEntrega,    // 👈 nueva
+    registrarEntregaPaqueteria  
+};

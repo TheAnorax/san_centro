@@ -3,7 +3,7 @@ import {
     Box, Button, Typography, Table, TableHead, TableBody,
     TableRow, TableCell, TableContainer, Paper, Select,
     MenuItem, FormControl, InputLabel, Chip, Checkbox,
-    TextField, IconButton, Tooltip, Modal, Tabs, Tab, Divider
+    TextField, IconButton, Tooltip, Modal, Tabs, Tab, Divider, TableFooter
 } from '@mui/material';
 import { FaTimes } from "react-icons/fa";
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -11,6 +11,7 @@ import BorderColorIcon from '@mui/icons-material/BorderColor';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import SaveIcon from '@mui/icons-material/Save';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 import axios from 'axios';
@@ -19,12 +20,7 @@ const LS_KEY = 'plan_rutas_data';
 const LS_EXPIRY = 10 * 365 * 24 * 60 * 60 * 1000;
 
 const guardarLS = (rutas, pedidos) => {
-    const payload = {
-        rutas,
-        pedidos,
-        timestamp: Date.now(),
-        expiry: Date.now() + LS_EXPIRY
-    };
+    const payload = { rutas, pedidos, timestamp: Date.now(), expiry: Date.now() + LS_EXPIRY };
     localStorage.setItem(LS_KEY, JSON.stringify(payload));
 };
 
@@ -33,14 +29,14 @@ const cargarLS = () => {
         const raw = localStorage.getItem(LS_KEY);
         if (!raw) return null;
         const data = JSON.parse(raw);
-        if (Date.now() > data.expiry) {
-            localStorage.removeItem(LS_KEY);
-            return null;
-        }
+        if (Date.now() > data.expiry) { localStorage.removeItem(LS_KEY); return null; }
         return data;
-    } catch {
-        return null;
-    }
+    } catch { return null; }
+};
+
+const formatMoney = (value) => {
+    const num = parseFloat(value || 0);
+    return num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 function Plan() {
@@ -54,17 +50,13 @@ function Plan() {
     const [filtroCliente, setFiltroCliente] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
 
-    // ✅ TABS
     const [tabIndex, setTabIndex] = useState(0);
     const [rutasDB, setRutasDB] = useState([]);
     const [cargandoRutas, setCargandoRutas] = useState(false);
 
-    // ✅ Fecha filtro (hoy por default)
-    const [fechaFiltro, setFechaFiltro] = useState(
-        new Date().toISOString().split('T')[0]
-    );
+    const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0]);
 
-    // Modal detalles
+
     const [modalOpen, setModalOpen] = useState(false);
     const [rutaSeleccionada, setRutaSeleccionada] = useState(null);
     const [editandoRuta, setEditandoRuta] = useState(false);
@@ -72,36 +64,69 @@ function Plan() {
     const [filtroModal, setFiltroModal] = useState('');
     const [editRouteIndex, setEditRouteIndex] = useState(null);
 
-    // ✅ Cargar desde localStorage al iniciar
     useEffect(() => {
         const data = cargarLS();
-        if (data) {
-            setRutas(data.rutas || {});
-            setPedidos(data.pedidos || []);
-        }
+        if (data) { setRutas(data.rutas || {}); setPedidos(data.pedidos || []); }
     }, []);
 
-    // ✅ Guardar en localStorage cada vez que cambian rutas o pedidos
+    // ✅ Reemplaza los estados anteriores de sanced por estos
+    const [pedidosSanced, setPedidosSanced] = useState([]);
+    const [cargandoSanced, setCargandoSanced] = useState(false);
+    const [cambiosSanced, setCambiosSanced] = useState({});
+    const [mesSanced, setMesSanced] = useState(
+        new Date().toISOString().slice(0, 7) // '2026-05'
+    );
+
+    const [diaSanced, setDiaSanced] = useState('');
+
+    const [modalPaqueteria, setModalPaqueteria] = useState({ open: false, pedido: null });
+
+    const [datosPaqueteria, setDatosPaqueteria] = useState({
+        monto: '', observaciones: '',
+        fecha_entrega: new Date().toISOString().split('T')[0]
+    });
+
+
     useEffect(() => {
-        if (Object.keys(rutas).length > 0 || pedidos.length > 0) {
-            guardarLS(rutas, pedidos);
-        }
+        if (Object.keys(rutas).length > 0 || pedidos.length > 0) guardarLS(rutas, pedidos);
     }, [rutas, pedidos]);
 
-    // ✅ Cargar rutas de BD con fecha
     const cargarRutasDB = async (fecha) => {
         setCargandoRutas(true);
         try {
             const fechaParam = fecha || fechaFiltro;
-            const res = await axios.get(
-                `http://66.232.105.107:3001/api/Plan/rutas?fecha=${fechaParam}`
-            );
+            const res = await axios.get(`http://66.232.105.107:3001/api/Plan/rutas?fecha=${fechaParam}`);
             setRutasDB(res.data || []);
         } catch (err) {
-            console.error('Error al cargar rutas:', err);
             Swal.fire({ icon: 'error', title: 'Error al cargar rutas', timer: 2000 });
         } finally {
             setCargandoRutas(false);
+        }
+    };
+
+
+    // ✅ NUEVO - Manejar cambios en status/entrega
+    const handleCambioSanced = (no_orden, field, value) => {
+        setCambiosSanced(prev => ({
+            ...prev,
+            [no_orden]: { ...prev[no_orden], [field]: value }
+        }));
+    };
+
+    // ✅ NUEVO - Guardar cambios de un pedido
+    const guardarCambioSanced = async (pedido) => {
+        const datos = cambiosSanced[pedido.no_orden] || {};
+        const status = datos.status ?? pedido.status;
+        const entrega = datos.entrega ?? pedido.entrega;
+
+        try {
+            await axios.put(`http://66.232.105.107:3001/api/Plan/actualizar-status`, {
+                no_orden: pedido.no_orden, status, entrega
+            });
+            Swal.fire({ title: '✅ Guardado', icon: 'success', timer: 1500, showConfirmButton: false });
+            cargarPedidosSanced(mesSanced); // ✅ usa mesSanced
+        } catch {
+            Swal.fire('❌ Error', 'No se pudo guardar', 'error');
         }
     };
 
@@ -119,14 +144,10 @@ function Plan() {
 
     const parsearFecha = (valor) => {
         if (!valor) return null;
-        if (typeof valor === 'number') {
-            return new Date(Math.round((valor - 25569) * 86400 * 1000));
-        }
+        if (typeof valor === 'number') return new Date(Math.round((valor - 25569) * 86400 * 1000));
         if (typeof valor === 'string') {
             const partes = valor.split('/');
-            if (partes.length === 3) {
-                return new Date(partes[2], partes[1] - 1, partes[0]);
-            }
+            if (partes.length === 3) return new Date(partes[2], partes[1] - 1, partes[0]);
         }
         return new Date(valor);
     };
@@ -134,37 +155,24 @@ function Plan() {
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (evt) => {
             const bstr = evt.target.result;
             const workbook = XLSX.read(bstr, { type: 'binary' });
             const ws = workbook.Sheets[workbook.SheetNames[0]];
-
-            const jsonData = XLSX.utils.sheet_to_json(ws, {
-                defval: '',
-                range: 6
-            });
-
+            const jsonData = XLSX.utils.sheet_to_json(ws, { defval: '', range: 6 });
             const diasHabiles = getUltimos3DiasHabiles();
-            const yaAsignados = new Set(
-                Object.values(rutas).flat().map(p => p.NO_ORDEN)
-            );
-
+            const yaAsignados = new Set(Object.values(rutas).flat().map(p => p.NO_ORDEN));
             const mapeado = jsonData
                 .filter(row => {
                     if (!row['No Orden'] || row['No Orden'] === 'No Orden') return false;
                     if (row['Estatus'] !== 'Lista Surtido') return false;
                     if (yaAsignados.has(String(row['No Orden']).trim())) return false;
-
-                    // ✅ Solo tipos CD y VQ
                     const tipo = String(row['Tipo'] || '').trim().toUpperCase();
                     if (!['CD', 'VQ'].includes(tipo)) return false;
-
                     const fecha = parsearFecha(row['Fecha Lista Surtido']);
                     if (!fecha || isNaN(fecha)) return false;
                     fecha.setHours(0, 0, 0, 0);
-
                     return diasHabiles.some(d => d.toDateString() === fecha.toDateString());
                 })
                 .map(row => ({
@@ -187,20 +195,14 @@ function Plan() {
                     NO_FACTURA: String(row['No Factura'] || '0').trim(),
                     rutaAsignada: null,
                 }));
-
             setPedidos(prev => {
-                const nuevos = mapeado.filter(
-                    m => !prev.some(p => p.NO_ORDEN === m.NO_ORDEN)
-                );
+                const nuevos = mapeado.filter(m => !prev.some(p => p.NO_ORDEN === m.NO_ORDEN));
                 return [...prev, ...nuevos];
             });
-
             Swal.fire({
-                icon: 'success',
-                title: `${mapeado.length} pedidos cargados`,
+                icon: 'success', title: `${mapeado.length} pedidos cargados`,
                 text: 'Filtrados: Lista Surtido — últimos 3 días hábiles (CD y VQ)',
-                timer: 2500,
-                showConfirmButton: false
+                timer: 2500, showConfirmButton: false
             });
         };
         reader.readAsBinaryString(file);
@@ -208,14 +210,8 @@ function Plan() {
     };
 
     const agregarRuta = () => {
-        if (!nuevaRuta.trim()) {
-            Swal.fire({ icon: 'warning', title: 'Escribe el nombre de la ruta' });
-            return;
-        }
-        if (rutas[nuevaRuta]) {
-            Swal.fire({ icon: 'warning', title: 'Esa ruta ya existe' });
-            return;
-        }
+        if (!nuevaRuta.trim()) { Swal.fire({ icon: 'warning', title: 'Escribe el nombre de la ruta' }); return; }
+        if (rutas[nuevaRuta]) { Swal.fire({ icon: 'warning', title: 'Esa ruta ya existe' }); return; }
         setRutas(prev => ({ ...prev, [nuevaRuta]: [] }));
         setNuevaRuta('');
     };
@@ -224,9 +220,7 @@ function Plan() {
         if (!nombreRuta) return;
         setRutas(prev => {
             const nuevas = { ...prev };
-            Object.keys(nuevas).forEach(r => {
-                nuevas[r] = nuevas[r].filter(p => p.NO_ORDEN !== pedido.NO_ORDEN);
-            });
+            Object.keys(nuevas).forEach(r => { nuevas[r] = nuevas[r].filter(p => p.NO_ORDEN !== pedido.NO_ORDEN); });
             nuevas[nombreRuta] = [...(nuevas[nombreRuta] || []), pedido];
             return nuevas;
         });
@@ -234,26 +228,15 @@ function Plan() {
     };
 
     const asignarMasivo = () => {
-        if (!rutaAsignar) {
-            Swal.fire({ icon: 'warning', title: 'Selecciona una ruta' });
-            return;
-        }
-        if (seleccionados.length === 0) {
-            Swal.fire({ icon: 'warning', title: 'Selecciona al menos un pedido' });
-            return;
-        }
-
+        if (!rutaAsignar) { Swal.fire({ icon: 'warning', title: 'Selecciona una ruta' }); return; }
+        if (seleccionados.length === 0) { Swal.fire({ icon: 'warning', title: 'Selecciona al menos un pedido' }); return; }
         const pedidosAAsignar = pedidos.filter(p => seleccionados.includes(p.NO_ORDEN));
-
         setRutas(prev => {
             const nuevas = { ...prev };
-            Object.keys(nuevas).forEach(r => {
-                nuevas[r] = nuevas[r].filter(p => !seleccionados.includes(p.NO_ORDEN));
-            });
+            Object.keys(nuevas).forEach(r => { nuevas[r] = nuevas[r].filter(p => !seleccionados.includes(p.NO_ORDEN)); });
             nuevas[rutaAsignar] = [...(nuevas[rutaAsignar] || []), ...pedidosAAsignar];
             return nuevas;
         });
-
         setPedidos(prev => prev.filter(p => !seleccionados.includes(p.NO_ORDEN)));
         setSeleccionados([]);
         setRutaAsignar('');
@@ -262,42 +245,28 @@ function Plan() {
     const quitarDeRuta = (nombreRuta, noOrden) => {
         const pedido = rutas[nombreRuta]?.find(p => p.NO_ORDEN === noOrden);
         if (!pedido) return;
-        setRutas(prev => ({
-            ...prev,
-            [nombreRuta]: prev[nombreRuta].filter(p => p.NO_ORDEN !== noOrden)
-        }));
+        setRutas(prev => ({ ...prev, [nombreRuta]: prev[nombreRuta].filter(p => p.NO_ORDEN !== noOrden) }));
         setPedidos(prev => [...prev, { ...pedido, rutaAsignada: null }]);
     };
 
     const eliminarRuta = (nombreRuta) => {
         Swal.fire({
-            icon: 'warning',
-            title: `¿Eliminar ruta "${nombreRuta}"?`,
+            icon: 'warning', title: `¿Eliminar ruta "${nombreRuta}"?`,
             text: 'Los pedidos regresarán a la tabla principal',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, eliminar',
-            cancelButtonText: 'Cancelar'
+            showCancelButton: true, confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar'
         }).then(result => {
             if (!result.isConfirmed) return;
             const pedidosDeRuta = rutas[nombreRuta] || [];
             setPedidos(prev => [...prev, ...pedidosDeRuta.map(p => ({ ...p, rutaAsignada: null }))]);
-            setRutas(prev => {
-                const nuevas = { ...prev };
-                delete nuevas[nombreRuta];
-                return nuevas;
-            });
+            setRutas(prev => { const nuevas = { ...prev }; delete nuevas[nombreRuta]; return nuevas; });
         });
     };
 
     const moverPedido = (nombreRuta, index, direccion) => {
         setRutas(prev => {
             const items = [...prev[nombreRuta]];
-            if (direccion === 'arriba' && index > 0) {
-                [items[index - 1], items[index]] = [items[index], items[index - 1]];
-            }
-            if (direccion === 'abajo' && index < items.length - 1) {
-                [items[index], items[index + 1]] = [items[index + 1], items[index]];
-            }
+            if (direccion === 'arriba' && index > 0) [items[index - 1], items[index]] = [items[index], items[index - 1]];
+            if (direccion === 'abajo' && index < items.length - 1) [items[index], items[index + 1]] = [items[index + 1], items[index]];
             return { ...prev, [nombreRuta]: items };
         });
     };
@@ -306,9 +275,7 @@ function Plan() {
         if (!newName.trim() || rutas[newName]) return;
         setRutas(prev => {
             const nuevas = {};
-            Object.keys(prev).forEach(k => {
-                nuevas[k === oldName ? newName : k] = prev[k];
-            });
+            Object.keys(prev).forEach(k => { nuevas[k === oldName ? newName : k] = prev[k]; });
             return nuevas;
         });
         if (rutaSeleccionada === oldName) setRutaSeleccionada(newName);
@@ -316,73 +283,26 @@ function Plan() {
     };
 
     const handleEnviar = async () => {
-        if (!tipoRuta) {
-            Swal.fire({ icon: 'warning', title: 'Selecciona un tipo de ruta' });
-            return;
-        }
-
+        if (!tipoRuta) { Swal.fire({ icon: 'warning', title: 'Selecciona un tipo de ruta' }); return; }
         const rutasConPedidos = Object.entries(rutas).filter(([, peds]) => peds.length > 0);
-
-        if (rutasConPedidos.length === 0) {
-            Swal.fire({ icon: 'warning', title: 'No hay pedidos asignados a ninguna ruta' });
-            return;
-        }
-
+        if (rutasConPedidos.length === 0) { Swal.fire({ icon: 'warning', title: 'No hay pedidos asignados' }); return; }
         const confirm = await Swal.fire({
-            icon: 'question',
-            title: '¿Enviar rutas?',
-            html: rutasConPedidos.map(([nombre, peds]) =>
-                `<b>${nombre}</b>: ${peds.length} pedidos`
-            ).join('<br/>'),
-            showCancelButton: true,
-            confirmButtonText: 'Sí, enviar',
-            cancelButtonText: 'Cancelar'
+            icon: 'question', title: '¿Enviar rutas?',
+            html: rutasConPedidos.map(([nombre, peds]) => `<b>${nombre}</b>: ${peds.length} pedidos`).join('<br/>'),
+            showCancelButton: true, confirmButtonText: 'Sí, enviar', cancelButtonText: 'Cancelar'
         });
-
         if (!confirm.isConfirmed) return;
-
         setCargando(true);
-
         const rutasArray = [];
         rutasConPedidos.forEach(([nombreRuta, peds]) => {
-            peds.forEach(p => {
-                rutasArray.push({
-                    ...p,
-                    routeName: nombreRuta,
-                    TIPO: tipoRuta,
-                    tipo_original: p.tipo_original || tipoRuta,
-                    GUIA: '',
-                    OBSERVACIONES: '',
-                });
-            });
+            peds.forEach(p => { rutasArray.push({ ...p, routeName: nombreRuta, TIPO: tipoRuta, tipo_original: p.tipo_original || tipoRuta, GUIA: '', OBSERVACIONES: '' }); });
         });
-
         try {
-            const res = await axios.post(
-                'http://66.232.105.107:3001/api/Plan/insertar',
-                { rutas: rutasArray }
-            );
-
-            Swal.fire({
-                icon: 'success',
-                title: '✅ Rutas enviadas',
-                text: res.data.message
-            });
-
-            setRutas(prev => {
-                const nuevas = { ...prev };
-                rutasConPedidos.forEach(([nombre]) => {
-                    delete nuevas[nombre];
-                });
-                return nuevas;
-            });
-
+            const res = await axios.post('http://66.232.105.107:3001/api/Plan/insertar', { rutas: rutasArray });
+            Swal.fire({ icon: 'success', title: '✅ Rutas enviadas', text: res.data.message });
+            setRutas(prev => { const nuevas = { ...prev }; rutasConPedidos.forEach(([nombre]) => { delete nuevas[nombre]; }); return nuevas; });
         } catch (err) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error al enviar',
-                text: err.response?.data?.message || 'Error de conexión'
-            });
+            Swal.fire({ icon: 'error', title: 'Error al enviar', text: err.response?.data?.message || 'Error de conexión' });
         } finally {
             setCargando(false);
         }
@@ -390,11 +310,8 @@ function Plan() {
 
     const pedidosFiltrados = useMemo(() => {
         return pedidos.filter(p => {
-            const cumpleCliente = !filtroCliente ||
-                p.NOMBRE_DEL_CLIENTE?.toLowerCase().includes(filtroCliente.toLowerCase()) ||
-                p.NO_ORDEN?.includes(filtroCliente);
-            const cumpleEstado = !filtroEstado ||
-                p.ESTADO?.toLowerCase().includes(filtroEstado.toLowerCase());
+            const cumpleCliente = !filtroCliente || p.NOMBRE_DEL_CLIENTE?.toLowerCase().includes(filtroCliente.toLowerCase()) || p.NO_ORDEN?.includes(filtroCliente);
+            const cumpleEstado = !filtroEstado || p.ESTADO?.toLowerCase().includes(filtroEstado.toLowerCase());
             return cumpleCliente && cumpleEstado;
         });
     }, [pedidos, filtroCliente, filtroEstado]);
@@ -402,35 +319,84 @@ function Plan() {
     const pedidosModalFiltrados = useMemo(() => {
         if (!rutaSeleccionada || !rutas[rutaSeleccionada]) return [];
         return rutas[rutaSeleccionada].filter(p =>
-            !filtroModal ||
-            p.NO_ORDEN?.includes(filtroModal) ||
-            p.NOMBRE_DEL_CLIENTE?.toLowerCase().includes(filtroModal.toLowerCase())
+            !filtroModal || p.NO_ORDEN?.includes(filtroModal) || p.NOMBRE_DEL_CLIENTE?.toLowerCase().includes(filtroModal.toLowerCase())
         );
     }, [rutas, rutaSeleccionada, filtroModal]);
 
     const toggleSeleccion = (noOrden) => {
-        setSeleccionados(prev =>
-            prev.includes(noOrden)
-                ? prev.filter(id => id !== noOrden)
-                : [...prev, noOrden]
-        );
+        setSeleccionados(prev => prev.includes(noOrden) ? prev.filter(id => id !== noOrden) : [...prev, noOrden]);
     };
 
     const toggleTodos = () => {
         const disponibles = pedidosFiltrados.map(p => p.NO_ORDEN);
-        setSeleccionados(prev =>
-            prev.length === disponibles.length ? [] : disponibles
-        );
+        setSeleccionados(prev => prev.length === disponibles.length ? [] : disponibles);
     };
 
-    const formatCurrency = (v) =>
-        new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v || 0);
-
+    const formatCurrency = (v) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v || 0);
     const calcularTotales = (peds = []) => ({
         total: peds.reduce((s, p) => s + (p.TOTAL || 0), 0),
         partidas: peds.reduce((s, p) => s + (p.PARTIDAS || 0), 0),
         piezas: peds.reduce((s, p) => s + (p.PIEZAS || 0), 0),
     });
+
+    // ✅ Días únicos disponibles en los pedidos cargados
+    const diasDisponibles = useMemo(() => {
+        const dias = [...new Set(pedidosSanced.map(p => (p.fecha_factura || p.fecha)?.slice(0, 10)).filter(Boolean))];
+        return dias.sort();
+    }, [pedidosSanced]);
+
+    // ✅ Pedidos filtrados por día si se seleccionó uno
+    const pedidosSancedFiltrados = useMemo(() => {
+        if (!diaSanced) return pedidosSanced;
+        return pedidosSanced.filter(p => (p.fecha_factura || p.fecha)?.slice(0, 10) === diaSanced);
+    }, [pedidosSanced, diaSanced]);
+
+    // ✅ Cargar por mes
+    const cargarPedidosSanced = async (mes) => {
+        setCargandoSanced(true);
+        try {
+            const mesParam = mes || mesSanced;
+            const res = await axios.get(
+                `http://66.232.105.107:3001/api/Plan/pedidos-por-fecha?fecha=${mesParam}`
+            );
+            setPedidosSanced(res.data.data || []);
+            setCambiosSanced({});
+            setDiaSanced('');
+        } catch {
+            setPedidosSanced([]);
+        } finally {
+            setCargandoSanced(false);
+        }
+    };
+
+    const guardarEntregaPaqueteria = async () => {
+        if (!datosPaqueteria.monto) {
+            Swal.fire({ icon: 'warning', title: 'El monto es requerido' });
+            return;
+        }
+        try {
+            await axios.post(`http://66.232.105.107:3001/api/Plan/registrar-paqueteria`, {
+                no_orden: modalPaqueteria.pedido?.no_orden,
+                nombre_cliente: modalPaqueteria.pedido?.nombre_cliente,
+                monto: datosPaqueteria.monto,
+                observaciones: datosPaqueteria.observaciones,
+                fecha_entrega: datosPaqueteria.fecha_entrega,
+            });
+            await axios.put(`http://66.232.105.107:3001/api/Plan/actualizar-status`, {
+                no_orden: modalPaqueteria.pedido?.no_orden,
+                status: modalPaqueteria.pedido?.status,
+                entrega: 'paqueteria'
+            });
+            Swal.fire({ title: '✅ Registrado', icon: 'success', timer: 1500, showConfirmButton: false });
+            setModalPaqueteria({ open: false, pedido: null });
+            setDatosPaqueteria({ monto: '', cantidad: '', observaciones: '', fecha_entrega: new Date().toISOString().split('T')[0] });
+            cargarPedidosSanced(mesSanced);
+        } catch {
+            Swal.fire('❌ Error', 'No se pudo registrar la entrega', 'error');
+        }
+    };
+
+
 
     return (
         <div className="place_holder-container fade-in">
@@ -448,9 +414,11 @@ function Plan() {
                 <Tabs value={tabIndex} onChange={(e, v) => {
                     setTabIndex(v);
                     if (v === 1) cargarRutasDB();
+                    if (v === 2) cargarPedidosSanced(); // ✅ NUEVO TAB
                 }}>
                     <Tab label="📋 Plan" />
                     <Tab label="🚛 Rutas Guardadas" />
+                    <Tab label="📦 Pedidos del Día" /> {/* ✅ NUEVO */}
                 </Tabs>
             </Box>
 
@@ -459,85 +427,53 @@ function Plan() {
                 <Box p={2}>
                     <Paper sx={{ p: 2, mb: 2 }}>
                         <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-                            <Button variant="contained" component="label"
-                                sx={{ bgcolor: '#1976d2', textTransform: 'none' }}>
+                            <Button variant="contained" component="label" sx={{ bgcolor: '#1976d2', textTransform: 'none' }}>
                                 📂 Subir Excel
                                 <input hidden type="file" accept=".xlsx,.xls" onChange={handleFileUpload} />
                             </Button>
-
-                            <TextField size="small" placeholder="Nombre de Ruta"
-                                value={nuevaRuta}
+                            <TextField size="small" placeholder="Nombre de Ruta" value={nuevaRuta}
                                 onChange={e => setNuevaRuta(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && agregarRuta()}
                                 sx={{ minWidth: 160 }} />
-
-                            <Button variant="contained" onClick={agregarRuta}
-                                sx={{ bgcolor: '#fb8c00', textTransform: 'none' }}>
+                            <Button variant="contained" onClick={agregarRuta} sx={{ bgcolor: '#fb8c00', textTransform: 'none' }}>
                                 + Agregar Ruta
                             </Button>
-
                             <FormControl size="small" sx={{ minWidth: 160 }}>
                                 <InputLabel>Tipo de Ruta</InputLabel>
-                                <Select value={tipoRuta} label="Tipo de Ruta"
-                                    onChange={e => setTipoRuta(e.target.value)}>
+                                <Select value={tipoRuta} label="Tipo de Ruta" onChange={e => setTipoRuta(e.target.value)}>
                                     <MenuItem value="cross">Cross</MenuItem>
                                 </Select>
                             </FormControl>
-
-                            <Button variant="contained" color="success"
-                                disabled={cargando} onClick={handleEnviar}
-                                sx={{ textTransform: 'none' }}>
+                            <Button variant="contained" color="success" disabled={cargando} onClick={handleEnviar} sx={{ textTransform: 'none' }}>
                                 {cargando ? 'Enviando...' : '✅ Enviar Rutas'}
                             </Button>
-
                             <Button variant="contained" color="error"
                                 onClick={() => {
                                     Swal.fire({
-                                        icon: 'warning',
-                                        title: '¿Limpiar tabla?',
+                                        icon: 'warning', title: '¿Limpiar tabla?',
                                         text: 'Se eliminarán todos los pedidos de la lista principal.',
-                                        showCancelButton: true,
-                                        confirmButtonText: 'Sí, limpiar',
-                                        cancelButtonText: 'Cancelar'
+                                        showCancelButton: true, confirmButtonText: 'Sí, limpiar', cancelButtonText: 'Cancelar'
                                     }).then(result => {
                                         if (!result.isConfirmed) return;
-                                        setPedidos([]);
-                                        setSeleccionados([]);
-                                        // ✅ También actualiza el localStorage
+                                        setPedidos([]); setSeleccionados([]);
                                         guardarLS(rutas, []);
                                     });
-                                }}
-                                sx={{ textTransform: 'none' }}>
+                                }} sx={{ textTransform: 'none' }}>
                                 🗑 Limpiar Tabla
                             </Button>
-
                         </Box>
 
                         {seleccionados.length > 0 && (
-                            <Box display="flex" gap={2} alignItems="center" mt={2}
-                                sx={{ bgcolor: '#e3f2fd', p: 1.5, borderRadius: 1 }}>
-                                <Typography variant="body2">
-                                    <b>{seleccionados.length}</b> pedidos seleccionados
-                                </Typography>
+                            <Box display="flex" gap={2} alignItems="center" mt={2} sx={{ bgcolor: '#e3f2fd', p: 1.5, borderRadius: 1 }}>
+                                <Typography variant="body2"><b>{seleccionados.length}</b> pedidos seleccionados</Typography>
                                 <FormControl size="small" sx={{ minWidth: 160 }}>
                                     <InputLabel>Asignar a Ruta</InputLabel>
-                                    <Select value={rutaAsignar} label="Asignar a Ruta"
-                                        onChange={e => setRutaAsignar(e.target.value)}>
-                                        {Object.keys(rutas).map(r => (
-                                            <MenuItem key={r} value={r}>{r}</MenuItem>
-                                        ))}
+                                    <Select value={rutaAsignar} label="Asignar a Ruta" onChange={e => setRutaAsignar(e.target.value)}>
+                                        {Object.keys(rutas).map(r => (<MenuItem key={r} value={r}>{r}</MenuItem>))}
                                     </Select>
                                 </FormControl>
-                                <Button variant="contained" size="small"
-                                    onClick={asignarMasivo}
-                                    sx={{ textTransform: 'none' }}>
-                                    Asignar
-                                </Button>
-                                <Button variant="outlined" size="small" color="error"
-                                    onClick={() => setSeleccionados([])}
-                                    sx={{ textTransform: 'none' }}>
-                                    Limpiar
-                                </Button>
+                                <Button variant="contained" size="small" onClick={asignarMasivo} sx={{ textTransform: 'none' }}>Asignar</Button>
+                                <Button variant="outlined" size="small" color="error" onClick={() => setSeleccionados([])} sx={{ textTransform: 'none' }}>Limpiar</Button>
                             </Box>
                         )}
                     </Paper>
@@ -547,35 +483,20 @@ function Plan() {
                             {Object.entries(rutas).map(([nombre, peds]) => {
                                 const tots = calcularTotales(peds);
                                 return (
-                                    <Paper key={nombre} variant="outlined"
-                                        sx={{ minWidth: 200, maxWidth: 230, p: 1.5, borderRadius: 2, position: 'relative' }}>
-                                        <Box position="absolute" top={6} right={6} display="flex" gap={0.5}>
+                                    <Paper key={nombre} variant="outlined" sx={{ minWidth: 200, maxWidth: 230, p: 1.5, borderRadius: 2, position: 'relative' }}>
+                                        <Box position="absolute" top={6} right={6}>
                                             <Tooltip title="Eliminar ruta">
-                                                <IconButton size="small" color="error"
-                                                    onClick={() => eliminarRuta(nombre)}>
+                                                <IconButton size="small" color="error" onClick={() => eliminarRuta(nombre)}>
                                                     <FaTimes size={12} />
                                                 </IconButton>
                                             </Tooltip>
                                         </Box>
-                                        <Checkbox size="small" sx={{ p: 0, mb: 0.5 }} />
-                                        <Typography fontWeight={700} fontSize={14}>
-                                            Ruta: {nombre}
-                                        </Typography>
-                                        <Typography variant="body2">
-                                            Total: {formatCurrency(tots.total)}
-                                        </Typography>
-                                        <Typography variant="body2">
-                                            Partidas: {tots.partidas}
-                                        </Typography>
-                                        <Typography variant="body2">
-                                            Piezas: {tots.piezas}
-                                        </Typography>
+                                        <Typography fontWeight={700} fontSize={14}>Ruta: {nombre}</Typography>
+                                        <Typography variant="body2">Total: {formatCurrency(tots.total)}</Typography>
+                                        <Typography variant="body2">Partidas: {tots.partidas}</Typography>
+                                        <Typography variant="body2">Piezas: {tots.piezas}</Typography>
                                         <Button size="small"
-                                            onClick={() => {
-                                                setRutaSeleccionada(nombre);
-                                                setFiltroModal('');
-                                                setModalOpen(true);
-                                            }}
+                                            onClick={() => { setRutaSeleccionada(nombre); setFiltroModal(''); setModalOpen(true); }}
                                             sx={{ color: '#e74c3c', textTransform: 'none', p: 0, mt: 0.5 }}>
                                             VER DETALLES
                                         </Button>
@@ -588,19 +509,12 @@ function Plan() {
                     {pedidos.length > 0 ? (
                         <Paper sx={{ p: 2 }}>
                             <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
-                                <Typography variant="h6">
-                                    Pedidos disponibles ({pedidosFiltrados.length})
-                                </Typography>
+                                <Typography variant="h6">Pedidos disponibles ({pedidosFiltrados.length})</Typography>
                                 <TextField size="small" placeholder="Buscar cliente / No Orden"
-                                    value={filtroCliente}
-                                    onChange={e => setFiltroCliente(e.target.value)}
-                                    sx={{ minWidth: 220 }} />
+                                    value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} sx={{ minWidth: 220 }} />
                                 <TextField size="small" placeholder="Filtrar por Estado"
-                                    value={filtroEstado}
-                                    onChange={e => setFiltroEstado(e.target.value)}
-                                    sx={{ minWidth: 160 }} />
+                                    value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} sx={{ minWidth: 160 }} />
                             </Box>
-
                             <TableContainer sx={{ maxHeight: '55vh' }}>
                                 <Table size="small" stickyHeader>
                                     <TableHead>
@@ -631,10 +545,7 @@ function Plan() {
                                                         onChange={() => toggleSeleccion(row.NO_ORDEN)} />
                                                 </TableCell>
                                                 <TableCell>{row.NO_ORDEN}</TableCell>
-                                                <TableCell>
-                                                    <Chip label={row.tipo_original} size="small"
-                                                        sx={{ bgcolor: '#e3f2fd' }} />
-                                                </TableCell>
+                                                <TableCell><Chip label={row.tipo_original} size="small" sx={{ bgcolor: '#e3f2fd' }} /></TableCell>
                                                 <TableCell>{row.FECHA}</TableCell>
                                                 <TableCell>{row.NOMBRE_DEL_CLIENTE}</TableCell>
                                                 <TableCell>{row.MUNICIPIO}</TableCell>
@@ -643,14 +554,10 @@ function Plan() {
                                                 <TableCell>{row.PARTIDAS}</TableCell>
                                                 <TableCell>{row.PIEZAS}</TableCell>
                                                 <TableCell>
-                                                    <Select size="small" value=""
-                                                        displayEmpty
-                                                        onChange={e => asignarPedidoARuta(row, e.target.value)}
-                                                        sx={{ minWidth: 130 }}>
+                                                    <Select size="small" value="" displayEmpty
+                                                        onChange={e => asignarPedidoARuta(row, e.target.value)} sx={{ minWidth: 130 }}>
                                                         <MenuItem value="" disabled>Seleccionar</MenuItem>
-                                                        {Object.keys(rutas).map(r => (
-                                                            <MenuItem key={r} value={r}>{r}</MenuItem>
-                                                        ))}
+                                                        {Object.keys(rutas).map(r => (<MenuItem key={r} value={r}>{r}</MenuItem>))}
                                                     </Select>
                                                 </TableCell>
                                             </TableRow>
@@ -661,9 +568,7 @@ function Plan() {
                         </Paper>
                     ) : (
                         <Box textAlign="center" mt={6} color="#888">
-                            <Typography variant="h6">
-                                📂 Sube un archivo Excel para comenzar
-                            </Typography>
+                            <Typography variant="h6">📂 Sube un archivo Excel para comenzar</Typography>
                         </Box>
                     )}
                 </Box>
@@ -672,34 +577,20 @@ function Plan() {
             {/* ===== TAB 2: RUTAS GUARDADAS ===== */}
             {tabIndex === 1 && (
                 <Box p={2}>
-                    {/* ✅ Header con selector de fecha */}
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                         <Typography variant="h6">Rutas Guardadas</Typography>
                         <Box display="flex" gap={2} alignItems="center">
-                            <TextField
-                                type="date"
-                                size="small"
-                                label="Fecha"
-                                value={fechaFiltro}
-                                onChange={e => {
-                                    setFechaFiltro(e.target.value);
-                                    cargarRutasDB(e.target.value);
-                                }}
-                                InputLabelProps={{ shrink: true }}
-                            />
-                            <Button variant="outlined"
-                                onClick={() => cargarRutasDB()}
-                                disabled={cargandoRutas}
-                                size="small">
+                            <TextField type="date" size="small" label="Fecha" value={fechaFiltro}
+                                onChange={e => { setFechaFiltro(e.target.value); cargarRutasDB(e.target.value); }}
+                                InputLabelProps={{ shrink: true }} />
+                            <Button variant="outlined" onClick={() => cargarRutasDB()} disabled={cargandoRutas} size="small">
                                 🔄 Actualizar
                             </Button>
                         </Box>
                     </Box>
 
                     {cargandoRutas ? (
-                        <Box textAlign="center" mt={5}>
-                            <Typography>Cargando rutas...</Typography>
-                        </Box>
+                        <Box textAlign="center" mt={5}><Typography>Cargando rutas...</Typography></Box>
                     ) : rutasDB.length === 0 ? (
                         <Box textAlign="center" mt={5} color="#888">
                             <Typography>No hay rutas guardadas para esta fecha.</Typography>
@@ -707,21 +598,13 @@ function Plan() {
                     ) : (
                         rutasDB.map(ruta => (
                             <Box key={ruta.routeName} mb={4}>
-                                <Box display="flex" alignItems="center" gap={2} mb={1}
-                                    sx={{ bgcolor: '#f5f5f5', p: 1.5, borderRadius: 1 }}>
-                                    <Typography variant="h6" fontWeight={700}>
-                                        Ruta: {ruta.routeName}
-                                    </Typography>
-                                    <Chip label={`Total: ${formatCurrency(ruta.total)}`}
-                                        sx={{ bgcolor: '#e8f5e9' }} />
-                                    <Chip label={`Partidas: ${ruta.partidas}`}
-                                        sx={{ bgcolor: '#e3f2fd' }} />
-                                    <Chip label={`Piezas: ${ruta.piezas}`}
-                                        sx={{ bgcolor: '#fce4ec' }} />
-                                    <Chip label={`${ruta.pedidos.length} pedidos`}
-                                        sx={{ bgcolor: '#fff3e0' }} />
+                                <Box display="flex" alignItems="center" gap={2} mb={1} sx={{ bgcolor: '#f5f5f5', p: 1.5, borderRadius: 1 }}>
+                                    <Typography variant="h6" fontWeight={700}>Ruta: {ruta.routeName}</Typography>
+                                    <Chip label={`Total: ${formatCurrency(ruta.total)}`} sx={{ bgcolor: '#e8f5e9' }} />
+                                    <Chip label={`Partidas: ${ruta.partidas}`} sx={{ bgcolor: '#e3f2fd' }} />
+                                    <Chip label={`Piezas: ${ruta.piezas}`} sx={{ bgcolor: '#fce4ec' }} />
+                                    <Chip label={`${ruta.pedidos.length} pedidos`} sx={{ bgcolor: '#fff3e0' }} />
                                 </Box>
-
                                 <TableContainer component={Paper}>
                                     <Table size="small">
                                         <TableHead>
@@ -745,10 +628,7 @@ function Plan() {
                                             {ruta.pedidos.map(pedido => (
                                                 <TableRow key={pedido.id}>
                                                     <TableCell>{pedido.NO_ORDEN}</TableCell>
-                                                    <TableCell>
-                                                        <Chip label={pedido.tipo_original || pedido.TIPO}
-                                                            size="small" sx={{ bgcolor: '#e3f2fd' }} />
-                                                    </TableCell>
+                                                    <TableCell><Chip label={pedido.tipo_original || pedido.TIPO} size="small" sx={{ bgcolor: '#e3f2fd' }} /></TableCell>
                                                     <TableCell>{pedido.NO_FACTURA || '—'}</TableCell>
                                                     <TableCell>{pedido.NOMBRE_DEL_CLIENTE}</TableCell>
                                                     <TableCell>{pedido.MUNICIPIO}</TableCell>
@@ -758,28 +638,20 @@ function Plan() {
                                                     <TableCell>{pedido.PIEZAS}</TableCell>
                                                     <TableCell>
                                                         {pedido.GUIA && pedido.GUIA !== ''
-                                                            ? <Chip label={pedido.GUIA} size="small" color="success" />
-                                                            : '—'
-                                                        }
+                                                            ? <Chip label={pedido.GUIA} size="small" color="success" /> : '—'}
                                                     </TableCell>
                                                     <TableCell>{pedido.TRANSPORTE || '—'}</TableCell>
                                                     <TableCell>
-                                                        <Typography variant="body2" fontWeight={700}
-                                                            sx={{
-                                                                color:
-                                                                    pedido.status_pedido === 'FINALIZADO' ? '#2e7d32' :
-                                                                        pedido.status_pedido === 'EMBARQUE' ? '#1565c0' :
-                                                                            pedido.status_pedido === 'SURTIDO' ? '#e65100' :
-                                                                                '#c62828'
-                                                            }}>
+                                                        <Typography variant="body2" fontWeight={700} sx={{
+                                                            color: pedido.status_pedido === 'FINALIZADO' ? '#2e7d32' :
+                                                                pedido.status_pedido === 'EMBARQUE' ? '#1565c0' :
+                                                                    pedido.status_pedido === 'SURTIDO' ? '#e65100' : '#c62828'
+                                                        }}>
                                                             {pedido.status_pedido}
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell>
-                                                        {pedido.created_at
-                                                            ? new Date(pedido.created_at).toLocaleDateString('es-MX')
-                                                            : '—'
-                                                        }
+                                                        {pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-MX') : '—'}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -793,22 +665,249 @@ function Plan() {
                 </Box>
             )}
 
+            {/* ===== TAB 3: PEDIDOS DEL DÍA (sanced) ===== */}
+            {tabIndex === 2 && (
+                <Box p={2}>
+                    {/* HEADER */}
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}
+                        sx={{ bgcolor: '#f5f5f5', p: 2, borderRadius: 2 }}>
+                        <Typography variant="h6" fontWeight="bold">📦 Pedidos del Mes</Typography>
+
+                        <Box display="flex" gap={2} alignItems="center">
+                            <FormControl size="small" sx={{ minWidth: 100 }}>
+                                <InputLabel>Año</InputLabel>
+                                <Select
+                                    value={mesSanced.split('-')[0]}
+                                    label="Año"
+                                    onChange={e => {
+                                        const nuevoMes = `${e.target.value}-${mesSanced.split('-')[1]}`;
+                                        setMesSanced(nuevoMes);
+                                        setDiaSanced('');
+                                        cargarPedidosSanced(nuevoMes);
+                                    }}
+                                >
+                                    {[2024, 2025, 2026, 2027].map(anio => (
+                                        <MenuItem key={anio} value={String(anio)}>{anio}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+
+                            <FormControl size="small" sx={{ minWidth: 130 }}>
+                                <InputLabel>Mes</InputLabel>
+                                <Select
+                                    value={mesSanced.split('-')[1]}
+                                    label="Mes"
+                                    onChange={e => {
+                                        const nuevoMes = `${mesSanced.split('-')[0]}-${e.target.value}`;
+                                        setMesSanced(nuevoMes);
+                                        setDiaSanced('');
+                                        cargarPedidosSanced(nuevoMes);
+                                    }}
+                                >
+                                    <MenuItem value="01">Enero</MenuItem>
+                                    <MenuItem value="02">Febrero</MenuItem>
+                                    <MenuItem value="03">Marzo</MenuItem>
+                                    <MenuItem value="04">Abril</MenuItem>
+                                    <MenuItem value="05">Mayo</MenuItem>
+                                    <MenuItem value="06">Junio</MenuItem>
+                                    <MenuItem value="07">Julio</MenuItem>
+                                    <MenuItem value="08">Agosto</MenuItem>
+                                    <MenuItem value="09">Septiembre</MenuItem>
+                                    <MenuItem value="10">Octubre</MenuItem>
+                                    <MenuItem value="11">Noviembre</MenuItem>
+                                    <MenuItem value="12">Diciembre</MenuItem>
+                                </Select>
+                            </FormControl>
+
+                            {diasDisponibles.length > 0 && (
+                                <FormControl size="small" sx={{ minWidth: 150 }}>
+                                    <InputLabel>Filtrar por día</InputLabel>
+                                    <Select
+                                        value={diaSanced}
+                                        label="Filtrar por día"
+                                        onChange={e => setDiaSanced(e.target.value)}
+                                    >
+                                        <MenuItem value="">-- Todos los días --</MenuItem>
+                                        {diasDisponibles.map(dia => (
+                                            <MenuItem key={dia} value={dia}>
+                                                {new Date(dia + 'T12:00:00').toLocaleDateString('es-MX', {
+                                                    weekday: 'long', day: 'numeric', month: 'long'
+                                                })}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            )}
+
+                            <Button variant="outlined" size="small"
+                                onClick={() => cargarPedidosSanced(mesSanced)}
+                                disabled={cargandoSanced}>
+                                🔄 Actualizar
+                            </Button>
+
+                            <Chip
+                                label={`${pedidosSancedFiltrados.length} pedidos`}
+                                sx={{ bgcolor: '#e3f2fd', fontWeight: 'bold' }} />
+                        </Box>
+                    </Box>
+
+                    {/* TABLA */}
+                    {cargandoSanced ? (
+                        <Box textAlign="center" mt={5}><Typography>Cargando pedidos...</Typography></Box>
+                    ) : pedidosSancedFiltrados.length === 0 ? (
+                        <Box textAlign="center" mt={5} color="#888">
+                            <Typography>No hay pedidos para este período.</Typography>
+                        </Box>
+                    ) : (
+                        <>
+                            <TableContainer component={Paper} sx={{ maxHeight: '65vh' }}>
+                                <Table size="small" stickyHeader>
+                                    <TableHead>
+                                        <TableRow sx={{ bgcolor: '#fafafa' }}>
+                                            <TableCell><b>Fecha Factura</b></TableCell>
+                                            <TableCell><b>No. Orden</b></TableCell>
+                                            <TableCell><b>Cliente</b></TableCell>
+                                            <TableCell><b>No. Cliente</b></TableCell>
+                                            <TableCell><b>Factura</b></TableCell>
+                                            <TableCell><b>Dirección</b></TableCell>
+                                            <TableCell><b>Total</b></TableCell>
+                                            <TableCell><b>Total c/IVA</b></TableCell>
+                                            <TableCell><b>Status</b></TableCell>
+                                            <TableCell><b>Entrega</b></TableCell>
+                                            <TableCell><b>Guardar</b></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {pedidosSancedFiltrados.map((p) => {
+                                            const cambio = cambiosSanced[p.no_orden] || {};
+                                            const statusActual = cambio.status ?? p.status;
+                                            const entregaActual = cambio.entrega ?? p.entrega;
+                                            const hayPendiente = cambiosSanced[p.no_orden] !== undefined;
+
+                                            return (
+                                                <TableRow key={p.no_orden}
+                                                    sx={{
+                                                        bgcolor: statusActual === 'cancelado' ? '#fff5f5' :
+                                                            statusActual === 'finalizado' ? '#f1fff1' : 'inherit'
+                                                    }}>
+                                                    <TableCell>
+                                                        {(() => {
+                                                            const f = String(p.fecha_factura || p.fecha || '').slice(0, 10);
+                                                            if (!f) return '---';
+                                                            const [y, m, d] = f.split('-');
+                                                            return `${d}/${m}/${y}`;
+                                                        })()}
+                                                    </TableCell>
+                                                    <TableCell><Typography fontWeight="bold">{p.no_orden}</Typography></TableCell>
+                                                    <TableCell>{p.nombre_cliente}</TableCell>
+                                                    <TableCell>{p.num_consigna}</TableCell>
+                                                    <TableCell>{p.no_factura || '---'}</TableCell>
+                                                    <TableCell sx={{ maxWidth: 180 }}>
+                                                        <Tooltip title={p.direccion || ''}>
+                                                            <Typography variant="body2" noWrap>{p.direccion}</Typography>
+                                                        </Tooltip>
+                                                    </TableCell>
+                                                    <TableCell>${formatMoney(p.total)}</TableCell>
+                                                    <TableCell>${formatMoney(p.total_con_iva)}</TableCell>
+                                                    <TableCell>
+                                                        <Select size="small"
+                                                            value={statusActual || ''}
+                                                            onChange={e => handleCambioSanced(p.no_orden, 'status', e.target.value)}
+                                                            displayEmpty sx={{ minWidth: 140 }}>
+                                                            <MenuItem value=""><em>-- Sin status --</em></MenuItem>
+                                                            <MenuItem value="finalizado">✅ Finalizado</MenuItem>
+                                                            <MenuItem value="cancelado">❌ Cancelado</MenuItem>
+                                                        </Select>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Select size="small"
+                                                            value={entregaActual || ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                if (val === 'paqueteria') {
+                                                                    setModalPaqueteria({ open: true, pedido: p });
+                                                                    setDatosPaqueteria({
+                                                                        monto: '', observaciones: '',
+                                                                        fecha_entrega: new Date().toISOString().split('T')[0]
+                                                                    });
+                                                                } else {
+                                                                    handleCambioSanced(p.no_orden, 'entrega', val);
+                                                                }
+                                                            }}
+                                                            displayEmpty sx={{ minWidth: 150 }}>
+                                                            <MenuItem value=""><em>-- Sin asignar --</em></MenuItem>
+                                                            <MenuItem value="paqueteria">🚚 Paquetería</MenuItem>
+                                                            <MenuItem value="santul">🏭 Santul</MenuItem>
+                                                        </Select>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Tooltip title={hayPendiente ? 'Guardar cambios' : 'Sin cambios'}>
+                                                            <span>
+                                                                <IconButton color="primary"
+                                                                    onClick={() => guardarCambioSanced(p)}
+                                                                    disabled={!hayPendiente}>
+                                                                    <SaveIcon />
+                                                                </IconButton>
+                                                            </span>
+                                                        </Tooltip>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+
+                            {/* ✅ TOTALES FIJOS FUERA DEL SCROLL */}
+                            <Box sx={{
+                                display: 'flex',
+                                borderTop: '2px solid #1976d2',
+                                bgcolor: '#f0f4ff',
+                                p: 1,
+                                borderRadius: '0 0 4px 4px',
+                                alignItems: 'center'
+                            }}>
+                                <Box sx={{ flex: 1 }} />
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+                                    <Typography fontWeight="bold" variant="body2" color="textSecondary">
+                                        TOTAL {diaSanced ? 'DEL DÍA' : 'DEL MES'}:
+                                    </Typography>
+                                </Box>
+                                <Box sx={{ minWidth: 120, mr: 4 }}>
+                                    <Typography fontWeight="bold" color="#1976d2">
+                                        ${formatMoney(
+                                            pedidosSancedFiltrados.reduce((sum, p) => sum + parseFloat(p.total || 0), 0)
+                                        )}
+                                    </Typography>
+                                </Box>
+                                <Box sx={{ minWidth: 120, mr: 4 }}>
+                                    <Typography fontWeight="bold" color="#2e7d32">
+                                        ${formatMoney(
+                                            pedidosSancedFiltrados.reduce((sum, p) => sum + parseFloat(p.total_con_iva || 0), 0)
+                                        )}
+                                    </Typography>
+                                </Box>
+                                <Box sx={{ minWidth: 400 }} />
+                            </Box>
+                        </>
+                    )}
+                </Box>
+            )}
+
+
             {/* ===== MODAL DETALLES ===== */}
             <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
                 <Box sx={{
                     position: 'absolute', top: '50%', left: '50%',
                     transform: 'translate(-50%, -50%)',
-                    width: '95%', maxWidth: 1200,
-                    maxHeight: '85vh', overflowY: 'auto',
-                    bgcolor: 'background.paper',
-                    boxShadow: 24, p: 3, borderRadius: 2
+                    width: '95%', maxWidth: 1200, maxHeight: '85vh', overflowY: 'auto',
+                    bgcolor: 'background.paper', boxShadow: 24, p: 3, borderRadius: 2
                 }}>
                     <Box display="flex" alignItems="center" gap={1} mb={2}>
                         {editandoRuta ? (
                             <>
                                 <TextField size="small" value={nuevoNombreRuta}
-                                    onChange={e => setNuevoNombreRuta(e.target.value)}
-                                    autoFocus />
+                                    onChange={e => setNuevoNombreRuta(e.target.value)} autoFocus />
                                 <Button size="small" variant="contained"
                                     onClick={() => renombrarRuta(rutaSeleccionada, nuevoNombreRuta)}>
                                     Guardar
@@ -816,14 +915,8 @@ function Plan() {
                             </>
                         ) : (
                             <>
-                                <Typography variant="h6">
-                                    Detalles de la Ruta: {rutaSeleccionada}
-                                </Typography>
-                                <IconButton size="small"
-                                    onClick={() => {
-                                        setEditandoRuta(true);
-                                        setNuevoNombreRuta(rutaSeleccionada);
-                                    }}>
+                                <Typography variant="h6">Detalles de la Ruta: {rutaSeleccionada}</Typography>
+                                <IconButton size="small" onClick={() => { setEditandoRuta(true); setNuevoNombreRuta(rutaSeleccionada); }}>
                                     <BorderColorIcon fontSize="small" />
                                 </IconButton>
                             </>
@@ -831,9 +924,7 @@ function Plan() {
                     </Box>
 
                     <TextField size="small" placeholder="Buscar por No Orden"
-                        value={filtroModal}
-                        onChange={e => setFiltroModal(e.target.value)}
-                        sx={{ mb: 2, minWidth: 240 }} />
+                        value={filtroModal} onChange={e => setFiltroModal(e.target.value)} sx={{ mb: 2, minWidth: 240 }} />
 
                     <TableContainer component={Paper}>
                         <Table size="small">
@@ -864,14 +955,12 @@ function Plan() {
                                         <TableRow key={row.NO_ORDEN}>
                                             <TableCell>
                                                 {realIndex > 0 && (
-                                                    <IconButton size="small"
-                                                        onClick={() => moverPedido(rutaSeleccionada, realIndex, 'arriba')}>
+                                                    <IconButton size="small" onClick={() => moverPedido(rutaSeleccionada, realIndex, 'arriba')}>
                                                         <ArrowUpwardIcon fontSize="small" color="primary" />
                                                     </IconButton>
                                                 )}
                                                 {realIndex < listaCompleta.length - 1 && (
-                                                    <IconButton size="small"
-                                                        onClick={() => moverPedido(rutaSeleccionada, realIndex, 'abajo')}>
+                                                    <IconButton size="small" onClick={() => moverPedido(rutaSeleccionada, realIndex, 'abajo')}>
                                                         <ArrowDownwardIcon fontSize="small" color="primary" />
                                                     </IconButton>
                                                 )}
@@ -902,15 +991,12 @@ function Plan() {
                                                         }}
                                                         displayEmpty sx={{ minWidth: 120 }}>
                                                         <MenuItem disabled value="">Mover a...</MenuItem>
-                                                        {Object.keys(rutas)
-                                                            .filter(r => r !== rutaSeleccionada)
-                                                            .map(r => (
-                                                                <MenuItem key={r} value={r}>{r}</MenuItem>
-                                                            ))}
+                                                        {Object.keys(rutas).filter(r => r !== rutaSeleccionada).map(r => (
+                                                            <MenuItem key={r} value={r}>{r}</MenuItem>
+                                                        ))}
                                                     </Select>
                                                 ) : (
-                                                    <IconButton size="small"
-                                                        onClick={() => setEditRouteIndex(realIndex)}>
+                                                    <IconButton size="small" onClick={() => setEditRouteIndex(realIndex)}>
                                                         <CompareArrowsIcon fontSize="small" />
                                                     </IconButton>
                                                 )}
@@ -928,16 +1014,57 @@ function Plan() {
 
                     <Box textAlign="right" mt={2}>
                         <Button variant="contained" color="error"
-                            onClick={() => {
-                                setModalOpen(false);
-                                setEditandoRuta(false);
-                                setEditRouteIndex(null);
-                            }}>
+                            onClick={() => { setModalOpen(false); setEditandoRuta(false); setEditRouteIndex(null); }}>
                             CERRAR
                         </Button>
                     </Box>
                 </Box>
             </Modal>
+
+            {modalPaqueteria.open && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                    background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <Paper sx={{ p: 3, width: 420, borderRadius: 2 }}>
+                        <Typography variant="h6" fontWeight="bold" mb={1}>
+                            🚚 Registrar Entrega por Paquetería
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary" mb={2}>
+                            <b>Pedido:</b> {modalPaqueteria.pedido?.no_orden} — {modalPaqueteria.pedido?.nombre_cliente}
+                        </Typography>
+
+                        <Box display="flex" flexDirection="column" gap={2}>
+                            <TextField label="Monto *" size="small" type="number"
+                                value={datosPaqueteria.monto}
+                                onChange={e => setDatosPaqueteria(prev => ({ ...prev, monto: e.target.value }))}
+                                fullWidth />
+                            <TextField label="Fecha de entrega" size="small" type="date"
+                                value={datosPaqueteria.fecha_entrega}
+                                onChange={e => setDatosPaqueteria(prev => ({ ...prev, fecha_entrega: e.target.value }))}
+                                InputLabelProps={{ shrink: true }}
+                                fullWidth />
+                            <TextField label="Observaciones" size="small" multiline rows={3}
+                                value={datosPaqueteria.observaciones}
+                                onChange={e => setDatosPaqueteria(prev => ({ ...prev, observaciones: e.target.value }))}
+                                fullWidth />
+                        </Box>
+
+                        <Box display="flex" gap={2} justifyContent="flex-end" mt={3}>
+                            <Button variant="outlined" color="error"
+                                onClick={() => setModalPaqueteria({ open: false, pedido: null })}>
+                                Cancelar
+                            </Button>
+                            <Button variant="contained" color="success"
+                                onClick={guardarEntregaPaqueteria}>
+                                💾 Guardar
+                            </Button>
+                        </Box>
+                    </Paper>
+                </div>
+            )}
+
         </div>
     );
 }
