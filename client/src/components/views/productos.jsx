@@ -65,12 +65,9 @@ const Productos = ({ isSwitching }) => {
     try {
       const res = await fetch("http://66.232.105.107:3001/api/productos");
       const data = await res.json();
-      const productosConId = data.map((item, index) => ({
-        ...item,
-        id: item.id ?? index  // ← usa ?? en lugar de ||
-      }));
-      setProductos(productosConId);
-      setFilteredProductos(productosConId);
+      // ✅ No modificar el id, usarlo tal cual viene de la API
+      setProductos(data);
+      setFilteredProductos(data);
     } catch (error) {
       console.error("❌ Error al obtener productos:", error);
     } finally {
@@ -628,7 +625,7 @@ const Productos = ({ isSwitching }) => {
         </Alert>
       </Snackbar>
 
-      
+
     </div>
   );
 };

@@ -26,11 +26,12 @@ const Producto = {
                 i.almacen,
                 i.cant_stock_real
             FROM productos p
-            INNER JOIN inventario i 
-                ON p.codigo = i.codigo_producto
-            WHERE 
-                i.ubicacion IS NOT NULL
-                AND i.ubicacion <> ''
+            INNER JOIN (
+                SELECT codigo_producto, MIN(ubicacion) AS ubicacion, almacen, MIN(cant_stock_real) AS cant_stock_real
+                FROM inventario
+                WHERE ubicacion IS NOT NULL AND ubicacion <> ''
+                GROUP BY codigo_producto
+            ) i ON p.codigo = i.codigo_producto
             ORDER BY p.codigo ASC;
         `;
         return db.query(query);
@@ -40,7 +41,6 @@ const Producto = {
         return db.query('SELECT * FROM productos WHERE id = ?', [id]);
     },
 
-    // 🔥 CORREGIDO — filtra campos que no son columnas de productos
     create: (producto) => {
         const {
             modificado_por,
