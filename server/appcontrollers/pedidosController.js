@@ -16,7 +16,7 @@ const getPedidosData = async (req, res) => {
       p.estado,
       p.registro_surtido,
       COALESCE(r.nombre, 'SIN_ROL') AS usuario,
-       p.id_usuario,
+      p.id_usuario,
       u.cant_stock_real AS cant_stock,
       u.ubicacion AS ubi,
       CASE 
@@ -34,11 +34,14 @@ const getPedidosData = async (req, res) => {
       prod._master
     FROM pedidos_surtiendo p
     LEFT JOIN productos prod ON p.codigo_pedido = prod.codigo
-    LEFT JOIN inventario u ON p.codigo_pedido = u.codigo_producto
+    LEFT JOIN (
+      SELECT codigo_producto, MIN(ubicacion) AS ubicacion, MIN(cant_stock_real) AS cant_stock_real
+      FROM inventario
+      GROUP BY codigo_producto
+    ) u ON p.codigo_pedido = u.codigo_producto
     LEFT JOIN usuarios us ON p.id_usuario = us.id
     LEFT JOIN roles r ON us.rol_id = r.id
     WHERE p.estado = 'S'
-      AND prod.descripcion IS NOT NULL
     ORDER BY u.ubicacion ASC;
   `;
 
@@ -66,71 +69,81 @@ const getPedidosData = async (req, res) => {
         };
       }
 
-      if (row.cant_stock !== null) {
-        const faltan = row.cantidad - row.cant_surti;
-        let restante = faltan;
+      const faltan = row.cantidad - (row.cant_surti || 0);
+      let restante = faltan;
 
-        const baseProduct = {
-          identifi: row.id_pedi,
-          codigo_ped: row.codigo_ped,
-          quantity: row.cantidad,
-          allquantity: row.cantidad,
-          cant_surti: row.cant_surti,
-          cant_no_env: row.cant_no_env,
-          _master: row._master,
-          _inner: row._inner,
-          _pz: row._pz,
-          _pq: row._pq,
-          barcodeMaster: row.barcode_master?.toString(),
-          barcodeInner: row.barcode_inner?.toString(),
-          barcodePz: row.barcode_pz?.toString(),
-          barcodePalet: row.barcode_palet,
-          peackinglocation: row.ubi_bahia,
-          estado: row.estado,
-          name: row.descripcion,
-          stockpeak: row.cant_stock,
-          location: row.ubi,
-          pasillo: row.pasillo,
-          um: row.um
-        };
+      const baseProduct = {
+        identifi: row.id_pedi,
+        codigo_ped: row.codigo_ped,
+        quantity: row.cantidad,
+        allquantity: row.cantidad,
+        cant_surti: row.cant_surti,
+        cant_no_env: row.cant_no_env,
+        _master: row._master,
+        _inner: row._inner,
+        _pz: row._pz,
+        _pq: row._pq,
+        barcodeMaster: row.barcode_master?.toString(),
+        barcodeInner: row.barcode_inner?.toString(),
+        barcodePz: row.barcode_pz?.toString(),
+        barcodePalet: row.barcode_palet,
+        peackinglocation: row.ubi_bahia,
+        estado: row.estado,
+        name: row.descripcion ?? 'Sin descripción',
+        stockpeak: row.cant_stock ?? 0,
+        location: row.ubi ?? 'Sin ubicación',
+        pasillo: row.pasillo ?? 'NORMAL',
+        um: row.um,
+        id_usuario: row.id_usuario
+      };
 
+      if (row._master > 0 && restante >= row._master) {
+        const masterQty = Math.floor(restante / row._master);
+        restante -= masterQty * row._master;
+        groupedByPedido[pedido].productos.push({
+          ...baseProduct,
+          surtir: masterQty,
+          unidad: 'MASTER',
+          barcode: row.barcode_master
+        });
+      }
 
-        if (row._master > 0 && restante >= row._master) {
-          const masterQty = Math.floor(restante / row._master);
-          restante -= masterQty * row._master;
-          groupedByPedido[pedido].productos.push({
-            ...baseProduct,
-            surtir: masterQty,
-            unidad: 'MASTER',
-            barcode: row.barcode_master
-          });
-        }
+      if (row._inner > 0 && restante >= row._inner) {
+        const innerQty = Math.floor(restante / row._inner);
+        restante -= innerQty * row._inner;
+        groupedByPedido[pedido].productos.push({
+          ...baseProduct,
+          surtir: innerQty,
+          unidad: 'INNER',
+          barcode: row.barcode_inner
+        });
+      }
 
-        if (row._inner > 0 && restante >= row._inner) {
-          const innerQty = Math.floor(restante / row._inner);
-          restante -= innerQty * row._inner;
-          groupedByPedido[pedido].productos.push({
-            ...baseProduct,
-            surtir: innerQty,
-            unidad: 'INNER',
-            barcode: row.barcode_inner
-          });
-        }
+      if (row._pz > 0 && restante >= row._pz) {
+        const pzQty = Math.floor(restante / row._pz);
+        restante -= pzQty * row._pz;
+        groupedByPedido[pedido].productos.push({
+          ...baseProduct,
+          surtir: pzQty,
+          unidad: 'PZ',
+          barcode: row.barcode_pz
+        });
+      }
 
-        if (row._pz > 0 && restante >= row._pz) {
-          const pzQty = Math.floor(restante / row._pz);
-          restante -= pzQty * row._pz;
-          groupedByPedido[pedido].productos.push({
-            ...baseProduct,
-            surtir: pzQty,
-            unidad: 'PZ',
-            barcode: row.barcode_pz
-          });
-        }
+      // ✅ Si ningún if agregó el producto, agregarlo directo
+      const yaAgregado = groupedByPedido[pedido].productos.some(p => p.identifi === row.id_pedi);
+      if (!yaAgregado) {
+        groupedByPedido[pedido].productos.push({
+          ...baseProduct,
+          surtir: row.cantidad,
+          unidad: row.um ?? 'PZ',
+          barcode: row.barcode_pz
+        });
       }
     });
 
     res.json(groupedByPedido);
+
   } catch (error) {
     console.error('Error al obtener pedidos:', error);
     res.status(500).json({ error: 'Error al obtener los pedidos' });

@@ -118,48 +118,87 @@ const obtenerIdBahia = async (bahia) => {
 
 
 
-const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahias, usuario }) => {
-    const id_usuario = Number(usuario);
-
-    if (!no_orden || !tipo || !bahias || !bahias.length || !id_usuario) {
-        throw new Error("Faltan datos obligatorios para agregar pedido surtiendo");
-    }
-
+const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahias, usuario, modo }) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        // Unir las bahías en un string tipo "A-03, A-04"
+        const [productos] = await conn.query(`
+            SELECT p.*, inventario.ubicacion
+            FROM pedidos p
+            LEFT JOIN inventario ON p.codigo_pedido = inventario.codigo_producto
+            WHERE p.no_orden = ? AND p.tipo = ?
+        `, [no_orden, tipo]);
+
         const bahiasString = bahias.join(', ');
 
-        // ✅ INSERTAR SOLO UNA VEZ EN pedidos_surtiendo
-        await conn.query(`
-            INSERT INTO pedidos_surtiendo (
-                no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, avance, id_usuario,
-                registro, inicio_surtido, fin_surtido, unido
-            )
-            SELECT 
-                no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                um, _bl, _pz, _pq, _inner, _master, ?, 'S', avance, ?,
-                registro, inicio_surtido, fin_surtido, unido
-            FROM pedidos
-            WHERE no_orden = ? AND tipo = ?
-        `, [bahiasString, id_usuario, no_orden, tipo]);
+        if (modo === 'cuarto') {
+            // ✅ MODO CUARTO — reparte por responsable de cuarto
+            const cuartosUnicos = [...new Set(
+                productos.map(p => p.ubicacion?.split('-')[0]?.trim()).filter(Boolean)
+            )];
 
-        // ✅ POR CADA BAHÍA ACTUALIZAR SU ESTADO
+            let responsables = [];
+            if (cuartosUnicos.length) {
+                const placeholders = cuartosUnicos.map(() => '?').join(',');
+                const [rows] = await conn.query(`
+                    SELECT rc.cuarto, rc.id_usuario
+                    FROM responsables_cuarto rc
+                    WHERE rc.cuarto IN (${placeholders})
+                `, cuartosUnicos);
+                responsables = rows;
+            }
+
+            for (const prod of productos) {
+                const cuarto = prod.ubicacion?.split('-')[0]?.trim();
+                const responsable = responsables.find(r => r.cuarto === cuarto);
+                const id_usuario_final = responsable ? responsable.id_usuario : null;
+
+                await conn.query(`
+                    INSERT INTO pedidos_surtiendo (
+                        no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                        um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, avance, id_usuario,
+                        registro, inicio_surtido, fin_surtido, unido
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?)
+                `, [
+                    prod.no_orden, prod.tipo, prod.codigo_pedido, prod.clave,
+                    prod.cantidad, prod.cant_surtida, prod.cant_no_enviada,
+                    prod.um, prod._bl, prod._pz, prod._pq, prod._inner, prod._master,
+                    bahiasString, prod.avance, id_usuario_final,
+                    prod.registro, prod.inicio_surtido, prod.fin_surtido, prod.unido
+                ]);
+            }
+
+        } else {
+            // ✅ MODO INDIVIDUAL — todos van al mismo usuario
+            const id_usuario_final = Number(usuario);
+
+            await conn.query(`
+                INSERT INTO pedidos_surtiendo (
+                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                    um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, avance, id_usuario,
+                    registro, inicio_surtido, fin_surtido, unido
+                )
+                SELECT
+                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                    um, _bl, _pz, _pq, _inner, _master, ?, 'S', avance, ?,
+                    registro, inicio_surtido, fin_surtido, unido
+                FROM pedidos
+                WHERE no_orden = ? AND tipo = ?
+            `, [bahiasString, id_usuario_final, no_orden, tipo]);
+        }
+
+        // ✅ Actualizar bahías
         for (const bahia of bahias) {
             await conn.query(`
-                UPDATE bahias
-                SET estado = 1, id_pdi = ?, ingreso = CURDATE()
+                UPDATE bahias SET estado = 1, id_pdi = ?, ingreso = CURDATE()
                 WHERE bahia = ?
             `, [no_orden, bahia]);
         }
 
-        // ✅ BORRAR EL PEDIDO ORIGINAL SOLO UNA VEZ
+        // ✅ Borrar pedido original
         await conn.query(`
-            DELETE FROM pedidos
-            WHERE no_orden = ? AND tipo = ?
+            DELETE FROM pedidos WHERE no_orden = ? AND tipo = ?
         `, [no_orden, tipo]);
 
         await conn.commit();
@@ -167,13 +206,12 @@ const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahias, usuario }) => {
 
     } catch (err) {
         await conn.rollback();
-        console.error("Error en agregarPedidoSurtiendo (modelo):", err);
+        console.error("Error en agregarPedidoSurtiendo:", err);
         return { ok: false };
     } finally {
         conn.release();
     }
 };
-
 
 
 
@@ -230,8 +268,15 @@ const liberarUsuarioPaqueteria = async (no_orden) => {
 
 
 
-
-
+const getResponsablesCuarto = async () => {
+    const [rows] = await pool.query(`
+        SELECT rc.cuarto, rc.id_usuario, u.nombre
+        FROM responsables_cuarto rc
+        INNER JOIN usuarios u ON rc.id_usuario = u.id
+        ORDER BY rc.cuarto ASC
+    `);
+    return rows;
+};
 
 
 module.exports = {
@@ -242,7 +287,7 @@ module.exports = {
     obtenerIdUsuario,
     obtenerIdBahia,
     agregarPedidoSurtiendo,
-
-    // ...otros métodos
-    liberarUsuarioPaqueteria
+    getResponsablesCuarto,
+    liberarUsuarioPaqueteria,
+    getResponsablesCuarto
 };
