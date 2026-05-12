@@ -1382,26 +1382,44 @@ function Surtiendo() {
                                                             onClick={() => setExpanded(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}>
                                                             {expanded[rowKey] ? 'Ocultar' : 'Ver productos'}
                                                         </Button>
-
                                                         {!yaAsignado ? (
                                                             <Box mt={1}>
                                                                 <Typography variant="body2">Asignar usuario:</Typography>
-                                                                <select
-                                                                    defaultValue=""
-                                                                    onChange={(e) => {
-                                                                        const selected = e.target.value; // puede ser id o nombre
-                                                                        if (!selected) return;
-                                                                        asignarUsuarioPaqueteria(pedido.no_orden, selected);
-                                                                    }}
-                                                                >
-                                                                    <option value="">-- Selecciona --</option>
-                                                                    {usuariosPaqueteria.map((u, i) => {
-                                                                        const id = getUserId(u);
-                                                                        const nombre = getUserName(u) || `Usuario ${id || i + 1}`;
-                                                                        const value = id || nombre; // si no hay id, manda nombre
-                                                                        return <option key={id || nombre || i} value={value}>{nombre}</option>;
-                                                                    })}
-                                                                </select>
+                                                                <Box display="flex" gap={1} alignItems="center">
+                                                                    <select
+                                                                        id={`select-${rowKey}`}
+                                                                        defaultValue=""
+                                                                    >
+                                                                        <option value="">-- Selecciona --</option>
+                                                                        {usuariosPaqueteria.map((u, i) => {
+                                                                            const id = getUserId(u);
+                                                                            const nombre = getUserName(u) || `Usuario ${i + 1}`;
+                                                                            return (
+                                                                                <option key={id || i} value={id}>
+                                                                                    {nombre}
+                                                                                </option>
+                                                                            );
+                                                                        })}
+                                                                    </select>
+
+                                                                    {/* 🔥 BOTÓN DE CONFIRMAR */}
+                                                                    <Button
+                                                                        size="small"
+                                                                        variant="contained"
+                                                                        color="primary"
+                                                                        onClick={() => {
+                                                                            const select = document.getElementById(`select-${rowKey}`);
+                                                                            const selectedId = Number(select?.value);
+                                                                            if (!selectedId) {
+                                                                                Swal.fire("⚠️ Selecciona un usuario", "", "warning");
+                                                                                return;
+                                                                            }
+                                                                            asignarUsuarioPaqueteria(pedido.no_orden, selectedId);
+                                                                        }}
+                                                                    >
+                                                                        Asignar
+                                                                    </Button>
+                                                                </Box>
                                                             </Box>
                                                         ) : (
                                                             <Box mt={1} display="flex" alignItems="center" gap={1}>

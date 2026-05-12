@@ -376,13 +376,37 @@ const getUsuariosEmbarques = async () => {
 };
 
 const actualizarUsuarioPaqueteria = async (no_orden, id_usuario_paqueteria) => {
-    const [result] = await pool.query(
-        `UPDATE pedidos_embarques 
-         SET id_usuario_paqueteria = ? 
-         WHERE no_orden = ?`,
-        [id_usuario_paqueteria, no_orden]
-    );
-    return result;
+    const conn = await pool.getConnection();
+    try {
+        // 🔥 Reducir tiempo de espera de lock a 5 segundos
+        await conn.query(`SET innodb_lock_wait_timeout = 5`);
+
+        const [result] = await conn.query(
+            `UPDATE pedidos_embarques 
+             SET id_usuario_paqueteria = ? 
+             WHERE no_orden = ?`,
+            [id_usuario_paqueteria, no_orden]
+        );
+        return result;
+    } catch (error) {
+        // 🔥 Si es lock timeout, matar transacciones bloqueadas y reintentar
+        if (error.code === 'ER_LOCK_WAIT_TIMEOUT') {
+            console.warn('⚠️ Lock timeout - reintentando...');
+            await conn.query(`ROLLBACK`);
+
+            // Reintento
+            const [result] = await conn.query(
+                `UPDATE pedidos_embarques 
+                 SET id_usuario_paqueteria = ? 
+                 WHERE no_orden = ?`,
+                [id_usuario_paqueteria, no_orden]
+            );
+            return result;
+        }
+        throw error;
+    } finally {
+        conn.release();
+    }
 };
 
 const liberarUsuarioPaqueteria = async (no_orden) => {
@@ -471,23 +495,23 @@ const obtenerDetallePedido = async (noOrden, tipo) => {
 
         if (!grupos.has(key)) {
             grupos.set(key, {
-                pedido:    row.pedido,
-                tipo:      row.tipo,
-                cajas:     row.cajas,
+                pedido: row.pedido,
+                tipo: row.tipo,
+                cajas: row.cajas,
                 tipo_caja: row.tipo_caja,
                 productos: [],
             });
         }
 
         grupos.get(key).productos.push({
-            codigo_producto:      row.codigo_pedido,
+            codigo_producto: row.codigo_pedido,
             descripcion_producto: row.descripcion_producto || '',
-            cantidad:             row.cantidad,
-            um:                   row.um,
-            _pz:                  row._pz,
-            _pq:                  row._pq,
-            _inner:               row._inner,
-            _master:              row._master,
+            cantidad: row.cantidad,
+            um: row.um,
+            _pz: row._pz,
+            _pq: row._pq,
+            _inner: row._inner,
+            _master: row._master,
         });
     }
 
