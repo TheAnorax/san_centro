@@ -305,7 +305,7 @@ const sincronizarSanced = async (req, res) => {
         const respuesta = await axios.post('http://santul.verpedidos.com:9010/Santul/Sanced');
         const datos = respuesta.data;
 
-        const soloCD = datos.filter(item => item.TpoOriginal === 'CD');
+        const soloCD = datos.filter(item => item.TpoOriginal === 'CD' || item.TpoOriginal === 'VQ');
 
         let insertados = 0;
         for (const item of soloCD) {
@@ -325,16 +325,15 @@ cron.schedule('*/1 * * * *', async () => {
     console.log('⏰ Sincronizando Sanced...');
     try {
         const respuesta = await axios.post('http://santul.verpedidos.com:9010/Santul/Sanced');
-        const soloCD = respuesta.data.filter(item => item.TpoOriginal === 'CD');
-        for (const item of soloCD) {
+        const filtrados = respuesta.data.filter(item => item.TpoOriginal === 'CD' || item.TpoOriginal === 'VQ');
+        for (const item of filtrados) {
             await SurtidoModel.insertarSanced(item);
         }
-        console.log(`✅ Sanced sincronizado: ${soloCD.length} registros`);
+        console.log(`✅ Sanced sincronizado: ${filtrados.length} registros`);
     } catch (error) {
         console.error('❌ Error en cron Sanced:', error.message);
     }
 });
-
 
 const obtenerDatosSanced = async (req, res) => {
     const { noOrden } = req.params;

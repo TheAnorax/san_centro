@@ -227,6 +227,54 @@ function Surtiendo() {
 
             const doc = new jsPDF();
 
+            // ✅ Detectar productos con exceso de surtido
+            const productosPasados = productos.filter(p =>
+                Number(p.cant_surtida) > Number(p.cantidad)
+            );
+
+            if (productosPasados.length > 0) {
+                const filas = productosPasados.map(p =>
+                    `<tr>
+            <td style="padding:4px 8px;border:1px solid #ddd;text-align:left">${p.codigo_pedido}</td>
+            <td style="padding:4px 8px;border:1px solid #ddd;text-align:center">${p.cantidad}</td>
+            <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;color:#e74c3c;font-weight:bold">${p.cant_surtida}</td>
+            <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;color:#e74c3c;font-weight:bold">+${Number(p.cant_surtida) - Number(p.cantidad)}</td>
+        </tr>`
+                ).join('');
+
+                const { isConfirmed: continuar } = await Swal.fire({
+                    title: "⚠️ Productos con exceso de surtido",
+                    html: `
+            <p style="margin-bottom:10px;color:#555;font-size:13px">
+                ${productosPasados.length} producto(s) tienen más piezas surtidas que las pedidas:
+            </p>
+            <div style="max-height:220px;overflow-y:auto;border:1px solid #eee;border-radius:6px">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                    <thead>
+                        <tr style="background:#f8d7da;position:sticky;top:0">
+                            <th style="padding:6px 8px;border:1px solid #ddd;text-align:left">Código</th>
+                            <th style="padding:6px 8px;border:1px solid #ddd">Pedido</th>
+                            <th style="padding:6px 8px;border:1px solid #ddd">Surtido</th>
+                            <th style="padding:6px 8px;border:1px solid #ddd">Exceso</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+            </div>
+        `,
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Continuar de todas formas",
+                    cancelButtonText: "Cancelar y corregir",
+                    confirmButtonColor: "#e67e22",
+                    cancelButtonColor: "#3085d6",
+                    width: 520,
+                });
+
+                if (!continuar) return; // 🔴 Bloquea si el usuario elige corregir
+            }
+
+
             const totalCodigos = productos.length;
             const ubi_bahia = productos[0]?.ubi_bahia || "SIN BAHÍA";
 
@@ -254,7 +302,7 @@ function Surtiendo() {
                 p.cant_surtida,
                 p.cant_no_enviada,
                 p.motivo || "",
-                p.unificado || "",
+                p.unido || "",
             ]);
 
             const tableConfig = {
@@ -732,13 +780,13 @@ function Surtiendo() {
                         "INNER",
                         "MASTER",
                         "TARIMA",
-                        "ATADOS",
+                        "ATADOS", 
                         "VALIDA"
                     ]],
-                    body: caja.productos.map(p => [
+                    body: caja.productos.filter(p => p.cant_surtida > 0).map(p => [
                         p.codigo_producto,
                         p.descripcion_producto,
-                        p.cantidad,
+                        p.cant_surtida,                      
                         p.um,
                         p._pz || 0,
                         p._pq || 0,

@@ -10,7 +10,7 @@ const {
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 
-const DESTINATARIOS = ["jonathan.alcantara@santul.net"];
+const DESTINATARIOS = ["desarrollo4@santul.net"];
 
 // ================================================
 // GET Inventario

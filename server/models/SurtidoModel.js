@@ -117,23 +117,27 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
         // 🔴 CASO: NO SE SURTIÓ NADA → pedido_finalizado
         if (totalSurtido === 0 && totalNoEnviado > 0) {
 
+            // 🟡🟢 CASO: HUBO SURTIDO → pedidos_embarques
             for (const p of productos) {
                 await connection.query(`
-                    INSERT INTO pedido_finalizado (
-                        no_orden, tipo, codigo_pedido, clave,
-                        cantidad, cant_surtida, cant_no_enviada,
-                        um, _pz, _pq, _inner, _master,
-                        ubi_bahia, estado, id_usuario,
-                        registro, inicio_surtido, fin_surtido,
-                        motivo, registro_fin
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                `, [
+        INSERT INTO pedidos_embarques (
+            no_orden, tipo, codigo_pedido, clave,
+            cantidad, cant_surtida, cant_no_enviada,
+            um, _bl, _pz, _pq, _inner, _master,
+            ubi_bahia, estado, id_usuario,
+            id_usuario_paqueteria,
+            registro, inicio_surtido, fin_surtido, motivo,
+            unido   -- ✅ FALTABA ESTO
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
                     p.no_orden, p.tipo, p.codigo_pedido, p.clave,
                     p.cantidad, p.cant_surtida, p.cant_no_enviada,
-                    p.um, p._pz, p._pq, p._inner, p._master,
-                    p.ubi_bahia, 'NO_ATENDIDO', p.id_usuario,
+                    p.um, p._bl, p._pz, p._pq, p._inner, p._master,
+                    p.ubi_bahia, 'E', p.id_usuario,
+                    p.id_usuario_paqueteria,
                     p.registro, p.inicio_surtido, p.fin_surtido,
-                    p.motivo || 'Sin surtido'
+                    p.motivo,
+                    p.unido   // ✅ FALTABA ESTO
                 ]);
             }
 
@@ -155,22 +159,24 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
         // 🟡🟢 CASO: HUBO SURTIDO → pedidos_embarques
         for (const p of productos) {
             await connection.query(`
-                INSERT INTO pedidos_embarques (
-                    no_orden, tipo, codigo_pedido, clave,
-                    cantidad, cant_surtida, cant_no_enviada,
-                    um, _bl, _pz, _pq, _inner, _master,
-                    ubi_bahia, estado, id_usuario,
-                    id_usuario_paqueteria,
-                    registro, inicio_surtido, fin_surtido, motivo
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
+        INSERT INTO pedidos_embarques (
+            no_orden, tipo, codigo_pedido, clave,
+            cantidad, cant_surtida, cant_no_enviada,
+            um, _bl, _pz, _pq, _inner, _master,
+            ubi_bahia, estado, id_usuario,
+            id_usuario_paqueteria,
+            registro, inicio_surtido, fin_surtido, motivo,
+            unido
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave,
                 p.cantidad, p.cant_surtida, p.cant_no_enviada,
                 p.um, p._bl, p._pz, p._pq, p._inner, p._master,
                 p.ubi_bahia, 'E', p.id_usuario,
                 p.id_usuario_paqueteria,
                 p.registro, p.inicio_surtido, p.fin_surtido,
-                p.motivo
+                p.motivo,
+                p.unido
             ]);
         }
 
@@ -201,7 +207,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
 const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
     const [rows] = await pool.query(
         `SELECT 
-        no_orden, tipo, codigo_pedido, cantidad, cant_surtida, cant_no_enviada, motivo, unificado,ubi_bahia
+        no_orden, tipo, codigo_pedido, cantidad, cant_surtida, cant_no_enviada, motivo, unido,ubi_bahia
      FROM pedidos_surtiendo
      WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
      ORDER BY codigo_pedido`,
@@ -265,18 +271,18 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
         for (const p of productos) {
             const estadoFinal = (p.estado === 'C') ? 'C' : 'F';
             await connection.query(`
-                INSERT INTO pedido_finalizado (
-                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                    um, _pz, _pq, _inner, _master,
-                    v_pz, v_pq, v_inner, v_master,
-                    ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
-                    inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
-                    unido, registro_surtido, registro_embarque, caja, motivo,
-                    unificado, registro_fin, id_usuario_surtido,
-                    fusion, tipo_caja, cajas
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
+        INSERT INTO pedido_finalizado (
+            no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+            um, _pz, _pq, _inner, _master,
+            v_pz, v_pq, v_inner, v_master,
+            ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
+            inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
+            unido, registro_surtido, registro_embarque, caja, motivo,
+            unificado, registro_fin, id_usuario_surtido,  -- ✅ corregido
+            fusion, tipo_caja, cajas
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
                 p.um, p._pz, p._pq, p._inner, p._master,
                 p.v_pz, p.v_pq, p.v_inner, p.v_master,
@@ -284,7 +290,7 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
                 p.id_usuario, p.id_usuario_paqueteria, p.registro,
                 p.inicio_surtido, p.fin_surtido, p.inicio_embarque, p.fin_embarque,
                 p.unido, p.registro_surtido, p.registro_embarque, p.caja, p.motivo,
-                p.unificado, null, null,
+                p.unificado, null, null,  // ✅ corregido
                 p.fusion, p.tipo_caja, p.cajas
             ]);
         }
@@ -472,6 +478,8 @@ const obtenerDetallePedido = async (noOrden, tipo) => {
             pf.tipo_caja,
             pf.codigo_pedido,
             pf.cantidad,
+            pf.cant_surtida,   
+            pf.cant_no_enviada, 
             pf.um,
             COALESCE(pf._pz, 0)     AS _pz,
             COALESCE(pf._pq, 0)     AS _pq,
@@ -507,6 +515,7 @@ const obtenerDetallePedido = async (noOrden, tipo) => {
             codigo_producto: row.codigo_pedido,
             descripcion_producto: row.descripcion_producto || '',
             cantidad: row.cantidad,
+            cant_surtida: row.cant_surtida, 
             um: row.um,
             _pz: row._pz,
             _pq: row._pq,

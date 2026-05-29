@@ -47,6 +47,19 @@ function InventarioListado() {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [search, setSearch] = useState("");
     const [onlyEmpty, setOnlyEmpty] = useState(false);
+    const [onlyFaltantes, setOnlyFaltantes] = useState(false);
+
+    const filtered = inventario
+        .filter(item => item.codigo_producto?.toLowerCase().includes(search.toLowerCase()))
+        .filter(item => (onlyEmpty ? (Number(item.cant_stock_real) || 0) <= 0 : true))
+        .filter(item => {  // 🆕 filtro faltantes
+            if (!onlyFaltantes) return true;
+            const qty = Number(item.cant_stock_real) || 0;
+            const invMin = item.inv_min !== null && item.inv_min !== "" ? Number(item.inv_min) : null;
+            const invMax = item.inv_max !== null && item.inv_max !== "" ? Number(item.inv_max) : null;
+            const tieneConfig = invMin !== null && invMax !== null;
+            return tieneConfig && (qty <= 0 || (qty <= invMin && qty > 0));
+        });
 
     const cargarInventario = async () => {
         setLoading(true);
@@ -69,10 +82,6 @@ function InventarioListado() {
         setPage(0);
     };
 
-    const filtered = inventario
-        .filter(item => item.codigo_producto?.toLowerCase().includes(search.toLowerCase()))
-        .filter(item => (onlyEmpty ? (Number(item.cant_stock_real) || 0) <= 0 : true));
-
     const paginated = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
     // ── Modal Solicitar ──
@@ -81,7 +90,11 @@ function InventarioListado() {
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
     const user = JSON.parse(localStorage.getItem("user"));
 
-    const abrirModalSolicitud = (row) => { setProductoSeleccionado(row); setCantidadSolicitada(""); setOpenModal(true); };
+    const abrirModalSolicitud = (row) => {
+        setProductoSeleccionado(row);
+        setCantidadSolicitada(row.inv_opt ?? "");  // 🆕 pre-llena con el faltante
+        setOpenModal(true);
+    };
 
     // 🆕 Manda también el desglose al correo
     const enviarSolicitud = async () => {
@@ -309,6 +322,18 @@ function InventarioListado() {
                             >
                                 📥 Carga Masiva Min/Max
                             </Button>
+
+                            <Button
+                                size="small"
+                                variant={onlyFaltantes ? "contained" : "outlined"}
+                                color="warning"
+                                onClick={() => { setOnlyFaltantes(v => !v); setPage(0); }}
+                                sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                            >
+                                {onlyFaltantes ? "Ver todos" : "⚠️ Mostrar faltantes"}
+                            </Button>
+
+
                         </Box>
 
                         <TableContainer sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -317,8 +342,8 @@ function InventarioListado() {
                                     <TableRow sx={{ background: "#ffe7e1" }}>
                                         {[
                                             "Código Producto", "Imagen", "Descripcion", "Ubicación",
-                                            "Cantidad Stock", "Inv. Mínimo", "Inv. Máximo", "⚠️ Faltante",
-                                            "Stock JDE", "Pedimento", "OC", "Ingreso", "Acciones"
+                                            "Cantidad Stock", "Inv. Mínimo", "Inv. Máximo", "⚠️ Faltante"
+                                            , "Pedimento", "OC", "Ingreso", "Acciones"
                                         ].map(col => (
                                             <TableCell key={col} sx={{ fontWeight: "bold", color: "#e23b22" }}>{col}</TableCell>
                                         ))}
@@ -393,7 +418,6 @@ function InventarioListado() {
                                                         )}
                                                     </TableCell>
 
-                                                    <TableCell>{stockJDE[row.codigo_producto] ?? "-"}</TableCell>
                                                     <TableCell>{row.lote_serie}</TableCell>
                                                     <TableCell>{row.oc}</TableCell>
                                                     <TableCell>
@@ -473,10 +497,8 @@ function InventarioListado() {
                                     );
                                 })()}
 
-                                <TextField label="Cantidad a solicitar" type="number" fullWidth
-                                    value={cantidadSolicitada}
-                                    onChange={(e) => setCantidadSolicitada(e.target.value)}
-                                    sx={{ mt: 2 }} />
+                                
+
                             </DialogContent>
                             <DialogActions>
                                 <Button onClick={() => setOpenModal(false)}>Cancelar</Button>

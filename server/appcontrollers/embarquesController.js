@@ -47,7 +47,9 @@ const obtenerEmbarques = async (req, res) => {
     LEFT JOIN roles r ON us.rol_id = r.id
     LEFT JOIN prints prin ON p.id_usuario_paqueteria = prin.id_usu
     LEFT JOIN (
-      SELECT no_orden, MAX(caja) AS ultima_caja, COUNT(DISTINCT caja) AS total_cajas
+      SELECT no_orden, 
+        MAX(caja) AS ultima_caja, 
+        MAX(caja) AS total_cajas   -- ✅ CAMBIO: COUNT → MAX
       FROM pedidos_embarques
       WHERE caja IS NOT NULL
       GROUP BY no_orden
@@ -114,54 +116,56 @@ const obtenerEmbarques = async (req, res) => {
 
 const obtenerEmbarquesNew = async (req, res) => {
   const idUsu = req.params.idUsu;
-
-  const query = `
-    SELECT
-      p.id_pedi,
-      p.tipo,
-      p.pedido,
-      p.codigo AS codigo_ped,
-      IFNULL(prod.descripcion, 'SIN DESCRIPCIÓN') AS des,
-      p.cantidad,
-      p.cant_surti,
-      p.cant_no_env,
-      p._pz AS pz,
-      p._pq AS pq,
-      p._inner AS inne,
-      p._master AS maste,
-      p.v_pz,
-      p.v_pq,
-      p.v_inner,
-      p.v_master,
-      p.um,
-      p.caja,
-      r.nombre AS usuario,
-      prin.mac_print,
-      p.ubi_bahia, 
-      p.estado,
-      prod.barcode_pz AS code_pz,
-      prod.barcode_inner AS code_inner,
-      prod.barcode_master AS code_master,  
-      prod._pz,
-      prod._inner,
-      prod._pq,
-      prod._master,
-      caja_info.ultima_caja,
-      caja_info.total_cajas
-    FROM 
-      pedido_embarque p
-    LEFT JOIN productos prod ON p.codigo = prod.codigo
-    LEFT JOIN usuarios us ON p.id_usuario_paqueteria = us.id_usu
-    LEFT JOIN roles r ON us.rol_id = r.id
-    LEFT JOIN prints prin ON p.id_usuario_paqueteria = prin.id_usu
-    LEFT JOIN (
-      SELECT pedido, MAX(caja) AS ultima_caja, COUNT(DISTINCT caja) AS total_cajas
-      FROM pedido_embarque
-      WHERE caja IS NOT NULL
-      GROUP BY pedido
-    ) AS caja_info ON p.pedido = caja_info.pedido
-    WHERE p.estado = 'E' AND (p.id_usuario_paqueteria IS NULL OR p.id_usuario_paqueteria = ?);
-  `;
+const query = `
+  SELECT
+    p.id_pedi,
+    p.tipo,
+    p.pedido,
+    p.codigo AS codigo_ped,
+    IFNULL(prod.descripcion, 'SIN DESCRIPCIÓN') AS des,
+    p.cantidad,
+    p.cant_surti,
+    p.cant_no_env,
+    p._pz AS pz,
+    p._pq AS pq,
+    p._inner AS inne,
+    p._master AS maste,
+    p.v_pz,
+    p.v_pq,
+    p.v_inner,
+    p.v_master,
+    p.um,
+    p.caja,
+    r.nombre AS usuario,
+    prin.mac_print,
+    p.ubi_bahia, 
+    p.estado,
+    prod.barcode_pz AS code_pz,
+    prod.barcode_inner AS code_inner,
+    prod.barcode_master AS code_master,  
+    prod._pz,
+    prod._inner,
+    prod._pq,
+    prod._master,
+    caja_info.ultima_caja,
+    caja_info.total_cajas   -- ✅ Ahora será MAX(caja) = 138
+  FROM 
+    pedido_embarque p
+  LEFT JOIN productos prod ON p.codigo = prod.codigo
+  LEFT JOIN usuarios us ON p.id_usuario_paqueteria = us.id_usu
+  LEFT JOIN roles r ON us.rol_id = r.id
+  LEFT JOIN prints prin ON p.id_usuario_paqueteria = prin.id_usu
+  LEFT JOIN (
+    SELECT 
+      pedido, 
+      MAX(caja) AS ultima_caja, 
+      MAX(caja) AS total_cajas   -- ✅ CAMBIO AQUÍ
+    FROM pedido_embarque
+    WHERE caja IS NOT NULL
+    GROUP BY pedido
+  ) AS caja_info ON p.pedido = caja_info.pedido
+  WHERE p.estado = 'E' AND (p.id_usuario_paqueteria IS NULL OR p.id_usuario_paqueteria = ?);
+`;
 
   try {
     const [results] = await pool.query(query, [idUsu]);

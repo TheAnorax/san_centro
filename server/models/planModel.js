@@ -159,25 +159,25 @@ const obtenerRutas = async (fecha) => {
 
 
 const obtenerPedidosPorFecha = async (fecha) => {
-    const fechaFiltro = fecha || new Date().toISOString().split('T')[0];
+    const fechaFiltro = fecha || new Date().toISOString().split('T')[0].substring(0, 7); // 'YYYY-MM'
 
     const [rows] = await pool.query(`
-        SELECT 
-            id, no_orden, nombre_cliente, num_consigna,
-            tpo_original, fecha, fecha_factura, correo, ejecutivo,
-            estado, municipio, direccion, postal,
-            ruta, zona, telefono, referencia,
-            observaciones, no_factura, partidas,
-            piezas, total, total_con_iva,
-            registro, status, entrega
-        FROM sanced
-        WHERE DATE_FORMAT(fecha_factura, '%Y-%m') = ?
-        ORDER BY fecha_factura ASC, registro DESC
+        SELECT DISTINCT
+            s.id, s.no_orden, s.nombre_cliente, s.num_consigna,
+            s.tpo_original, s.fecha, s.fecha_factura, s.correo, s.ejecutivo,
+            s.estado, s.municipio, s.direccion, s.postal,
+            s.ruta, s.zona, s.telefono, s.referencia,
+            s.observaciones, s.no_factura, s.partidas,
+            s.piezas, s.total, s.total_con_iva,
+            s.registro, s.status, s.entrega
+        FROM sanced s
+        INNER JOIN pedido_finalizado pf ON pf.no_orden = s.no_orden
+        WHERE DATE_FORMAT(s.fecha_factura, '%Y-%m') = ?
+        ORDER BY s.fecha_factura ASC, s.registro DESC
     `, [fechaFiltro]);
 
     return rows;
 };
-
 
 // ✅ NUEVA - Actualizar status y entrega de un pedido
 const actualizarStatusEntrega = async (no_orden, status, entrega) => {
