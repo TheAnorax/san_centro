@@ -69,11 +69,23 @@ const registrarEntregaPaqueteria = async (req, res) => {
 };
 
 
+const obtenerPedidosFinalizadosPorTipo = async (req, res) => {
+    try {
+        const datos = await planModel.obtenerPedidosFinalizadosPorTipo();
+        res.json({ ok: true, data: datos });
+    } catch (error) {
+        console.error('Error al obtener pedidos finalizados por tipo:', error);
+        res.status(500).json({ ok: false, message: 'Error al obtener pedidos finalizados por tipo' });
+    }
+};
 
-module.exports = { 
-    insertarRutasPlan, 
+
+
+module.exports = {
+    insertarRutasPlan,
     obtenerRutasPlan,
     obtenerPedidosPorFecha,    // 👈 nueva
     actualizarStatusEntrega,    // 👈 nueva
-    registrarEntregaPaqueteria  
+    registrarEntregaPaqueteria,
+    obtenerPedidosFinalizadosPorTipo
 };

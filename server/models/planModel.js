@@ -200,5 +200,32 @@ const registrarEntregaPaqueteria = async (data) => {
     return result;
 };
 
+// Nueva función - Pedidos finalizados con coincidencia de tipo
+const obtenerPedidosFinalizadosPorTipo = async () => {
+    const [rows] = await pool.query(`
+        SELECT 
+            s.no_orden,
+            s.tpo_original,
+            s.fecha,
+            s.no_factura,
+            s.fecha_factura,
+            s.nombre_cliente,
+            s.num_consigna,
+            s.direccion,
+            s.partidas,
+            s.piezas,
+            s.total_con_iva
+        FROM sanced s
+        WHERE EXISTS (
+            SELECT 1
+            FROM pedido_finalizado pf
+            WHERE pf.no_orden = s.no_orden
+              AND pf.tipo = s.tpo_original
+        )
+    `);
 
-module.exports = { insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria };
+    return rows;
+};
+
+
+module.exports = { insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria, obtenerPedidosFinalizadosPorTipo };

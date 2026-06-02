@@ -527,7 +527,7 @@ function Surtiendo() {
 
     /* ---------- Finalizados ---------- */
     const [pedidosFinalizados, setPedidosFinalizados] = useState([]);
-    const [detalleExpandido, setDetalleExpandido] = useState({});
+    const [modalDetalle, setModalDetalle] = useState({ open: false, pedido: null });
     const [qFin, setQFin] = useState(''); // filtro de finalizados
 
     useEffect(() => {
@@ -780,13 +780,13 @@ function Surtiendo() {
                         "INNER",
                         "MASTER",
                         "TARIMA",
-                        "ATADOS", 
+                        "ATADOS",
                         "VALIDA"
                     ]],
                     body: caja.productos.filter(p => p.cant_surtida > 0).map(p => [
                         p.codigo_producto,
                         p.descripcion_producto,
-                        p.cant_surtida,                      
+                        p.cant_surtida,
                         p.um,
                         p._pz || 0,
                         p._pq || 0,
@@ -1554,197 +1554,263 @@ function Surtiendo() {
                         </Box>
                     )}
 
+
                     {/* ---------- TAB FINALIZADOS ---------- */}
-                    {tabActual === 2 && (
-                        <Box p={2}>
-                            <Typography variant="h6" gutterBottom>Pedidos finalizados</Typography>
+                    {tabActual === 2 && (() => {
+                        const abrirDetalle = (pedido) => setModalDetalle({ open: true, pedido });
+                        const cerrarDetalle = () => setModalDetalle({ open: false, pedido: null });
 
-                            {(Array.isArray(pedidosFinalizados) ? pedidosFinalizados : []).length === 0 ? (
-                                <Typography color="textSecondary">No hay pedidos finalizados.</Typography>
-                            ) : (
-                                <>
-                                    {/* BUSCADOR + PAGINACIÓN */}
-                                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} gap={2} flexWrap="wrap">
-                                        <TextField
-                                            size="small"
-                                            label="Buscar pedido"
-                                            placeholder="No. orden, tipo o código"
-                                            value={qFin}
-                                            onChange={(e) => setQFin(e.target.value)}
-                                            sx={{ minWidth: 260 }}
-                                            InputProps={{
-                                                startAdornment: (
-                                                    <InputAdornment position="start">
-                                                        <SearchIcon fontSize="small" />
-                                                    </InputAdornment>
-                                                ),
-                                                endAdornment: qFin ? (
-                                                    <InputAdornment position="end">
-                                                        <IconButton aria-label="limpiar" onClick={() => setQFin('')}>
-                                                            <ClearIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </InputAdornment>
-                                                ) : null,
-                                            }}
-                                        />
+                        const fmt = (fecha) =>
+                            fecha ? new Date(fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : '—';
 
+                        const ultimaFechaEmbarque = (prods) => {
+                            const fechas = (prods ?? []).map(p => p?.fin_embarque ? new Date(p.fin_embarque) : null).filter(Boolean);
+                            return fechas.length ? new Date(Math.max(...fechas)) : null;
+                        };
+
+                        const puedePackingList = (prods) => {
+                            const p0 = prods?.[0];
+                            const tieneFactura = p0?.no_factura && !['---', '', '0-'].includes(p0.no_factura);
+                            const tieneTotal = Number(p0?.total || 0) > 0 || Number(p0?.total_con_iva || 0) > 0;
+                            return tieneFactura && tieneTotal;
+                        };
+
+                        /* ── estilos inline ── */
+                        const card = { background: '#fff', border: '1px solid #e8e8e8', borderRadius: 12, marginBottom: 10, overflow: 'hidden' };
+                        const badge = (tipo) => ({
+                            fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, flexShrink: 0,
+                            background: tipo === 'VW' ? '#EAF3DE' : tipo === 'VQ' ? '#E6F1FB' : '#EEEDFE',
+                            color: tipo === 'VW' ? '#27500A' : tipo === 'VQ' ? '#0C447C' : '#3C3489',
+                        });
+                        const chip = { fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#f3f3f3', color: '#555', border: '1px solid #e0e0e0' };
+                        const chipRed = { fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#FCEBEB', color: '#A32D2D', border: '1px solid #F7C1C1', fontWeight: 600 };
+                        const chipGrn = { fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#EAF3DE', color: '#3B6D11', border: '1px solid #C0DD97' };
+                        const btnGhost = { fontSize: 12, padding: '6px 14px', border: '1px solid #ddd', background: 'transparent', borderRadius: 8, cursor: 'pointer', color: '#333', display: 'flex', alignItems: 'center', gap: 6 };
+                        const btnBlue = { fontSize: 12, padding: '6px 14px', border: 'none', background: '#185FA5', color: '#fff', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 };
+                        const btnBlueOff = { ...btnBlue, opacity: 0.35, cursor: 'not-allowed' };
+                        const btnTeal = { fontSize: 12, padding: '6px 14px', border: '1px solid #0F6E56', background: 'transparent', color: '#0F6E56', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 };
+                        const th = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#888', fontSize: 11, borderBottom: '1px solid #f0f0f0', background: '#fafafa', whiteSpace: 'nowrap' };
+                        const td = { padding: '7px 10px', color: '#333', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap' };
+                        const tdAlert = { padding: '7px 10px', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap', background: '#FCEBEB', color: '#791F1F' };
+
+                        return (
+                            <Box p={2}>
+
+                                {/* ── Toolbar: buscador + contador + paginación ── */}
+                                <Box display="flex" alignItems="center" gap={2} mb={2} flexWrap="wrap">
+                                    <TextField
+                                        size="small"
+                                        placeholder="Buscar por No. orden, tipo o código..."
+                                        value={qFin}
+                                        onChange={(e) => { setQFin(e.target.value); setPageFin(1); }}
+                                        sx={{ minWidth: 280 }}
+                                        InputProps={{
+                                            startAdornment: (
+                                                <InputAdornment position="start">
+                                                    <SearchIcon fontSize="small" sx={{ color: '#aaa' }} />
+                                                </InputAdornment>
+                                            ),
+                                            endAdornment: qFin ? (
+                                                <InputAdornment position="end">
+                                                    <IconButton size="small" onClick={() => { setQFin(''); setPageFin(1); }}>
+                                                        <ClearIcon fontSize="small" />
+                                                    </IconButton>
+                                                </InputAdornment>
+                                            ) : null,
+                                        }}
+                                    />
+                                    <span style={{ fontSize: 12, color: '#888', background: '#f3f3f3', padding: '4px 12px', borderRadius: 20, border: '1px solid #e0e0e0' }}>
+                                        {finalizadosFiltrados.length} pedidos
+                                    </span>
+                                    <Box ml="auto">
                                         <Pagination
                                             count={totalPagesFin}
                                             page={pageFin}
-                                            onChange={(_, p) => {
-                                                setPageFin(p);
-                                                document.querySelector('#lista-finalizados')?.scrollTo({ top: 0, behavior: 'smooth' });
-                                            }}
+                                            onChange={(_, p) => setPageFin(p)}
                                             size="small" color="primary" showFirstButton showLastButton
                                         />
                                     </Box>
+                                </Box>
 
-                                    <Box id="lista-finalizados">
-                                        {(Array.isArray(pedidosFinPagina) ? pedidosFinPagina : []).map((pedido, idxPedido) => {
-                                            const rowKey = pedido?.key || `${pedido?.tipo || ''}-${pedido?.no_orden || ''}-${idxPedido}`;
-                                            const prods = Array.isArray(pedido?.productos) ? pedido.productos : [];
-                                            const total = prods.reduce((s, p) => s + Number(p?.cantidad || 0), 0);
-                                            const surtida = prods.reduce((s, p) => s + Number(p?.cant_surtida || 0), 0);
-                                            const noEnviada = prods.reduce((s, p) => s + Number(p?.cant_no_enviada || 0), 0);
-
-                                            return (
-                                                <Paper key={rowKey} sx={{ mb: 2, p: 2 }}>
-
-                                                    {(() => {
-                                                        const fechasEmbarque = prods
-                                                            .map(p => p?.fin_embarque ? new Date(p.fin_embarque) : null)
-                                                            .filter(Boolean);
-                                                        const ultimaFecha = fechasEmbarque.length > 0
-                                                            ? new Date(Math.max(...fechasEmbarque))
-                                                            : null;
-
-                                                        return (
-                                                            <>
-                                                                <Typography variant="subtitle1" fontWeight="bold">
-                                                                    {pedido?.tipo} : {pedido?.no_orden}
-                                                                </Typography>
-
-                                                                {ultimaFecha && (
-                                                                    <Typography variant="body2" sx={{ color: '#d21919', fontWeight: 600, mb: 0.5 }}>
-                                                                        🕐 Fin de embarque: {ultimaFecha.toLocaleString("es-MX", {
-                                                                            dateStyle: "short",
-                                                                            timeStyle: "medium"
-                                                                        })}
-                                                                    </Typography>
-                                                                )}
-
-                                                                <Typography variant="body2" sx={{ mb: 1 }}>
-                                                                    Total: <b>{total}</b> &nbsp;|&nbsp;
-                                                                    Surtida: <b>{surtida}</b> &nbsp;|&nbsp;
-                                                                    No enviada: <b>{noEnviada}</b>
-                                                                </Typography>
-                                                            </>
-                                                        );
-                                                    })()}
-
-                                                    <Button variant="outlined" size="small" sx={{ my: 1 }}
-                                                        onClick={() => setDetalleExpandido(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}>
-                                                        {detalleExpandido[rowKey] ? "Ocultar productos" : "Ver productos"}
-                                                    </Button>
-
-                                                    {(() => {
-                                                        const prod0 = prods[0];
-                                                        const tieneFactura = prod0?.no_factura &&
-                                                            prod0.no_factura !== '---' &&
-                                                            prod0.no_factura !== '' &&
-                                                            prod0.no_factura !== '0-';
-                                                        const tieneTotal = Number(prod0?.total || 0) > 0 ||
-                                                            Number(prod0?.total_con_iva || 0) > 0;
-                                                        const puedeGenerar = tieneFactura && tieneTotal;
-
-                                                        return (
-                                                            <Button
-                                                                variant="contained"
-                                                                size="small"
-                                                                sx={{ ml: 1 }}
-                                                                disabled={!puedeGenerar}
-                                                                title={!puedeGenerar ? 'Necesita factura y totales para generar el Packing List' : ''}
-                                                                onClick={() => generarPDFPackingList(pedido.no_orden, pedido.tipo)}
-                                                            >
-                                                                Generar Packing List
-                                                            </Button>
-                                                        );
-                                                    })()}
-
-
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="small"
-                                                        color="info"
-                                                        sx={{ ml: 1 }}
-                                                        onClick={() => abrirModalUbicacion(pedido.no_orden, pedido.tipo)}
-                                                    >
-                                                        📍 Ver Ubicación
-                                                    </Button>
-
-                                                    {detalleExpandido[rowKey] && (
-                                                        <Box sx={{ mt: 2, maxHeight: 250, overflowY: 'auto', border: '1px solid #ccc', borderRadius: 2 }}>
-                                                            <Table size="small">
-                                                                <TableHead>
-                                                                    <TableRow>
-                                                                        <TableCell>Código</TableCell>
-                                                                        <TableCell>Cantidad</TableCell>
-                                                                        <TableCell>Cant. Surtida</TableCell>
-                                                                        <TableCell>Cant. No Enviada</TableCell>
-                                                                        <TableCell>Bahia</TableCell>
-                                                                        <TableCell>Nombre Surtidor</TableCell>
-                                                                        <TableCell>Cant pz</TableCell>
-                                                                        <TableCell>Cant Inner</TableCell>
-                                                                        <TableCell>Cant Master</TableCell>
-                                                                        <TableCell>Inicio - Fin de Surtido</TableCell>
-                                                                        <TableCell>Nombre Embarques / Paqueteria</TableCell>
-                                                                        <TableCell>Validar pz</TableCell>
-                                                                        <TableCell>Validar Inner</TableCell>
-                                                                        <TableCell>Validar Master</TableCell>
-                                                                        <TableCell>Inicio - Fin de Embarque</TableCell>
-                                                                    </TableRow>
-                                                                </TableHead>
-                                                                <TableBody>
-                                                                    {prods.map((prod, i) => (
-                                                                        <TableRow key={`${prod?.codigo_pedido || i}_${i}`}
-                                                                            sx={{ backgroundColor: Number(prod?.cant_no_enviada || 0) > 0 ? "#ff0026ff" : "inherit" }}>
-                                                                            <TableCell>{prod?.codigo_pedido}</TableCell>
-                                                                            <TableCell>{prod?.cantidad}</TableCell>
-                                                                            <TableCell>{prod?.cant_surtida}</TableCell>
-                                                                            <TableCell>{prod?.cant_no_enviada}</TableCell>
-                                                                            <TableCell>{prod?.ubi_bahia}</TableCell>
-                                                                            <TableCell>{prod?.nombre_usuario}</TableCell>
-                                                                            <TableCell>{prod?._pz}</TableCell>
-                                                                            <TableCell>{prod?._inner}</TableCell>
-                                                                            <TableCell>{prod?._master}</TableCell>
-                                                                            <TableCell>
-                                                                                <b>Inicio:</b> {prod?.inicio_surtido ? new Date(prod.inicio_surtido).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "medium" }) : "-"}
-                                                                                <br />
-                                                                                <b>Fin:</b> {prod?.fin_surtido ? new Date(prod.fin_surtido).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "medium" }) : "-"}
-                                                                            </TableCell>
-                                                                            <TableCell>{prod?.nombre_paqueteria}</TableCell>
-                                                                            <TableCell>{prod?.v_pz}</TableCell>
-                                                                            <TableCell>{prod?.v_inner}</TableCell>
-                                                                            <TableCell>{prod?.v_master}</TableCell>
-                                                                            <TableCell>
-                                                                                <b>Inicio:</b> {prod?.inicio_embarque ? new Date(prod.inicio_embarque).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "medium" }) : "-"}
-                                                                                <br />
-                                                                                <b>Fin:</b> {prod?.fin_embarque ? new Date(prod.fin_embarque).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "medium" }) : "-"}
-                                                                            </TableCell>
-                                                                        </TableRow>
-                                                                    ))}
-                                                                </TableBody>
-                                                            </Table>
-                                                        </Box>
-                                                    )}
-                                                </Paper>
-                                            );
-                                        })}
+                                {/* ── Lista vacía ── */}
+                                {finalizadosFiltrados.length === 0 && (
+                                    <Box textAlign="center" py={6} sx={{ color: '#aaa', fontSize: 14 }}>
+                                        No hay pedidos finalizados.
                                     </Box>
-                                </>
-                            )}
-                        </Box>
-                    )}
+                                )}
+
+                                {/* ── Tarjetas ── */}
+                                {pedidosFinPagina.map((pedido, idxPedido) => {
+                                    const rowKey = pedido?.key || `${pedido?.tipo || ''}-${pedido?.no_orden || ''}-${idxPedido}`;
+                                    const prods = Array.isArray(pedido?.productos) ? pedido.productos : [];
+                                    const total = prods.reduce((s, p) => s + Number(p?.cantidad || 0), 0);
+                                    const surtida = prods.reduce((s, p) => s + Number(p?.cant_surtida || 0), 0);
+                                    const noEnv = prods.reduce((s, p) => s + Number(p?.cant_no_enviada || 0), 0);
+                                    const fecha = ultimaFechaEmbarque(prods);
+                                    const packing = puedePackingList(prods);
+
+                                    return (
+                                        <div key={rowKey} style={card}>
+                                            {/* Cabecera */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+                                                <span style={badge(pedido.tipo)}>{pedido.tipo}</span>
+
+                                                <div>
+                                                    <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{pedido.no_orden}</div>
+                                                    <div style={{ fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                                        {fecha
+                                                            ? <>⏱ Fin embarque: {fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' })}</>
+                                                            : <span style={{ color: '#bbb' }}>Sin fecha de embarque</span>
+                                                        }
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto', flexShrink: 0 }}>
+                                                    <span style={chip}>Total <strong>{total}</strong></span>
+                                                    <span style={chip}>Surtida <strong>{surtida}</strong></span>
+                                                    {noEnv > 0
+                                                        ? <span style={chipRed}>No env. <strong>{noEnv}</strong></span>
+                                                        : <span style={chipGrn}>Completo</span>
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            <div style={{ height: 1, background: '#f0f0f0', margin: '0 16px' }} />
+
+                                            {/* Acciones */}
+                                            <div style={{ display: 'flex', gap: 8, padding: '10px 16px', flexWrap: 'wrap' }}>
+                                                <button style={btnGhost} onClick={() => abrirDetalle(pedido)}>
+                                                    👁 Ver detalle
+                                                </button>
+                                                <button
+                                                    style={packing ? btnBlue : btnBlueOff}
+                                                    disabled={!packing}
+                                                    title={!packing ? 'Necesita factura y totales para generar el Packing List' : ''}
+                                                    onClick={() => packing && generarPDFPackingList(pedido.no_orden, pedido.tipo)}
+                                                >
+                                                    📄 Packing list
+                                                </button>
+                                                <button style={btnTeal} onClick={() => abrirModalUbicacion(pedido.no_orden, pedido.tipo)}>
+                                                    📍 Ver ubicación
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* ════════════════════════════════════════
+                MODAL DETALLE
+            ════════════════════════════════════════ */}
+                                {modalDetalle.open && modalDetalle.pedido && (() => {
+                                    const p = modalDetalle.pedido;
+                                    const prods = Array.isArray(p?.productos) ? p.productos : [];
+                                    const total = prods.reduce((s, x) => s + Number(x?.cantidad || 0), 0);
+                                    const surtida = prods.reduce((s, x) => s + Number(x?.cant_surtida || 0), 0);
+                                    const noEnv = prods.reduce((s, x) => s + Number(x?.cant_no_enviada || 0), 0);
+                                    const ef = total > 0 ? Math.round((surtida / total) * 100) : 0;
+                                    const fecha = ultimaFechaEmbarque(prods);
+                                    const packing = puedePackingList(prods);
+
+                                    return (
+                                        <div
+                                            style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', overflowY: 'auto' }}
+                                            onClick={(e) => e.target === e.currentTarget && cerrarDetalle()}
+                                        >
+                                            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e0e0e0', width: '100%', maxWidth: 900, overflow: 'hidden' }}>
+
+                                                {/* Header */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid #f0f0f0' }}>
+                                                    <span style={badge(p.tipo)}>{p.tipo}</span>
+                                                    <div>
+                                                        <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{p.no_orden}</div>
+                                                        <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                                                            {fecha
+                                                                ? `Fin embarque: ${fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' })}`
+                                                                : 'Sin fecha de embarque registrada'
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={cerrarDetalle} style={{ marginLeft: 'auto', background: '#f3f3f3', border: '1px solid #e0e0e0', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        ✕
+                                                    </button>
+                                                </div>
+
+                                                {/* 4 métricas */}
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 1, background: '#f0f0f0', borderBottom: '1px solid #f0f0f0' }}>
+                                                    {[
+                                                        { label: 'Total pedido', val: total, color: '#185FA5' },
+                                                        { label: 'Surtida', val: surtida, color: '#1D9E75' },
+                                                        { label: 'No enviada', val: noEnv, color: noEnv > 0 ? '#A32D2D' : '#1D9E75' },
+                                                        { label: 'Efectividad', val: ef + '%', color: ef === 100 ? '#1D9E75' : ef >= 80 ? '#185FA5' : '#A32D2D' },
+                                                    ].map(m => (
+                                                        <div key={m.label} style={{ background: '#fff', padding: '12px 16px' }}>
+                                                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{m.label}</div>
+                                                            <div style={{ fontSize: 20, fontWeight: 600, color: m.color }}>{m.val}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Tabla */}
+                                                <div style={{ padding: '16px 20px' }}>
+                                                    <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Productos del pedido</div>
+                                                    <div style={{ overflowX: 'auto', border: '1px solid #f0f0f0', borderRadius: 8 }}>
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                                            <thead>
+                                                                <tr>
+                                                                    {['Código', 'Cant.', 'Surtida', 'No env.', 'Bahía', 'Surtidor', 'Paquetería', 'Ini. surtido', 'Fin surtido', 'Ini. embarque', 'Fin embarque'].map(h => (
+                                                                        <th key={h} style={th}>{h}</th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {prods.map((prod, i) => {
+                                                                    const alerta = Number(prod?.cant_no_enviada || 0) > 0;
+                                                                    const c = alerta ? tdAlert : td;
+                                                                    return (
+                                                                        <tr key={`${prod?.codigo_pedido || i}_${i}`}>
+                                                                            <td style={c}>{prod?.codigo_pedido}</td>
+                                                                            <td style={c}>{prod?.cantidad}</td>
+                                                                            <td style={c}>{prod?.cant_surtida}</td>
+                                                                            <td style={{ ...c, fontWeight: alerta ? 700 : 400 }}>{prod?.cant_no_enviada}</td>
+                                                                            <td style={c}>{prod?.ubi_bahia}</td>
+                                                                            <td style={c}>{prod?.nombre_usuario}</td>
+                                                                            <td style={c}>{prod?.nombre_paqueteria}</td>
+                                                                            <td style={c}>{fmt(prod?.inicio_surtido)}</td>
+                                                                            <td style={c}>{fmt(prod?.fin_surtido)}</td>
+                                                                            <td style={c}>{fmt(prod?.inicio_embarque)}</td>
+                                                                            <td style={c}>{fmt(prod?.fin_embarque)}</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                {/* Footer modal */}
+                                                <div style={{ padding: '12px 20px', borderTop: '1px solid #f0f0f0', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                                    <button style={btnGhost} onClick={cerrarDetalle}>✕ Cerrar</button>
+                                                    <button style={btnTeal} onClick={() => { cerrarDetalle(); abrirModalUbicacion(p.no_orden, p.tipo); }}>
+                                                        📍 Ver ubicación
+                                                    </button>
+                                                    <button
+                                                        style={packing ? btnBlue : btnBlueOff}
+                                                        disabled={!packing}
+                                                        title={!packing ? 'Necesita factura y totales' : ''}
+                                                        onClick={() => packing && generarPDFPackingList(p.no_orden, p.tipo)}
+                                                    >
+                                                        📄 Generar packing list
+                                                    </button>
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                            </Box>
+                        );
+                    })()}
 
                 </Box>
             </Box>
@@ -1849,8 +1915,6 @@ function Surtiendo() {
                     </div>
                 </div>
             )}
-
-
 
         </div>
     );
