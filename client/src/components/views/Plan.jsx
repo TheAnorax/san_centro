@@ -118,13 +118,15 @@ function Plan() {
         const datos = cambiosSanced[pedido.no_orden] || {};
         const status = datos.status ?? pedido.status;
         const entrega = datos.entrega ?? pedido.entrega;
+        const fecha_entrega = datos.fecha_entrega ?? pedido.fecha_entrega?.slice(0, 10) ?? null;
+        const costos = datos.costos ?? pedido.costos ?? null; // 👈
 
         try {
             await axios.put(`http://66.232.105.107:3001/api/Plan/actualizar-status`, {
-                no_orden: pedido.no_orden, status, entrega
+                no_orden: pedido.no_orden, status, entrega, fecha_entrega, costos // 👈
             });
             Swal.fire({ title: '✅ Guardado', icon: 'success', timer: 1500, showConfirmButton: false });
-            cargarPedidosSanced(mesSanced); // ✅ usa mesSanced
+            cargarPedidosSanced(mesSanced);
         } catch {
             Swal.fire('❌ Error', 'No se pudo guardar', 'error');
         }
@@ -773,6 +775,8 @@ function Plan() {
                                             <TableCell><b>Total</b></TableCell>
                                             <TableCell><b>Total c/IVA</b></TableCell>
                                             <TableCell><b>Status</b></TableCell>
+                                            <TableCell><b>Fecha Entrega</b></TableCell>
+                                            <TableCell><b>Costo</b></TableCell>
                                             <TableCell><b>Entrega</b></TableCell>
                                             <TableCell><b>Guardar</b></TableCell>
                                         </TableRow>
@@ -818,6 +822,62 @@ function Plan() {
                                                             <MenuItem value="finalizado">✅ Finalizado</MenuItem>
                                                             <MenuItem value="cancelado">❌ Cancelado</MenuItem>
                                                         </Select>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            size="small"
+                                                            type="date"
+                                                            value={cambio.fecha_entrega ?? p.fecha_entrega?.slice(0, 10) ?? ''}
+                                                            onChange={e => handleCambioSanced(p.no_orden, 'fecha_entrega', e.target.value)}
+                                                            InputLabelProps={{ shrink: true }}
+                                                            sx={{ minWidth: 145 }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {cambio.costos !== undefined ? (
+                                                            // Modo edición: cuando el usuario está modificando
+                                                            <TextField
+                                                                size="small"
+                                                                type="number"
+                                                                autoFocus
+                                                                value={cambio.costos}
+                                                                onChange={e => handleCambioSanced(p.no_orden, 'costos', e.target.value)}
+                                                                onBlur={() => {
+                                                                    // Si no cambió nada y era vacío, limpiar el cambio
+                                                                    if (cambio.costos === '' && !p.costos) {
+                                                                        setCambiosSanced(prev => {
+                                                                            const nuevo = { ...prev };
+                                                                            if (nuevo[p.no_orden]) {
+                                                                                delete nuevo[p.no_orden].costos;
+                                                                                if (Object.keys(nuevo[p.no_orden]).length === 0) delete nuevo[p.no_orden];
+                                                                            }
+                                                                            return nuevo;
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                sx={{ minWidth: 110 }}
+                                                                inputProps={{ min: 0, step: '0.01' }}
+                                                            />
+                                                        ) : (
+                                                            // Modo visualización: muestra el valor o un botón para editar
+                                                            <Box
+                                                                onClick={() => handleCambioSanced(p.no_orden, 'costos', p.costos ?? '')}
+                                                                sx={{
+                                                                    minWidth: 110,
+                                                                    px: 1.5, py: 0.5,
+                                                                    border: '1px solid #e0e0e0',
+                                                                    borderRadius: 1,
+                                                                    cursor: 'pointer',
+                                                                    bgcolor: p.costos ? '#f0f7ff' : '#fafafa',
+                                                                    color: p.costos ? '#1976d2' : '#aaa',
+                                                                    fontWeight: p.costos ? 'bold' : 'normal',
+                                                                    fontSize: 13,
+                                                                    '&:hover': { borderColor: '#1976d2', bgcolor: '#e3f2fd' }
+                                                                }}
+                                                            >
+                                                                {p.costos ? `$${formatMoney(p.costos)}` : '+ Agregar'}
+                                                            </Box>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Select size="small"

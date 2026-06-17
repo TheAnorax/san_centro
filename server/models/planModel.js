@@ -158,8 +158,9 @@ const obtenerRutas = async (fecha) => {
 };
 
 
+// Reemplaza las DOS funciones obtenerPedidosPorFecha por esta única:
 const obtenerPedidosPorFecha = async (fecha) => {
-    const fechaFiltro = fecha || new Date().toISOString().split('T')[0].substring(0, 7); // 'YYYY-MM'
+    const fechaFiltro = fecha || new Date().toISOString().split('T')[0].substring(0, 7);
 
     const [rows] = await pool.query(`
         SELECT DISTINCT
@@ -169,7 +170,9 @@ const obtenerPedidosPorFecha = async (fecha) => {
             s.ruta, s.zona, s.telefono, s.referencia,
             s.observaciones, s.no_factura, s.partidas,
             s.piezas, s.total, s.total_con_iva,
-            s.registro, s.status, s.entrega
+            s.registro, s.status, s.entrega,
+            s.fecha_entrega,
+            s.costos                                -- 👈 esto faltaba
         FROM sanced s
         INNER JOIN pedido_finalizado pf ON pf.no_orden = s.no_orden
         WHERE DATE_FORMAT(s.fecha_factura, '%Y-%m') = ?
@@ -179,16 +182,16 @@ const obtenerPedidosPorFecha = async (fecha) => {
     return rows;
 };
 
-// ✅ NUEVA - Actualizar status y entrega de un pedido
-const actualizarStatusEntrega = async (no_orden, status, entrega) => {
+// Agrega esta función que faltaba completamente:
+const actualizarStatusEntrega = async (no_orden, status, entrega, fecha_entrega, costos) => {
     const [result] = await pool.query(`
         UPDATE sanced 
-        SET status = ?, entrega = ?
+        SET status = ?, entrega = ?, fecha_entrega = ?, costos = ?
         WHERE no_orden = ?
-    `, [status || null, entrega || null, no_orden]);
-
+    `, [status || null, entrega || null, fecha_entrega || null, costos || null, no_orden]);
     return result;
 };
+
 
 const registrarEntregaPaqueteria = async (data) => {
     const { no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega } = data;
@@ -201,7 +204,29 @@ const registrarEntregaPaqueteria = async (data) => {
 };
 
 // Nueva función - Pedidos finalizados con coincidencia de tipo
-const obtenerPedidosFinalizadosPorTipo = async () => {
+const obtenerPedidosPorFactura = async (no_factura) => {
+    const [rows] = await pool.query(`
+        SELECT 
+            s.num_consigna   AS clave_dir,
+            s.nombre_cliente AS nombre,
+            s.no_orden       AS orden,
+            s.tpo_original   AS tipo,
+            s.direccion,
+            DATE_FORMAT(s.fecha_factura, '%d-%m-%Y') AS fecha_entrega,
+            s.no_factura     AS numero_factura
+        FROM sanced s
+        WHERE EXISTS (
+            SELECT 1
+            FROM pedido_finalizado pf
+            WHERE pf.no_orden = s.no_orden
+              AND pf.tipo = s.tpo_original
+        )
+        AND s.no_factura = ?
+    `, [no_factura]);
+    return rows;
+};
+
+const obtenerPedidosFinalizadosPorMes = async (anio, mes) => {
     const [rows] = await pool.query(`
         SELECT 
             s.no_orden,
@@ -214,6 +239,7 @@ const obtenerPedidosFinalizadosPorTipo = async () => {
             s.direccion,
             s.partidas,
             s.piezas,
+            s.total,
             s.total_con_iva
         FROM sanced s
         WHERE EXISTS (
@@ -222,10 +248,86 @@ const obtenerPedidosFinalizadosPorTipo = async () => {
             WHERE pf.no_orden = s.no_orden
               AND pf.tipo = s.tpo_original
         )
-    `);
-
+        AND YEAR(s.fecha_factura) = ?
+        AND MONTH(s.fecha_factura) = ?
+    `, [anio, mes]);
     return rows;
 };
 
 
-module.exports = { insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria, obtenerPedidosFinalizadosPorTipo };
+const obtenerHistoricoCrossDocking = async (anio) => {
+    const year = anio || new Date().getFullYear();
+    const from = `${year}-01-01`;
+    const to   = `${year + 1}-01-01`;
+
+    const [rows] = await pool.query(`
+        SELECT
+          f.mes,
+          f.total_pedidos,
+          f.total_codigos,
+          f.total_facturado,
+          f.total_facturado_iva,
+          f.total_flete,
+          ROUND((f.total_flete / NULLIF(f.total_facturado, 0)) * 100, 2) AS pct_flete,
+          f.promedio_dias_entrega,
+          f.total_clientes,
+          IFNULL(l.total_cajas,   0) AS total_cajas,
+          IFNULL(l.total_tarimas, 0) AS total_tarimas
+        FROM (
+          SELECT
+            DATE_FORMAT(s.fecha_factura, '%Y-%m')                AS mes,
+            COUNT(DISTINCT s.no_orden)                            AS total_pedidos,
+            SUM(pf.total_codigos)                                 AS total_codigos,
+            SUM(s.total)                                          AS total_facturado,
+            SUM(s.total_con_iva)                                  AS total_facturado_iva,
+            SUM(CAST(IFNULL(s.costos, 0) AS DECIMAL(12,2)))      AS total_flete,
+            ROUND(AVG(DATEDIFF(s.fecha_entrega, s.fecha)), 1)    AS promedio_dias_entrega,
+            COUNT(DISTINCT s.nombre_cliente)                      AS total_clientes
+          FROM sanced s
+          INNER JOIN (
+            -- ✅ Pre-agrupamos pedido_finalizado: 1 fila por orden+tipo
+            SELECT
+              no_orden,
+              tipo,
+              COUNT(id_pedi)            AS total_codigos,
+              MIN(codigo_pedido)        AS codigo_pedido
+            FROM pedido_finalizado
+            GROUP BY no_orden, tipo
+          ) pf
+            ON  pf.no_orden = CAST(s.no_orden AS UNSIGNED)
+            AND pf.tipo     = s.tpo_original
+          WHERE s.status = 'finalizado'
+            AND s.fecha_factura >= ?
+            AND s.fecha_factura <  ?
+          GROUP BY DATE_FORMAT(s.fecha_factura, '%Y-%m')
+        ) f
+        LEFT JOIN (
+          SELECT
+            DATE_FORMAT(s.fecha_factura, '%Y-%m')                AS mes,
+            COUNT(DISTINCT
+              CASE WHEN UPPER(TRIM(pf.tipo_caja)) NOT LIKE 'TARIMA%'
+                        AND pf.caja IS NOT NULL
+                   THEN CONCAT(pf.no_orden, '-', pf.caja)
+              END
+            )                                                     AS total_cajas,
+            COUNT(DISTINCT
+              CASE WHEN UPPER(TRIM(pf.tipo_caja)) LIKE 'TARIMA%'
+                        AND pf.caja IS NOT NULL
+                   THEN CONCAT(pf.no_orden, '-', pf.caja)
+              END
+            )                                                     AS total_tarimas
+          FROM pedido_finalizado pf
+          INNER JOIN sanced s
+            ON  pf.no_orden = CAST(s.no_orden AS UNSIGNED)
+            AND pf.tipo     = s.tpo_original
+          WHERE s.status = 'finalizado'
+            AND s.fecha_factura >= ?
+            AND s.fecha_factura <  ?
+          GROUP BY DATE_FORMAT(s.fecha_factura, '%Y-%m')
+        ) l ON f.mes = l.mes
+        ORDER BY f.mes
+    `, [from, to, from, to]);
+
+    return rows;
+};
+module.exports = { obtenerHistoricoCrossDocking,insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes };

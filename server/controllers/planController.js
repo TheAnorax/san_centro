@@ -42,14 +42,14 @@ const obtenerPedidosPorFecha = async (req, res) => {
 
 // ✅ NUEVA - Actualizar status y entrega
 const actualizarStatusEntrega = async (req, res) => {
-    const { no_orden, status, entrega } = req.body;
+    const { no_orden, status, entrega, fecha_entrega, costos } = req.body; // 👈
 
     if (!no_orden) {
         return res.status(400).json({ ok: false, message: 'no_orden es requerido.' });
     }
 
     try {
-        await planModel.actualizarStatusEntrega(no_orden, status, entrega);
+        await planModel.actualizarStatusEntrega(no_orden, status, entrega, fecha_entrega, costos); // 👈
         res.status(200).json({ ok: true, message: 'Actualizado correctamente.' });
     } catch (error) {
         console.error('❌ Error:', error.message);
@@ -69,17 +69,58 @@ const registrarEntregaPaqueteria = async (req, res) => {
 };
 
 
-const obtenerPedidosFinalizadosPorTipo = async (req, res) => {
+const obtenerPedidosPorFactura = async (req, res) => {
     try {
-        const datos = await planModel.obtenerPedidosFinalizadosPorTipo();
-        res.json({ ok: true, data: datos });
+        const { no_factura } = req.body;
+
+        if (!no_factura) {
+            return res.status(400).json({ success: false, message: 'no_factura es requerido' });
+        }
+
+        const datos = await planModel.obtenerPedidosPorFactura(no_factura);
+
+        res.json({
+            success: true,
+            total_resultados: datos.length,
+            datos,
+        });
     } catch (error) {
-        console.error('Error al obtener pedidos finalizados por tipo:', error);
-        res.status(500).json({ ok: false, message: 'Error al obtener pedidos finalizados por tipo' });
+        console.error('Error al obtener pedidos por factura:', error);
+        res.status(500).json({ success: false, message: 'Error al obtener pedidos por factura' });
     }
 };
 
+const obtenerPedidosFinalizadosPorMes = async (req, res) => {
+    try {
+        const { anio, mes } = req.body;
 
+        if (!anio || !mes) {
+            return res.status(400).json({ success: false, message: 'anio y mes son requeridos' });
+        }
+
+        const datos = await planModel.obtenerPedidosFinalizadosPorMes(anio, mes);
+
+        res.json({
+            success: true,
+            total_resultados: datos.length,
+            datos,
+        });
+    } catch (error) {
+        console.error('Error al obtener pedidos por mes:', error);
+        res.status(500).json({ success: false, message: 'Error al obtener pedidos por mes' });
+    }
+};
+
+const obtenerHistoricoCrossDocking = async (req, res) => {
+    try {
+        const anio = req.query.anio ? parseInt(req.query.anio) : null;
+        const datos = await planModel.obtenerHistoricoCrossDocking(anio);
+        res.json({ ok: true, data: datos });
+    } catch (error) {
+        console.error('❌ Error historico cross docking:', error.message);
+        res.status(500).json({ ok: false, message: 'Error al obtener histórico.' });
+    }
+};
 
 module.exports = {
     insertarRutasPlan,
@@ -87,5 +128,7 @@ module.exports = {
     obtenerPedidosPorFecha,    // 👈 nueva
     actualizarStatusEntrega,    // 👈 nueva
     registrarEntregaPaqueteria,
-    obtenerPedidosFinalizadosPorTipo
+    obtenerPedidosPorFactura,
+    obtenerPedidosFinalizadosPorMes,
+    obtenerHistoricoCrossDocking
 };

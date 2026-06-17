@@ -6,7 +6,9 @@ const {
     obtenerPedidosPorFecha,    // 👈 nueva
     actualizarStatusEntrega,    // 👈 nueva
     registrarEntregaPaqueteria,
-    obtenerPedidosFinalizadosPorTipo
+    obtenerPedidosPorFactura,
+    obtenerPedidosFinalizadosPorMes,
+    obtenerHistoricoCrossDocking
 } = require('../controllers/planController');
 
 router.post('/insertar', insertarRutasPlan);
@@ -15,6 +17,7 @@ router.get('/pedidos-por-fecha', obtenerPedidosPorFecha);       // 👈 nueva
 router.put('/actualizar-status', actualizarStatusEntrega);       // 👈 nueva
 router.post('/registrar-paqueteria', registrarEntregaPaqueteria);
 
-router.get('/pedidos-finalizados-tipo', obtenerPedidosFinalizadosPorTipo);
-
+router.post('/pedidos-finalizados-tipo', obtenerPedidosPorFactura);
+router.post('/pedidos-finalizados-mes-cd', obtenerPedidosFinalizadosPorMes);
+router.get('/historico-cross-docking', obtenerHistoricoCrossDocking); 
 module.exports = router;
