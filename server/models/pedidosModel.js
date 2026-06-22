@@ -118,88 +118,116 @@ const obtenerIdBahia = async (bahia) => {
 
 
 
-const agregarPedidoSurtiendo = async ({ no_orden, tipo, bahias, usuario, modo }) => {
+/**
+ * agregarPedidoSurtiendo — con soporte de fusión de órdenes
+ *
+ * Cambios respecto a la versión anterior:
+ *  - Recibe `ordenes: [{ no_orden, tipo }]` en lugar de un solo no_orden/tipo
+ *  - Si dos órdenes tienen el mismo codigo_pedido → se fusionan en un solo registro
+ *      · no_orden  = "135-20799"
+ *      · tipo      = "CD-VQ"
+ *      · cantidad  = suma de ambas
+ *      · unido     = 1
+ *  - Los productos que solo aparecen en una orden se insertan normalmente (unido = 0)
+ */
+const agregarPedidoSurtiendo = async ({ ordenes, bahias, usuario, modo }) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        const [productos] = await conn.query(`
-            SELECT p.*, inventario.ubicacion
-            FROM pedidos p
-            LEFT JOIN inventario ON p.codigo_pedido = inventario.codigo_producto
-            WHERE p.no_orden = ? AND p.tipo = ?
-        `, [no_orden, tipo]);
+        // Datos del primer pedido — todos los productos irán ba
+        // jo este no_orden
+        const primerOrden   = ordenes[0].no_orden;
+        const primerTipo = ordenes.map(o => o.tipo).join('-');  // 'CD-VQ'
+        // String que identifica la fusión, ej: "135-20799"
+        const ordenesUnidas = ordenes.map(o => o.no_orden).join('-');
+        const bahiasString  = bahias.join(', ');
 
-        const bahiasString = bahias.join(', ');
+        // ── 1. Cargar productos de TODAS las órdenes ──────────────────────────
+        const todosLosProductos = [];
+        for (const { no_orden, tipo } of ordenes) {
+            const [rows] = await conn.query(`
+                SELECT p.*, inventario.ubicacion
+                FROM pedidos p
+                LEFT JOIN inventario ON p.codigo_pedido = inventario.codigo_producto
+                WHERE p.no_orden = ? AND p.tipo = ?
+            `, [no_orden, tipo]);
 
-        if (modo === 'cuarto') {
-            // ✅ MODO CUARTO — reparte por responsable de cuarto
-            const cuartosUnicos = [...new Set(
-                productos.map(p => p.ubicacion?.split('-')[0]?.trim()).filter(Boolean)
-            )];
+            rows.forEach(r => todosLosProductos.push({ ...r, _origen_orden: no_orden }));
+        }
 
-            let responsables = [];
-            if (cuartosUnicos.length) {
-                const placeholders = cuartosUnicos.map(() => '?').join(',');
-                const [rows] = await conn.query(`
-                    SELECT rc.cuarto, rc.id_usuario
-                    FROM responsables_cuarto rc
-                    WHERE rc.cuarto IN (${placeholders})
-                `, cuartosUnicos);
-                responsables = rows;
-            }
+        // ── 2. Agrupar por codigo_pedido → detectar si está en ambas órdenes ──
+        const porCodigo = {};
+        for (const prod of todosLosProductos) {
+            const key = prod.codigo_pedido;
+            if (!porCodigo[key]) porCodigo[key] = [];
+            porCodigo[key].push(prod);
+        }
 
-            for (const prod of productos) {
+        // ── 3. Construir lista final ───────────────────────────────────────────
+        // Todos van con no_orden del primero y ordenes_unidas
+        // unido=1 si el código estaba en las dos órdenes (cantidades sumadas)
+        // unido=0 si el código solo estaba en una (cantidad original)
+        const productosFinales = [];
+
+        for (const grupo of Object.values(porCodigo)) {
+            const estaEnAmbas   = grupo.length > 1;
+            const cantidadFinal = estaEnAmbas
+                ? grupo.reduce((sum, p) => sum + Number(p.cantidad), 0)
+                : grupo[0].cantidad;
+
+            productosFinales.push({
+                ...grupo[0],                        // base del primer registro
+                no_orden_final:  primerOrden,       // ← siempre el primero
+                tipo_final:      primerTipo,        // ← tipo del primero
+                cantidad_final:  cantidadFinal,
+                unido:           estaEnAmbas ? 1 : 0,
+                ordenes_unidas:  ordenesUnidas,     // ← "135-20799" en todos
+            });
+        }
+
+        // ── 4. INSERT según modo ──────────────────────────────────────────────
+        for (const prod of productosFinales) {
+            let id_usuario_final = Number(usuario);
+
+            if (modo === 'cuarto') {
                 const cuarto = prod.ubicacion?.split('-')[0]?.trim();
-                const responsable = responsables.find(r => r.cuarto === cuarto);
-                const id_usuario_final = responsable ? responsable.id_usuario : null;
-
-                await conn.query(`
-                    INSERT INTO pedidos_surtiendo (
-                        no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                        um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, avance, id_usuario,
-                        registro, inicio_surtido, fin_surtido, unido
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?)
-                `, [
-                    prod.no_orden, prod.tipo, prod.codigo_pedido, prod.clave,
-                    prod.cantidad, prod.cant_surtida, prod.cant_no_enviada,
-                    prod.um, prod._bl, prod._pz, prod._pq, prod._inner, prod._master,
-                    bahiasString, prod.avance, id_usuario_final,
-                    prod.registro, prod.inicio_surtido, prod.fin_surtido, prod.unido
-                ]);
+                const [responsableRows] = await conn.query(`
+                    SELECT id_usuario FROM responsables_cuarto WHERE cuarto = ? LIMIT 1
+                `, [cuarto]);
+                id_usuario_final = responsableRows[0]?.id_usuario ?? null;
             }
-
-        } else {
-            // ✅ MODO INDIVIDUAL — todos van al mismo usuario
-            const id_usuario_final = Number(usuario);
 
             await conn.query(`
                 INSERT INTO pedidos_surtiendo (
                     no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
                     um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, avance, id_usuario,
-                    registro, inicio_surtido, fin_surtido, unido
-                )
-                SELECT
-                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                    um, _bl, _pz, _pq, _inner, _master, ?, 'S', avance, ?,
-                    registro, inicio_surtido, fin_surtido, unido
-                FROM pedidos
-                WHERE no_orden = ? AND tipo = ?
-            `, [bahiasString, id_usuario_final, no_orden, tipo]);
+                    registro, inicio_surtido, fin_surtido, unido, ordenes_unidas
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                prod.no_orden_final, prod.tipo_final, prod.codigo_pedido, prod.clave,
+                prod.cantidad_final, prod.cant_surtida, prod.cant_no_enviada,
+                prod.um, prod._bl, prod._pz, prod._pq, prod._inner, prod._master,
+                bahiasString, prod.avance, id_usuario_final,
+                prod.registro, prod.inicio_surtido, prod.fin_surtido,
+                prod.unido, prod.ordenes_unidas
+            ]);
         }
 
-        // ✅ Actualizar bahías
+        // ── 5. Actualizar bahías ──────────────────────────────────────────────
         for (const bahia of bahias) {
             await conn.query(`
                 UPDATE bahias SET estado = 1, id_pdi = ?, ingreso = CURDATE()
                 WHERE bahia = ?
-            `, [no_orden, bahia]);
+            `, [primerOrden, bahia]);
         }
 
-        // ✅ Borrar pedido original
-        await conn.query(`
-            DELETE FROM pedidos WHERE no_orden = ? AND tipo = ?
-        `, [no_orden, tipo]);
+        // ── 6. Borrar ambos pedidos originales ────────────────────────────────
+        for (const { no_orden, tipo } of ordenes) {
+            await conn.query(`
+                DELETE FROM pedidos WHERE no_orden = ? AND tipo = ?
+            `, [no_orden, tipo]);
+        }
 
         await conn.commit();
         return { ok: true };

@@ -379,6 +379,18 @@ const finalizarPedido = async (req, res) => {
     }
 };
 
+const obtenerProductosPorOrdenUniversalConFusion = async (req, res) => {
+    const { noOrden, tipo } = req.params;
+    try {
+        const datos = await SurtidoModel.obtenerProductosPorOrdenUniversalConFusion(noOrden, tipo);
+        if (!datos.productos || datos.productos.length === 0)
+            return res.status(404).json({ ok: false, message: "No encontrado" });
+        res.json(datos);
+    } catch (error) {
+        console.error("❌ Error:", error);
+        res.status(500).json({ ok: false, message: "Error interno" });
+    }
+};
 
 module.exports = {
     obtenerPedidosSurtiendo,
@@ -393,5 +405,6 @@ module.exports = {
     obtenerPedidoPorOrdenYTipo,
     getDetallePedido,
     sincronizarSanced,
-    obtenerDatosSanced
+    obtenerDatosSanced,
+    obtenerProductosPorOrdenUniversalConFusion
 };

@@ -203,14 +203,15 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
     }
 };
 
-
 const obtenerPedidoPorOrdenYTipo = async (noOrden, tipo) => {
     const [rows] = await pool.query(
         `SELECT 
-        no_orden, tipo, codigo_pedido, cantidad, cant_surtida, cant_no_enviada, motivo, unido,ubi_bahia
-     FROM pedidos_surtiendo
-     WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
-     ORDER BY codigo_pedido`,
+            no_orden, tipo, codigo_pedido, cantidad, cant_surtida, 
+            cant_no_enviada, motivo, unido, ubi_bahia,
+            ordenes_unidas  -- ✅ AGREGA ESTO
+         FROM pedidos_surtiendo
+         WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+         ORDER BY codigo_pedido`,
         [noOrden, tipo]
     );
     return rows;
@@ -515,7 +516,7 @@ const obtenerDetallePedido = async (noOrden, tipo) => {
             codigo_producto: row.codigo_pedido,
             descripcion_producto: row.descripcion_producto || '',
             cantidad: row.cantidad,
-            cant_surtida: row.cant_surtida, 
+            cant_surtida: row.cant_surtida,
             um: row.um,
             _pz: row._pz,
             _pq: row._pq,
@@ -563,9 +564,77 @@ const obtenerDatosSanced = async (noOrden) => {
     return rows[0] || null;
 };
 
+const obtenerProductosPorOrdenUniversalConFusion = async (noOrden, tipo) => {
+    // ── 1. Buscar el pedido fusionado (surtido → embarques → finalizado) ──
+    let [productos] = await pool.query(
+        `SELECT no_orden, tipo, codigo_pedido, cantidad, cant_surtida,
+                cant_no_enviada, motivo, unido, ubi_bahia, ordenes_unidas
+         FROM pedidos_surtiendo
+         WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+         ORDER BY codigo_pedido`, [noOrden, tipo]
+    );
+
+    if (!productos.length) {
+        [productos] = await pool.query(
+            `SELECT no_orden, tipo, codigo_pedido, cantidad, cant_surtida,
+                    cant_no_enviada, motivo, unido, ubi_bahia, ordenes_unidas
+             FROM pedidos_embarques
+             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+             ORDER BY codigo_pedido`, [noOrden, tipo]
+        );
+    }
+
+    if (!productos.length) {
+        [productos] = await pool.query(
+            `SELECT no_orden, tipo, codigo_pedido, cantidad, cant_surtida,
+                    cant_no_enviada, motivo, unido, ubi_bahia, ordenes_unidas
+             FROM pedido_finalizado
+             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
+             ORDER BY codigo_pedido`, [noOrden, tipo]
+        );
+    }
+
+    // ── 2. Si no hay fusión, devuelve solo los productos normales ──
+    const ordenesUnidas = productos[0]?.ordenes_unidas;
+    if (!ordenesUnidas) {
+        return { esFusion: false, productos, ordenesOriginales: [] };
+    }
+
+    // ── 3. Si hay fusión, busca los originales de cada orden en tabla pedidos ──
+    const noOrdenes = ordenesUnidas.split('-'); // ["135", "20799"]
+    const ordenesOriginales = [];
+
+    for (const noOrdenOriginal of noOrdenes) {
+        // Obtener el tipo original buscando en el historico
+        const [tipoRows] = await pool.query(
+            `SELECT DISTINCT tipo FROM pedidos 
+             WHERE no_orden = ? LIMIT 1`,
+            [noOrdenOriginal]
+        );
+        const tipoOriginal = tipoRows[0]?.tipo || tipo;
+
+        const [productosOriginales] = await pool.query(
+            `SELECT no_orden, tipo, codigo_pedido, cantidad
+             FROM pedidos
+             WHERE no_orden = ?
+             ORDER BY codigo_pedido`,
+            [noOrdenOriginal]
+        );
+
+        if (productosOriginales.length > 0) {
+            ordenesOriginales.push({
+                no_orden: noOrdenOriginal,
+                tipo: tipoOriginal,
+                productos: productosOriginales
+            });
+        }
+    }
+
+    return { esFusion: true, productos, ordenesUnidas, ordenesOriginales };
+};
 
 module.exports = {
     getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado,
     getpedidosFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
-    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido, insertarSanced, obtenerDatosSanced
+    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido, insertarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion
 };

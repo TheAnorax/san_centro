@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria
-    , obtenerPedidoPorOrdenYTipo, getDetallePedido, sincronizarSanced, obtenerDatosSanced } = require('../controllers/surtidoController');
+    , obtenerPedidoPorOrdenYTipo, getDetallePedido, sincronizarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion } = require('../controllers/surtidoController');
 
 router.get('/pedidos/pedidos-surtiendo', obtenerPedidosSurtiendo);
 
@@ -28,5 +28,7 @@ router.get("/detalle/:no_orden/:tipo", getDetallePedido);
 router.get('/sincronizar-sanced', sincronizarSanced);  // 👈 nueva ruta
 
 router.get('/sanced/:noOrden', obtenerDatosSanced);
+
+router.get('/productos-fusion/:noOrden/:tipo', obtenerProductosPorOrdenUniversalConFusion);
 
 module.exports = router;

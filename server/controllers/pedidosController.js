@@ -56,7 +56,6 @@ const getUsuarios = async (req, res) => {
     }
 };
 
-// ✅ NUEVA — devuelve responsables por cuarto para mostrarlo en el front
 const getResponsablesCuarto = async (req, res) => {
     try {
         const responsables = await PedidosModel.getResponsablesCuarto();
@@ -67,24 +66,32 @@ const getResponsablesCuarto = async (req, res) => {
     }
 };
 
+// ✅ ACTUALIZADO — ahora recibe `ordenes: [{ no_orden, tipo }]`
 const agregarPedidoSurtiendo = async (req, res) => {
     try {
-        const { no_orden, tipo, bahias, usuario, modo } = req.body; // ← agrega modo
+        const { ordenes, bahias, usuario, modo } = req.body;
 
-        // ✅ Validación según modo
-        if (!no_orden || !tipo || !bahias || !bahias.length) {
-            return res.status(400).json({ ok: false, message: "Faltan datos" });
+        // Validaciones
+        if (!ordenes || !Array.isArray(ordenes) || ordenes.length === 0) {
+            return res.status(400).json({ ok: false, message: "Faltan datos: ordenes[]" });
+        }
+        if (!bahias || !bahias.length) {
+            return res.status(400).json({ ok: false, message: "Faltan bahías" });
         }
         if (modo !== 'cuarto' && !usuario) {
             return res.status(400).json({ ok: false, message: "Falta usuario" });
         }
 
         const resultado = await PedidosModel.agregarPedidoSurtiendo({
-            no_orden, tipo, bahias, usuario, modo // ← agrega modo
+            ordenes,   // ← array de { no_orden, tipo }
+            bahias,
+            usuario,
+            modo
         });
 
         if (!resultado.ok) return res.status(500).json({ ok: false, message: "Error al insertar pedido" });
         return res.json({ ok: true, message: "Pedido agregado correctamente" });
+
     } catch (error) {
         console.error("Error en agregarPedidoSurtiendo:", error);
         return res.status(500).json({ ok: false, message: "Error interno" });
@@ -112,7 +119,7 @@ module.exports = {
     obtenerTodosConProductos,
     getBahias,
     getUsuarios,
-    getResponsablesCuarto, // ← NUEVA
+    getResponsablesCuarto,
     agregarPedidoSurtiendo,
     liberarUsuarioPaqueteria
 };
