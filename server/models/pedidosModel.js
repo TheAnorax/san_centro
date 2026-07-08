@@ -56,6 +56,7 @@ const getPedidosConProductos = async () => {
             SELECT 1 FROM pedido_finalizado pf
             WHERE pf.no_orden = pr.no_orden
         )
+        AND (pr.estado IS NULL OR pr.estado != 'FUSIONADO')   -- ✅ oculta la VQ fusionada en embarque
         ORDER BY p.no_orden DESC, pr.id_pedi ASC
     `);
 
@@ -242,6 +243,130 @@ const agregarPedidoSurtiendo = async ({ ordenes, bahias, usuario, modo }) => {
 };
 
 
+/**
+ * ✅ NUEVA — fusionarVqEnEmbarque
+ *
+ * Caso especial (cambio de proceso a última hora):
+ *   - La CD ya está físicamente surtida y vive en `pedidos_embarques`.
+ *   - La VQ sigue en `pedidos` y ya está físicamente lista.
+ *   - Se "pega" la VQ sobre la CD que ya está en embarques.
+ *
+ * Reglas:
+ *   - Código en AMBAS órdenes → se SUMA cantidad, cant_surtida y empaque
+ *     (_bl, _pz, _pq, _inner, _master). unido = 1.
+ *   - Código solo en la VQ → se INSERTA nuevo en embarques. unido = 0.
+ *   - La VQ NO se borra de `pedidos` (por seguridad). Se marca estado='FUSIONADO'
+ *     para que no aparezca como pendiente en getPedidosConProductos.
+ */
+const fusionarVqEnEmbarque = async ({ noOrdenCD, tipoCD, noOrdenVQ, tipoVQ }) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const tipoFinal     = `${tipoCD}-${tipoVQ}`;       // "CD-VQ"
+        const ordenesUnidas = `${noOrdenCD}-${noOrdenVQ}`; // "169-20856"
+
+        // 1) Productos de la VQ (sigue en 'pedidos', ya está física lista)
+        const [productosVQ] = await conn.query(
+            `SELECT * FROM pedidos WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
+            [noOrdenVQ, tipoVQ]
+        );
+        if (!productosVQ.length) {
+            await conn.rollback();
+            return { ok: false, message: 'La VQ no tiene productos en pedidos.' };
+        }
+
+        // 2) Productos de la CD (ya en embarques) — bloqueados
+        const [productosCD] = await conn.query(
+            `SELECT * FROM pedidos_embarques WHERE no_orden = ? FOR UPDATE`,
+            [noOrdenCD]
+        );
+        if (!productosCD.length) {
+            await conn.rollback();
+            return { ok: false, message: 'La CD no está en embarques.' };
+        }
+
+        // mapa de la CD por código para detectar coincidencias
+        const mapaCD = {};
+        for (const p of productosCD) mapaCD[p.codigo_pedido] = p;
+
+        for (const vq of productosVQ) {
+            const cd = mapaCD[vq.codigo_pedido];
+
+            if (cd) {
+                // ── CÓDIGO EN AMBAS → FUSIÓN (unido = 1) ──
+                // sumamos cantidad Y el empaque (_pz, _pq, _inner, _master)
+                await conn.query(
+                    `UPDATE pedidos_embarques SET
+                        cantidad     = cantidad     + ?,
+                        cant_surtida = cant_surtida + ?,
+                        _bl     = COALESCE(_bl,0)     + ?,
+                        _pz     = COALESCE(_pz,0)     + ?,
+                        _pq     = COALESCE(_pq,0)     + ?,
+                        _inner  = COALESCE(_inner,0)  + ?,
+                        _master = COALESCE(_master,0) + ?,
+                        unido = 1
+                     WHERE no_orden = ? AND codigo_pedido = ?`,
+                    [
+                        Number(vq.cantidad),
+                        Number(vq.cantidad),          // cant_surtida (VQ ya está lista = completa)
+                        Number(vq._bl     || 0),
+                        Number(vq._pz     || 0),
+                        Number(vq._pq     || 0),
+                        Number(vq._inner  || 0),
+                        Number(vq._master || 0),
+                        noOrdenCD, vq.codigo_pedido
+                    ]
+                );
+            } else {
+                // ── CÓDIGO SOLO EN LA VQ → INSERT nuevo (unido = 0) ──
+                await conn.query(
+                    `INSERT INTO pedidos_embarques (
+                        no_orden, tipo, codigo_pedido, clave,
+                        cantidad, cant_surtida, cant_no_enviada,
+                        um, _bl, _pz, _pq, _inner, _master,
+                        ubi_bahia, estado, id_usuario, registro, unido, ordenes_unidas
+                     ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'E', ?, ?, 0, ?)`,
+                    [
+                        noOrdenCD, tipoFinal, vq.codigo_pedido, vq.clave,
+                        Number(vq.cantidad), Number(vq.cantidad),  // cant_surtida = cantidad
+                        vq.um, vq._bl, vq._pz, vq._pq, vq._inner, vq._master,
+                        productosCD[0].ubi_bahia,                   // misma bahía que la CD
+                        productosCD[0].id_usuario,                  // mismo surtidor
+                        vq.registro, ordenesUnidas
+                    ]
+                );
+            }
+        }
+
+        // 3) Marcar TODA la orden (en embarques) con el tipo y ordenes_unidas de la fusión
+        await conn.query(
+            `UPDATE pedidos_embarques SET tipo = ?, ordenes_unidas = ? WHERE no_orden = ?`,
+            [tipoFinal, ordenesUnidas, noOrdenCD]
+        );
+
+        // 4) La VQ NO se borra de 'pedidos' — se queda por seguridad.
+        //    La marcamos como FUSIONADO para que no aparezca como pendiente.
+        //    (Si NO quieres ni marcarla, comenta este bloque.)
+        await conn.query(
+            `UPDATE pedidos SET estado = 'FUSIONADO'
+             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
+            [noOrdenVQ, tipoVQ]
+        );
+
+        await conn.commit();
+        return { ok: true, ordenesUnidas, tipoFinal };
+
+    } catch (err) {
+        await conn.rollback();
+        console.error('Error en fusionarVqEnEmbarque:', err);
+        return { ok: false, message: err.message };
+    } finally {
+        conn.release();
+    }
+};
+
+
 
 const liberarUsuarioPaqueteria = async (no_orden) => {
     if (!no_orden) throw new Error('Falta no_orden');
@@ -315,7 +440,7 @@ module.exports = {
     obtenerIdUsuario,
     obtenerIdBahia,
     agregarPedidoSurtiendo,
+    fusionarVqEnEmbarque,   // ✅ NUEVA
     getResponsablesCuarto,
-    liberarUsuarioPaqueteria,
-    getResponsablesCuarto
+    liberarUsuarioPaqueteria
 };

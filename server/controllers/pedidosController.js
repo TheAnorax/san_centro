@@ -114,6 +114,41 @@ const liberarUsuarioPaqueteria = async (req, res) => {
     }
 };
 
+
+// ✅ NUEVO — fusionar una VQ (que sigue en pedidos) sobre una CD ya en embarques
+const fusionarVqEnEmbarque = async (req, res) => {
+    try {
+        const { noOrdenCD, tipoCD, noOrdenVQ, tipoVQ } = req.body;
+
+        // Validaciones
+        if (!noOrdenCD || !tipoCD || !noOrdenVQ || !tipoVQ) {
+            return res.status(400).json({
+                ok: false,
+                message: "Faltan datos: noOrdenCD, tipoCD, noOrdenVQ, tipoVQ"
+            });
+        }
+
+        const resultado = await PedidosModel.fusionarVqEnEmbarque({
+            noOrdenCD, tipoCD, noOrdenVQ, tipoVQ
+        });
+
+        if (!resultado.ok) {
+            return res.status(400).json({ ok: false, message: resultado.message || "Error al fusionar" });
+        }
+
+        return res.json({
+            ok: true,
+            message: "Órdenes fusionadas correctamente",
+            ordenesUnidas: resultado.ordenesUnidas,
+            tipoFinal: resultado.tipoFinal
+        });
+
+    } catch (error) {
+        console.error("Error en fusionarVqEnEmbarque:", error);
+        return res.status(500).json({ ok: false, message: "Error interno" });
+    }
+};
+
 module.exports = {
     getProductosPorOrden,
     obtenerTodosConProductos,
@@ -121,5 +156,6 @@ module.exports = {
     getUsuarios,
     getResponsablesCuarto,
     agregarPedidoSurtiendo,
-    liberarUsuarioPaqueteria
-};
+    liberarUsuarioPaqueteria,
+    fusionarVqEnEmbarque
+}; 

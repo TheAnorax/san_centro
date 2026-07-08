@@ -171,13 +171,31 @@ const obtenerPedidosPorFecha = async (fecha) => {
             s.observaciones, s.no_factura, s.partidas,
             s.piezas, s.total, s.total_con_iva,
             s.registro, s.status, s.entrega,
-            s.fecha_entrega,
-            s.costos                                -- 👈 esto faltaba
+            s.fecha_entrega, s.costos
         FROM sanced s
         INNER JOIN pedido_finalizado pf ON pf.no_orden = s.no_orden
         WHERE DATE_FORMAT(s.fecha_factura, '%Y-%m') = ?
-        ORDER BY s.fecha_factura ASC, s.registro DESC
-    `, [fechaFiltro]);
+
+        UNION
+
+        SELECT DISTINCT
+            s2.id, s2.no_orden, s2.nombre_cliente, s2.num_consigna,
+            s2.tpo_original, s2.fecha, s2.fecha_factura, s2.correo, s2.ejecutivo,
+            s2.estado, s2.municipio, s2.direccion, s2.postal,
+            s2.ruta, s2.zona, s2.telefono, s2.referencia,
+            s2.observaciones, s2.no_factura, s2.partidas,
+            s2.piezas, s2.total, s2.total_con_iva,
+            s2.registro, s2.status, s2.entrega,
+            s2.fecha_entrega, s2.costos
+        FROM sanced s2
+        INNER JOIN pedido_finalizado pf2 
+            ON CONVERT(SUBSTRING_INDEX(pf2.ordenes_unidas, '-', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+             = CONVERT(CAST(s2.no_orden AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        INNER JOIN sanced s3 ON s3.no_orden = pf2.no_orden
+        WHERE DATE_FORMAT(s3.fecha_factura, '%Y-%m') = ?
+
+        ORDER BY fecha_factura ASC, registro DESC
+    `, [fechaFiltro, fechaFiltro]);
 
     return rows;
 };
@@ -258,7 +276,7 @@ const obtenerPedidosFinalizadosPorMes = async (anio, mes) => {
 const obtenerHistoricoCrossDocking = async (anio) => {
     const year = anio || new Date().getFullYear();
     const from = `${year}-01-01`;
-    const to   = `${year + 1}-01-01`;
+    const to = `${year + 1}-01-01`;
 
     const [rows] = await pool.query(`
         SELECT
@@ -330,4 +348,4 @@ const obtenerHistoricoCrossDocking = async (anio) => {
 
     return rows;
 };
-module.exports = { obtenerHistoricoCrossDocking,insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes };
+module.exports = { obtenerHistoricoCrossDocking, insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes };

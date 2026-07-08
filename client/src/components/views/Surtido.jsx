@@ -71,6 +71,19 @@ function Surtiendo() {
     const [expanded, setExpanded] = useState({});
     const [usuariosResumen, setUsuariosResumen] = useState([]);
 
+    const [pedidosPendientes, setPedidosPendientes] = useState([]);
+
+    const cargarPedidosPendientes = async () => {
+        try {
+            const res = await axios.get('http://66.232.105.107:3001/api/pedidos/todos-con-productos');
+            // Solo los que están PENDIENTE (aún en 'pedidos', no en surtido/embarque)
+            const pendientes = (res.data || []).filter(p => p.estado_proceso === 'PENDIENTE');
+            setPedidosPendientes(pendientes);
+        } catch {
+            setPedidosPendientes([]);
+        }
+    };
+
     useEffect(() => { cargarPedidosSurtiendo(); }, []);
 
     const cargarPedidosSurtiendo = async () => {
@@ -158,8 +171,110 @@ function Surtiendo() {
         } catch { setUsuariosPaqueteria([]); }
     };
 
+
+    // ✅ NUEVO — fusionar una VQ pendiente sobre la CD que ya está en embarques
+    const fusionarVqEnEmbarque = async (pedidoCD) => {
+        // Si no hay pendientes, avisar
+        if (!pedidosPendientes.length) {
+            await Swal.fire({
+                title: "Sin pedidos pendientes",
+                text: "No hay órdenes pendientes para fusionar.",
+                icon: "info"
+            });
+            return;
+        }
+
+        // Construir las opciones del select con los pendientes
+        const opciones = {};
+        pedidosPendientes.forEach(p => {
+            // value = "no_orden|tipo"  ·  label = "VQ 20856 (11 productos)"
+            opciones[`${p.no_orden}|${p.tipo}`] =
+                `${p.tipo} ${p.no_orden} (${(p.productos || []).length} prod.)`;
+        });
+
+        const { value: seleccion } = await Swal.fire({
+            title: `Fusionar con ${pedidoCD.tipo} ${pedidoCD.no_orden}`,
+            input: "select",
+            inputOptions: opciones,
+            inputPlaceholder: "Selecciona la orden a fusionar",
+            showCancelButton: true,
+            confirmButtonText: "Fusionar",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#7b1fa2",
+            inputValidator: (v) => !v && "Debes seleccionar una orden"
+        });
+
+        if (!seleccion) return;
+
+        const [noOrdenVQ, tipoVQ] = seleccion.split('|');
+
+        // Confirmación final
+        const { isConfirmed } = await Swal.fire({
+            title: "¿Confirmar fusión?",
+            html: `Se va a pegar <b>${tipoVQ} ${noOrdenVQ}</b> sobre <b>${pedidoCD.tipo} ${pedidoCD.no_orden}</b>.<br>Los códigos repetidos se sumarán.`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Sí, fusionar",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#7b1fa2"
+        });
+        if (!isConfirmed) return;
+
+        try {
+            Swal.fire({
+                title: "Fusionando...",
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            const res = await axios.post(
+                'http://66.232.105.107:3001/api/pedidos/fusionar-vq-embarque',
+                {
+                    noOrdenCD: pedidoCD.no_orden,
+                    tipoCD: pedidoCD.tipo,
+                    noOrdenVQ,
+                    tipoVQ
+                }
+            );
+
+            Swal.close();
+
+            if (res.data?.ok) {
+                await Swal.fire({
+                    title: "✅ Fusión completada",
+                    text: `Órdenes unidas: ${res.data.ordenesUnidas} (${res.data.tipoFinal})`,
+                    icon: "success",
+                    confirmButtonColor: "#3085d6"
+                });
+                // Recargar embarques y pendientes
+                cargarPedidosEmbarques();
+                cargarPedidosPendientes();
+            } else {
+                await Swal.fire({
+                    title: "❌ No se pudo fusionar",
+                    text: res.data?.message || "Error al fusionar.",
+                    icon: "error",
+                    confirmButtonColor: "#e74c3c"
+                });
+            }
+        } catch (err) {
+            Swal.close();
+            console.error(err);
+            await Swal.fire({
+                title: "❌ Error de conexión",
+                text: err.response?.data?.message || "Ocurrió un error al fusionar.",
+                icon: "error",
+                confirmButtonColor: "#e74c3c"
+            });
+        }
+    };
+
     useEffect(() => {
-        if (tabActual === 1) { cargarPedidosEmbarques(); cargarUsuariosPaqueteria(); }
+        if (tabActual === 1) {
+            cargarPedidosEmbarques();
+            cargarUsuariosPaqueteria();
+            cargarPedidosPendientes();   // ✅ NUEVO
+        }
     }, [tabActual]);
 
     // ── Helper compartido: construye el PDF de surtido ────────────────────────
@@ -258,6 +373,8 @@ function Surtiendo() {
         if (typeof doc.autoTable === "function") doc.autoTable(tableConfig);
         else autoTable(doc, tableConfig);
     };
+
+    
 
     // ── Vista previa PDF — funciona en los 3 tabs ─────────────────────────────
     const verPreviaPDF = async (noOrden, tipo) => {
@@ -882,10 +999,16 @@ function Surtiendo() {
                                                                 onClick={() => setExpanded(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}>
                                                                 {expanded[rowKey] ? 'Ocultar' : 'Ver productos'}
                                                             </Button>
-                                                            {/* ✅ Vista previa PDF — fuente embarque */}
                                                             <Button size="small" variant="outlined" color="secondary"
                                                                 onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
                                                                 📄 Vista previa PDF
+                                                            </Button>
+
+                                                            {/* ✅ NUEVO — botón fusionar */}
+                                                            <Button size="small" variant="outlined"
+                                                                sx={{ color: '#7b1fa2', borderColor: '#7b1fa2' }}
+                                                                onClick={() => fusionarVqEnEmbarque(pedido)}>
+                                                                🔗 Fusionar orden
                                                             </Button>
                                                         </Box>
 

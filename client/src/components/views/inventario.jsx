@@ -15,16 +15,37 @@ const PLACEHOLDER = 'http://66.232.105.83:9101/images/noimage.png';
 // ================================================
 // Calcula masters, inners y sueltas del faltante
 // ================================================
+const UMBRAL_REDONDEO = 0.60;
+
 function calcularEmpaques(faltante, master, inner) {
     if (!faltante || faltante <= 0) return null;
     const masterVal = Number(master) || 0;
     const innerVal = Number(inner) || 0;
     let masters = 0, inners = 0, sueltas = Number(faltante);
 
-    if (masterVal > 0) { masters = Math.floor(sueltas / masterVal); sueltas = sueltas % masterVal; }
-    if (innerVal > 0) { inners = Math.floor(sueltas / innerVal); sueltas = sueltas % innerVal; }
+    if (masterVal > 0) {
+        masters = Math.floor(sueltas / masterVal);
+        sueltas = sueltas % masterVal;
 
-    return { masters, inners, sueltas };
+        if (sueltas > 0 && sueltas >= masterVal * UMBRAL_REDONDEO) {
+            masters += 1;
+            return { masters, inners: 0, sueltas: 0 };
+        }
+    }
+
+    if (innerVal > 0) {
+        inners = Math.floor(sueltas / innerVal);
+        sueltas = sueltas % innerVal;
+
+        if (sueltas > 0 && sueltas >= innerVal * UMBRAL_REDONDEO) {
+            inners += 1;
+            sueltas = 0;
+        } else {
+            sueltas = 0; // ❌ No alcanzó ni el 60% del inner → se ignora
+        }
+    }
+
+    return { masters, inners, sueltas: 0 };
 }
 
 function ProductImage({ code }) {
@@ -497,7 +518,7 @@ function InventarioListado() {
                                     );
                                 })()}
 
-                                
+
 
                             </DialogContent>
                             <DialogActions>

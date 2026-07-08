@@ -9,5 +9,7 @@ router.get('/usuarios-surtidor', pedidosController.getUsuarios);
 router.get('/responsables-cuarto', pedidosController.getResponsablesCuarto); // ← NUEVA
 router.post('/agregar-pedido-surtiendo', pedidosController.agregarPedidoSurtiendo);
 router.put('/embarques/liberar-usuario', pedidosController.liberarUsuarioPaqueteria);
+router.post('/fusionar-vq-embarque', pedidosController.fusionarVqEnEmbarque); // ✅ NUEVA
+
 
 module.exports = router;
