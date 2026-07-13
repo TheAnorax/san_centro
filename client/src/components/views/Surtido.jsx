@@ -694,17 +694,6 @@ function Surtiendo() {
             const pageWidth = doc.internal.pageSize.getWidth();
             const leftMargin = (pageWidth - tableWidth) / 2;
 
-            doc.autoTable({
-                startY: currentY,
-                head: [
-                    [{ content: "DETALLES DEL PEDIDO", colSpan: 2, styles: { halign: "center", fillColor: [230, 230, 230], fontSize: 7 } }, { content: noOrden, styles: { halign: "center", fillColor: [200, 200, 200], fontSize: 9 } }],
-                    [{ content: "IMPORTE DEL PEDIDO\n(SIN IVA)", styles: { halign: "center", fontSize: 5 } }, { content: "TOTAL A PAGAR\n(con IVA)", styles: { halign: "center", fontSize: 5 } }, { content: "PORCENTAJE DE ENTREGA", styles: { halign: "center", fontSize: 5 } }],
-                ],
-                body: [[`$${formatMoney(cliente.total)}`, `$${formatMoney(cliente.total_con_iva)}`, "100.00 %"]],
-                theme: "grid", styles: { fontSize: 8, halign: "center" }, margin: { left: leftMargin }, tableWidth,
-                headStyles: { fillColor: [245, 245, 245], textColor: [0, 0, 0], fontStyle: "bold", fontSize: 4.5 },
-            });
-
             currentY = doc.lastAutoTable.finalY + 5;
             currentY = verificarEspacio(doc, currentY, 1);
 
