@@ -216,6 +216,41 @@ function Pedidos() {
         bahiasFusion.length > 0 &&
         (modoFusion === 'cuarto' || usuarioFusion);
 
+    // ✅ Vista previa de fusión: combina los productos de los pedidos
+    // seleccionados y muestra, por código, si se fusiona y cuánto aporta
+    // cada orden (para que se vea igual a lo que va a insertar el backend).
+    const previewFusion = useMemo(() => {
+        if (selectedPedidos.length < 2) return [];
+
+        const porCodigo = {};
+        selectedPedidos.forEach(sel => {
+            const pedidoCompleto = pedidos.find(p => p.no_orden === sel.no_orden);
+            if (!pedidoCompleto) return;
+            (pedidoCompleto.productos || []).forEach(item => {
+                const key = item.codigo_pedido;
+                if (!porCodigo[key]) porCodigo[key] = { codigo_pedido: key, descripcion: item.descripcion, porOrden: [] };
+                porCodigo[key].porOrden.push({
+                    no_orden: sel.no_orden,
+                    tipo: sel.tipo,
+                    cantidad: Number(item.cantidad) || 0
+                });
+            });
+        });
+
+        return Object.values(porCodigo).map(grupo => {
+            const fusion = grupo.porOrden.length > 1;
+            const cantidadTotal = grupo.porOrden.reduce((sum, o) => sum + o.cantidad, 0);
+            return {
+                ...grupo,
+                fusion,
+                cantidadTotal,
+                cantidadPorOrdenTexto: grupo.porOrden
+                    .map(o => `${o.tipo} ${o.no_orden}: ${o.cantidad}`)
+                    .join('  |  ')
+            };
+        });
+    }, [selectedPedidos, pedidos]);
+
     return (
         <div className="place_holder-container fade-in">
             <div className="place_holder-header" style={{ background: '#e74c3c', padding: '8px 16px' }}>
@@ -330,6 +365,48 @@ function Pedidos() {
                     <Button variant="outlined" color="secondary" onClick={limpiarFusion} size="small">
                         Cancelar
                     </Button>
+
+                    {/* ✅ Vista previa de la fusión: qué código se fusiona y cuánto aporta cada orden */}
+                    {selectedPedidos.length >= 2 && (
+                        <Box sx={{ width: '100%', mt: 1 }}>
+                            <Typography variant="subtitle2" fontWeight={700} color="#7b1fa2" sx={{ mb: 0.5 }}>
+                                Vista previa de la fusión
+                            </Typography>
+                            <Box sx={{ overflowX: 'auto', background: '#fff', borderRadius: 1, border: '1px solid #ce93d8' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f3e5f5' }}>
+                                            <th style={{ padding: '6px', textAlign: 'center' }}>Código</th>
+                                            <th style={{ padding: '6px', textAlign: 'center' }}>Descripción</th>
+                                            <th style={{ padding: '6px', textAlign: 'center' }}>Cantidad total</th>
+                                            <th style={{ padding: '6px', textAlign: 'center' }}>Fusión</th>
+                                            <th style={{ padding: '6px', textAlign: 'center' }}>Cantidad por orden</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {previewFusion.map((row, idx) => (
+                                            <tr key={row.codigo_pedido} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.03)' }}>
+                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>{row.codigo_pedido}</td>
+                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>{row.descripcion}</td>
+                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>{row.cantidadTotal}</td>
+                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                                                    {row.fusion ? (
+                                                        <Chip label="Sí" size="small" sx={{ background: '#7b1fa2', color: '#fff', fontWeight: 700 }} />
+                                                    ) : (
+                                                        <Chip label="No" size="small" variant="outlined" />
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>{row.cantidadPorOrdenTexto}</td>
+                                            </tr>
+                                        ))}
+                                        {previewFusion.length === 0 && (
+                                            <tr><td colSpan={5} style={{ textAlign: 'center', padding: 8, color: '#888' }}>Sin productos para mostrar.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </Box>
+                        </Box>
+                    )}
                 </Box>
             )}
 

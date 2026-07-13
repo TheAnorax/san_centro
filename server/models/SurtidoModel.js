@@ -127,8 +127,8 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
             ubi_bahia, estado, id_usuario,
             id_usuario_paqueteria,
             registro, inicio_surtido, fin_surtido, motivo,
-            unido   -- ✅ FALTABA ESTO
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            unido, fusion, ordenes_unidas
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
                     p.no_orden, p.tipo, p.codigo_pedido, p.clave,
                     p.cantidad, p.cant_surtida, p.cant_no_enviada,
@@ -137,7 +137,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                     p.id_usuario_paqueteria,
                     p.registro, p.inicio_surtido, p.fin_surtido,
                     p.motivo,
-                    p.unido   // ✅ FALTABA ESTO
+                    p.unido, p.fusion, p.ordenes_unidas
                 ]);
             }
 
@@ -166,8 +166,8 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
             ubi_bahia, estado, id_usuario,
             id_usuario_paqueteria,
             registro, inicio_surtido, fin_surtido, motivo,
-            unido
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            unido, fusion, ordenes_unidas
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave,
                 p.cantidad, p.cant_surtida, p.cant_no_enviada,
@@ -176,7 +176,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                 p.id_usuario_paqueteria,
                 p.registro, p.inicio_surtido, p.fin_surtido,
                 p.motivo,
-                p.unido
+                p.unido, p.fusion, p.ordenes_unidas
             ]);
         }
 
@@ -279,10 +279,10 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
             ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
             inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
             unido, registro_surtido, registro_embarque, caja, motivo,
-            unificado, registro_fin, id_usuario_surtido,  -- ✅ corregido
-            fusion, tipo_caja, cajas
+            unificado, registro_fin, id_usuario_surtido,
+            fusion, tipo_caja, cajas, ordenes_unidas
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave, p.cantidad, p.cant_surtida, p.cant_no_enviada,
                 p.um, p._pz, p._pq, p._inner, p._master,
@@ -291,8 +291,8 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
                 p.id_usuario, p.id_usuario_paqueteria, p.registro,
                 p.inicio_surtido, p.fin_surtido, p.inicio_embarque, p.fin_embarque,
                 p.unido, p.registro_surtido, p.registro_embarque, p.caja, p.motivo,
-                p.unificado, null, null,  // ✅ corregido
-                p.fusion, p.tipo_caja, p.cajas
+                p.unificado, null, null,  // registro_fin, id_usuario_surtido
+                p.fusion, p.tipo_caja, p.cajas, p.ordenes_unidas
             ]);
         }
 
@@ -568,7 +568,7 @@ const obtenerProductosPorOrdenUniversalConFusion = async (noOrden, tipo) => {
     // ── 1. Buscar el pedido fusionado (surtido → embarques → finalizado) ──
     let [productos] = await pool.query(
         `SELECT no_orden, tipo, codigo_pedido, cantidad, cant_surtida,
-                cant_no_enviada, motivo, unido, ubi_bahia, ordenes_unidas
+                cant_no_enviada, motivo, unido, fusion, ubi_bahia, ordenes_unidas
          FROM pedidos_surtiendo
          WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
          ORDER BY codigo_pedido`, [noOrden, tipo]
@@ -577,7 +577,7 @@ const obtenerProductosPorOrdenUniversalConFusion = async (noOrden, tipo) => {
     if (!productos.length) {
         [productos] = await pool.query(
             `SELECT no_orden, tipo, codigo_pedido, cantidad, cant_surtida,
-                    cant_no_enviada, motivo, unido, ubi_bahia, ordenes_unidas
+                    cant_no_enviada, motivo, unido, fusion, ubi_bahia, ordenes_unidas
              FROM pedidos_embarques
              WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
              ORDER BY codigo_pedido`, [noOrden, tipo]
@@ -587,7 +587,7 @@ const obtenerProductosPorOrdenUniversalConFusion = async (noOrden, tipo) => {
     if (!productos.length) {
         [productos] = await pool.query(
             `SELECT no_orden, tipo, codigo_pedido, cantidad, cant_surtida,
-                    cant_no_enviada, motivo, unido, ubi_bahia, ordenes_unidas
+                    cant_no_enviada, motivo, unido, fusion, ubi_bahia, ordenes_unidas
              FROM pedido_finalizado
              WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
              ORDER BY codigo_pedido`, [noOrden, tipo]

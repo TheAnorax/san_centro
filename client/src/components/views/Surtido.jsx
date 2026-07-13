@@ -328,8 +328,8 @@ function Surtiendo() {
 
         // ── Columnas ──
         const head = esFusion
-            ? [["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado", "Cant. por orden"]]
-            : [["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado"]];
+            ? [["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado", "Fusión", "Cant. por orden"]]
+            : [["Código", "Cantidad", "Cant. Surtida", "Cant. No Enviada", "Motivo", "Unificado", "Fusión"]];
 
         const body = productosOrdenados.map((p) => {
             const cod = String(p.codigo_pedido);
@@ -348,6 +348,7 @@ function Surtiendo() {
                 p.cant_no_enviada,
                 p.motivo || "",
                 Number(p.unido) === 1 ? "Sí" : "",
+                Number(p.fusion) === 1 ? "Sí" : "",
             ];
 
             if (esFusion) fila.push(cantPorOrden);

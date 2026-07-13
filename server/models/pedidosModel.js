@@ -177,12 +177,19 @@ const agregarPedidoSurtiendo = async ({ ordenes, bahias, usuario, modo }) => {
                 ? grupo.reduce((sum, p) => sum + Number(p.cantidad), 0)
                 : grupo[0].cantidad;
 
+            // ✅ "unido" se conserva TAL CUAL venía de "pedidos" (no lo toca la fusión).
+            // ✅ "fusion" es una columna aparte: 1 solo si este código estaba en más
+            //    de una de las órdenes que se están uniendo en este movimiento.
+            const unidoOriginal = Number(grupo[0].unido) === 1 ? 1 : 0;
+            const fusionFinal   = estaEnAmbas ? 1 : 0;
+
             productosFinales.push({
                 ...grupo[0],                        // base del primer registro
                 no_orden_final:  primerOrden,       // ← siempre el primero
                 tipo_final:      primerTipo,        // ← tipo del primero
                 cantidad_final:  cantidadFinal,
-                unido:           estaEnAmbas ? 1 : 0,
+                unido:           unidoOriginal,
+                fusion:          fusionFinal,
                 ordenes_unidas:  ordenesUnidas,     // ← "135-20799" en todos
             });
         }
@@ -199,20 +206,28 @@ const agregarPedidoSurtiendo = async ({ ordenes, bahias, usuario, modo }) => {
                 id_usuario_final = responsableRows[0]?.id_usuario ?? null;
             }
 
+            console.log(`🔍 [agregarPedidoSurtiendo] codigo_pedido=${prod.codigo_pedido} | unido=${prod.unido} | fusion=${prod.fusion} | ordenes_unidas=${prod.ordenes_unidas}`);
+
             await conn.query(`
                 INSERT INTO pedidos_surtiendo (
                     no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
                     um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, avance, id_usuario,
-                    registro, inicio_surtido, fin_surtido, unido, ordenes_unidas
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?, ?)
+                    registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 prod.no_orden_final, prod.tipo_final, prod.codigo_pedido, prod.clave,
                 prod.cantidad_final, prod.cant_surtida, prod.cant_no_enviada,
                 prod.um, prod._bl, prod._pz, prod._pq, prod._inner, prod._master,
                 bahiasString, prod.avance, id_usuario_final,
                 prod.registro, prod.inicio_surtido, prod.fin_surtido,
-                prod.unido, prod.ordenes_unidas
+                prod.unido, prod.fusion, prod.ordenes_unidas
             ]);
+
+            const [verif] = await conn.query(
+                `SELECT id_pedi, unido, fusion, ordenes_unidas FROM pedidos_surtiendo WHERE codigo_pedido = ? ORDER BY id_pedi DESC LIMIT 1`,
+                [prod.codigo_pedido]
+            );
+            console.log(`🔍 [agregarPedidoSurtiendo] Confirmado en BD ->`, verif[0]);
         }
 
         // ── 5. Actualizar bahías ──────────────────────────────────────────────
