@@ -1,4 +1,13 @@
 const pool = require('../db');
+const axios = require('axios');
+
+// 🔥 Avisa al servidor web (puerto 3001, el dashboard "Progreso de Pedidos")
+// que algo cambió, para que se actualice solo sin recargar la página.
+function notificarWeb(payload) {
+  axios
+    .post('http://localhost:3001/api/surtido/notificar-cambio', payload)
+    .catch(() => {});
+}
 
 const actualizarEstadoPedido = async (req, res) => {
   console.log("📦 Request recibido:", req.body);
@@ -50,6 +59,7 @@ const actualizarEstadoPedido = async (req, res) => {
       }
 
       await connection.commit();
+      notificarWeb({ motivo: 'pedido-estado-actualizado', no_orden: pedidoId, countB, totalProductos });
       return res.json({ message: "Estado del producto actualizado exitosamente" });
     } else {
       await connection.rollback();

@@ -1,6 +1,7 @@
 const SurtidoModel = require('../models/SurtidoModel');
 const axios = require('axios');
 const cron = require('node-cron');
+const { emitPedidosActualizados } = require('../socket');
 
 const obtenerPedidosSurtiendo = async (req, res) => {
     try {
@@ -19,6 +20,7 @@ const cerrarPedidoEmbarque = async (req, res) => {
     try {
         const resultado = await SurtidoModel.moverPedidoAFinalizado(noOrden);
         if (resultado.ok) {
+            emitPedidosActualizados({ motivo: 'pedido-finalizado', no_orden: noOrden });
             res.status(200).json({ ok: true, message: resultado.mensaje });
         } else {
             res.status(400).json({ ok: false, message: resultado.mensaje });
@@ -69,6 +71,7 @@ const asignarUsuarioPaqueteria = async (req, res) => {
 
     try {
         const result = await SurtidoModel.actualizarUsuarioPaqueteria(no_orden, id_usuario_paqueteria);
+        emitPedidosActualizados({ motivo: 'usuario-paqueteria-asignado', no_orden });
         res.json({ ok: true, result });
     } catch (error) {
         console.error("❌ Error en asignarUsuarioPaqueteria:", error);
@@ -252,6 +255,7 @@ const liberarUsuarioPaqueteria = async (req, res) => {
             return res.status(500).json({ ok: false, message: r.message || 'Error al liberar' });
         }
 
+        emitPedidosActualizados({ motivo: 'usuario-paqueteria-liberado', no_orden });
         res.json({ ok: true });
     } catch (e) {
         console.error(e);
@@ -372,6 +376,7 @@ const finalizarPedido = async (req, res) => {
             return res.status(400).json({ message: resultado.mensaje });
         }
 
+        emitPedidosActualizados({ motivo: 'pedido-movido', no_orden: noOrden, tipo });
         res.json({ message: resultado.mensaje });
     } catch (error) {
         console.error("❌ Error en finalizarPedido:", error);

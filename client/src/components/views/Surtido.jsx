@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { FaTimes } from "react-icons/fa";
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import Pagination from '@mui/material/Pagination';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -85,6 +86,25 @@ function Surtiendo() {
     };
 
     useEffect(() => { cargarPedidosSurtiendo(); }, []);
+
+    // 🔥 Conexión en tiempo real: cuando el servidor avisa que algo cambió
+    // (escaneo desde la app móvil, o un movimiento hecho aquí en la web),
+    // se vuelve a pedir la información sola, sin que el usuario recargue la página.
+    useEffect(() => {
+        const socket = io('http://66.232.105.107:3001');
+
+        socket.on('pedidos-actualizados', () => {
+            cargarPedidosSurtiendo();
+            cargarPedidosEmbarques();
+            cargarUsuariosPaqueteria();
+            cargarPedidosPendientes();
+            cargarPedidosFinalizados();
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
 
     const cargarPedidosSurtiendo = async () => {
         try {
@@ -547,7 +567,7 @@ function Surtiendo() {
     const [modalDetalle, setModalDetalle] = useState({ open: false, pedido: null });
     const [qFin, setQFin] = useState('');
 
-    useEffect(() => {
+    const cargarPedidosFinalizados = () => {
         axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados")
             .then(res => {
                 const rows = Array.isArray(res.data) ? res.data : [];
@@ -562,7 +582,9 @@ function Surtiendo() {
                 setPedidosFinalizados(Object.values(map));
             })
             .catch(() => setPedidosFinalizados([]));
-    }, []);
+    };
+
+    useEffect(() => { cargarPedidosFinalizados(); }, []);
 
     const PAGE_SIZE_FIN = 5;
     const [pageFin, setPageFin] = useState(1);

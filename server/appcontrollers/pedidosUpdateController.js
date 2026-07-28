@@ -1,4 +1,15 @@
 const pool = require('../db');
+const axios = require('axios');
+
+// 🔥 Avisa al servidor web (puerto 3001, el dashboard "Progreso de Pedidos")
+// que algo cambió, para que se actualice solo sin recargar la página.
+// Es "fire-and-forget": si falla o el servidor web está caído, no afecta
+// el escaneo en la app.
+function notificarWeb(payload) {
+  axios
+    .post('http://localhost:3001/api/surtido/notificar-cambio', payload)
+    .catch(() => {});
+}
 
 const actualizarCantidadSurtida = async (req, res) => {
   console.log("Request received:", req.body);
@@ -87,6 +98,7 @@ const actualizarCantidadSurtida = async (req, res) => {
     if (resultPedido.affectedRows > 0) {
       await connection.query(updateUmQuery, [cant_surti_um, no_orden, id_pedi]);
       await connection.commit();
+      notificarWeb({ motivo: 'cantidad-surtida-actualizada', no_orden, id_pedi });
       return res.status(200).json({ message: "Cantidad surtida actualizada correctamente." });
     } else {
       throw new Error("No se pudo actualizar `cant_surtida`, verifica las condiciones.");

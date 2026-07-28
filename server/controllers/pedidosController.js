@@ -1,4 +1,5 @@
 const PedidosModel = require('../models/pedidosModel');
+const { emitPedidosActualizados } = require('../socket');
 
 const getProductosPorOrden = async (req, res) => {
     try {
@@ -90,6 +91,7 @@ const agregarPedidoSurtiendo = async (req, res) => {
         });
 
         if (!resultado.ok) return res.status(500).json({ ok: false, message: "Error al insertar pedido" });
+        emitPedidosActualizados({ motivo: 'pedido-agregado-surtido' });
         return res.json({ ok: true, message: "Pedido agregado correctamente" });
 
     } catch (error) {
@@ -136,6 +138,7 @@ const fusionarVqEnEmbarque = async (req, res) => {
             return res.status(400).json({ ok: false, message: resultado.message || "Error al fusionar" });
         }
 
+        emitPedidosActualizados({ motivo: 'ordenes-fusionadas' });
         return res.json({
             ok: true,
             message: "Órdenes fusionadas correctamente",

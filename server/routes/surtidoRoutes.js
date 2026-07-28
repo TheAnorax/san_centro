@@ -2,6 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria
     , obtenerPedidoPorOrdenYTipo, getDetallePedido, sincronizarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion } = require('../controllers/surtidoController');
+const { emitPedidosActualizados } = require('../socket');
+
+// 🔥 La app móvil (servidor aparte, puerto 3003) llama aquí cuando alguien
+// escanea o cambia el estado de un pedido, para que el dashboard web
+// se actualice al instante sin necesidad de recargar la página.
+router.post('/notificar-cambio', (req, res) => {
+    emitPedidosActualizados(req.body || {});
+    res.json({ ok: true });
+});
 
 router.get('/pedidos/pedidos-surtiendo', obtenerPedidosSurtiendo);
 

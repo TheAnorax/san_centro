@@ -76,8 +76,13 @@ app.use('/api/Plan',planRouter);
 
 // * Declarar el puerto del servidor * \\
 
+const http = require('http');
+const { initSocket } = require('./socket');
+
+const server = http.createServer(app);
+initSocket(server); // 🔥 Habilita socket.io para avisar cambios en tiempo real
 
 const port = process.env.PORT || 3001;
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`✅ Servidor backend corriendo en puerto ${port}`);
 });
