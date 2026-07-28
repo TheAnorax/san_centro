@@ -1,4 +1,13 @@
 const pool = require('../db');
+const axios = require('axios');
+
+// 🔥 Avisa al servidor web (puerto 3001) que algo cambió durante el escaneo
+// de embarque, para que el dashboard se actualice solo sin recargar la página.
+function notificarWeb(payload) {
+  axios
+    .post('http://localhost:3001/api/surtido/notificar-cambio', payload)
+    .catch(() => {});
+}
 
 const actualizarProducto = async (req, res) => {
   const { idPedi, scannedPz, scannedPq, scannedInner, scannedMaster, caja, tipoCaja } = req.body;
@@ -64,6 +73,7 @@ const actualizarProducto = async (req, res) => {
     }
 
     console.log("✅ Producto actualizado correctamente en DB");
+    notificarWeb({ motivo: 'producto-embarque-escaneado', id_pedi });
     res.status(200).json({ message: 'Producto actualizado correctamente' });
 
   } catch (err) {
