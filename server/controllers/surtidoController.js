@@ -13,6 +13,29 @@ const obtenerPedidosSurtiendo = async (req, res) => {
     }
 };
 
+// ✏️ Guarda la edición manual de cantidad / cant_surtida / cant_no_enviada / motivo
+// de una línea de pedidos_surtiendo, hecha desde el modal del dashboard web.
+const actualizarProductoSurtiendo = async (req, res) => {
+    const { id_pedi } = req.params;
+    const { cantidad, cant_surtida, cant_no_enviada, motivo } = req.body;
+
+    try {
+        const actualizado = await SurtidoModel.actualizarProductoSurtiendo(id_pedi, {
+            cantidad, cant_surtida, cant_no_enviada, motivo
+        });
+
+        if (!actualizado) {
+            return res.status(404).json({ ok: false, message: "No se encontró el producto a actualizar" });
+        }
+
+        emitPedidosActualizados({ motivo: 'producto-surtido-editado', id_pedi });
+        res.status(200).json({ ok: true, message: "Producto actualizado correctamente" });
+    } catch (err) {
+        console.error("Error al actualizar producto de surtido:", err);
+        res.status(500).json({ ok: false, message: "Error al actualizar el producto" });
+    }
+};
+
 
 const cerrarPedidoEmbarque = async (req, res) => {
     const { noOrden } = req.params;
@@ -399,6 +422,7 @@ const obtenerProductosPorOrdenUniversalConFusion = async (req, res) => {
 
 module.exports = {
     obtenerPedidosSurtiendo,
+    actualizarProductoSurtiendo,
     finalizarPedido,
     cerrarPedidoEmbarque,
     obtenerPedidosFinalizados,

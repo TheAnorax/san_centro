@@ -847,6 +847,61 @@ function Surtiendo() {
 
     // Modal de la pestaña Surtido: ver detalle del pedido y liberarlo
     const [modalSurtido, setModalSurtido] = useState({ open: false, pedido: null, error: null, loading: false });
+    // Ediciones manuales de cantidad/cant_surtida/cant_no_enviada/motivo dentro del modal, por id_pedi
+    const [edicionesSurtido, setEdicionesSurtido] = useState({});
+    const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+
+    // Evita que la página de fondo se desplace mientras el modal de Surtido está abierto
+    useEffect(() => {
+        if (modalSurtido.open) {
+            const previo = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return () => { document.body.style.overflow = previo; };
+        }
+    }, [modalSurtido.open]);
+
+    const cambiarEdicionProducto = (id_pedi, campo, valor) => {
+        setEdicionesSurtido(prev => ({
+            ...prev,
+            [id_pedi]: { ...(prev[id_pedi] || {}), [campo]: valor }
+        }));
+    };
+
+    const guardarEdicionesSurtido = async () => {
+        const ids = Object.keys(edicionesSurtido);
+        if (ids.length === 0) return;
+
+        setGuardandoEdicion(true);
+        setModalSurtido(prev => ({ ...prev, error: null }));
+
+        try {
+            for (const idPedi of ids) {
+                const prodOriginal = (modalSurtido.pedido.productos || []).find(p => String(p.id_pedi) === String(idPedi));
+                const cambios = edicionesSurtido[idPedi];
+                const payload = {
+                    cantidad: cambios.cantidad ?? prodOriginal?.cantidad,
+                    cant_surtida: cambios.cant_surtida ?? prodOriginal?.cant_surtida,
+                    cant_no_enviada: cambios.cant_no_enviada ?? prodOriginal?.cant_no_enviada,
+                    motivo: cambios.motivo ?? prodOriginal?.motivo,
+                };
+                await axios.put(`http://66.232.105.107:3001/api/surtido/pedidos/actualizar-producto/${idPedi}`, payload);
+            }
+
+            // Refrescar datos del pedido en el modal con lo ya guardado
+            const productosActualizados = (modalSurtido.pedido.productos || []).map(p => {
+                const cambios = edicionesSurtido[p.id_pedi];
+                return cambios ? { ...p, ...cambios } : p;
+            });
+            setModalSurtido(prev => ({ ...prev, pedido: { ...prev.pedido, productos: productosActualizados } }));
+            setEdicionesSurtido({});
+            cargarPedidosSurtiendo();
+        } catch (err) {
+            const mensajeServidor = err?.response?.data?.message;
+            setModalSurtido(prev => ({ ...prev, error: mensajeServidor || "Ocurrió un problema al guardar los cambios." }));
+        } finally {
+            setGuardandoEdicion(false);
+        }
+    };
 
     const abrirModalUbicacion = async (noOrden, tipo) => {
         setLoadingModal(true);
@@ -1267,27 +1322,29 @@ function Surtiendo() {
                 const progreso = calcularProgreso(pedido.productos);
                 const esFusionado = !!pedido.ordenes_unidas;
 
+                const hayEdiciones = Object.keys(edicionesSurtido).length > 0;
+
                 return (
-                    <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <div style={{ background: "#fff", borderRadius: "12px", padding: "24px", width: "90%", maxWidth: "700px", maxHeight: "90vh", overflowY: "auto" }}>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", boxSizing: "border-box" }}>
+                        <div style={{ background: "#fff", borderRadius: "12px", padding: "16px", width: "95%", maxWidth: "950px", maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                                 <Typography variant="h6" fontWeight="bold">{pedido.tipo} : {pedido.no_orden} : {pedido.bahia}</Typography>
                                 <IconButton
                                     disabled={modalSurtido.loading}
-                                    onClick={() => setModalSurtido({ open: false, pedido: null, error: null, loading: false })}
+                                    onClick={() => { setModalSurtido({ open: false, pedido: null, error: null, loading: false }); setEdicionesSurtido({}); }}
                                 >
                                     <ClearIcon />
                                 </IconButton>
                             </Box>
 
-                            <Typography fontWeight={600} mb={1}>Surtido por: <b>{pedido.nombre_usuario || "?"}</b></Typography>
+                            <Typography variant="body2" fontWeight={600} mb={0.5}>Surtido por: <b>{pedido.nombre_usuario || "?"}</b></Typography>
                             {esFusionado && (
-                                <Typography variant="body2" sx={{ color: '#7b1fa2', fontWeight: 600, mb: 1 }}>
+                                <Typography variant="body2" sx={{ color: '#7b1fa2', fontWeight: 600, mb: 0.5 }}>
                                     🔗 Órdenes fusionadas: {pedido.ordenes_unidas}
                                 </Typography>
                             )}
 
-                            <Box mt={1} mb={2}>
+                            <Box mt={0.5} mb={1}>
                                 <Typography variant="body2" mb={0.5}>Progreso</Typography>
                                 <Box display="flex" alignItems="center">
                                     <LinearProgress variant="determinate" value={progreso}
@@ -1300,42 +1357,92 @@ function Surtiendo() {
                                 </Box>
                             </Box>
 
-                            <Table size="small" sx={{ mb: 2 }}>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Código</TableCell>
-                                        <TableCell>Cantidad</TableCell>
-                                        <TableCell>Cant. Surtida</TableCell>
-                                        <TableCell>Cant. No Enviada</TableCell>
-                                        <TableCell>Motivo</TableCell>
-                                        <TableCell>Unificado</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {(pedido.productos || []).map((prod, idx) => (
-                                        <TableRow key={prod.codigo_pedido + idx}>
-                                            <TableCell>{prod.codigo_pedido}</TableCell>
-                                            <TableCell>{prod.cantidad}</TableCell>
-                                            <TableCell>{prod.cant_surtida}</TableCell>
-                                            <TableCell>{prod.cant_no_enviada}</TableCell>
-                                            <TableCell>{prod.motivo}</TableCell>
-                                            <TableCell>
-                                                {Number(prod.unido) === 1
-                                                    ? <span style={{ color: '#7b1fa2', fontWeight: 700 }}>Sí</span>
-                                                    : ''}
-                                            </TableCell>
+                            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", border: "1px solid #eee", borderRadius: 8 }}>
+                                <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '0.8rem' } }} stickyHeader>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Código</TableCell>
+                                            <TableCell>Descripción</TableCell>
+                                            <TableCell>Cantidad</TableCell>
+                                            <TableCell>Cant. Surtida</TableCell>
+                                            <TableCell>Cant. No Enviada</TableCell>
+                                            <TableCell>Motivo</TableCell>
+                                            <TableCell>Unificado</TableCell>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHead>
+                                    <TableBody>
+                                        {(pedido.productos || []).map((prod, idx) => {
+                                            const edicion = edicionesSurtido[prod.id_pedi] || {};
+                                            const valCantidad = edicion.cantidad ?? prod.cantidad;
+                                            const valSurtida = edicion.cant_surtida ?? prod.cant_surtida;
+                                            const valNoEnviada = edicion.cant_no_enviada ?? prod.cant_no_enviada;
+                                            const valMotivo = edicion.motivo ?? (prod.motivo || '');
+                                            const sobreSurtido = Number(valSurtida) > Number(valCantidad);
+
+                                            return (
+                                                <TableRow key={prod.id_pedi ?? (prod.codigo_pedido + idx)}>
+                                                    <TableCell sx={sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined}>
+                                                        {prod.codigo_pedido}
+                                                    </TableCell>
+                                                    <TableCell>{prod.descripcion_producto || ''}</TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            variant="standard" type="number" size="small"
+                                                            value={valCantidad ?? ''}
+                                                            sx={{ width: 60, input: sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined }}
+                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cantidad', e.target.value)}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            variant="standard" type="number" size="small"
+                                                            value={valSurtida ?? ''}
+                                                            sx={{ width: 60, input: sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined }}
+                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cant_surtida', e.target.value)}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            variant="standard" type="number" size="small"
+                                                            value={valNoEnviada ?? ''}
+                                                            sx={{ width: 60 }}
+                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cant_no_enviada', e.target.value)}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            variant="standard" size="small"
+                                                            value={valMotivo}
+                                                            sx={{ width: 160 }}
+                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'motivo', e.target.value)}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {Number(prod.unido) === 1
+                                                            ? <span style={{ color: '#7b1fa2', fontWeight: 700 }}>Sí</span>
+                                                            : ''}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
 
                             {modalSurtido.error && (
-                                <Box sx={{ background: '#fdecea', border: '1px solid #f5c6cb', color: '#611a15', borderRadius: 2, p: 1.5, mb: 2 }}>
+                                <Box sx={{ background: '#fdecea', border: '1px solid #f5c6cb', color: '#611a15', borderRadius: 2, p: 1.5, mt: 1.5 }}>
                                     <Typography variant="body2" fontWeight={600}>❌ {modalSurtido.error}</Typography>
                                 </Box>
                             )}
 
-                            <Box display="flex" gap={1} flexWrap="wrap">
+                            <Box display="flex" gap={1} flexWrap="wrap" mt={1.5}>
+                                {hayEdiciones && (
+                                    <Button size="small" variant="contained" color="primary" disabled={guardandoEdicion}
+                                        onClick={guardarEdicionesSurtido}>
+                                        {guardandoEdicion ? "Guardando..." : "💾 Guardar cambios"}
+                                    </Button>
+                                )}
+
                                 <Button size="small" variant="outlined" color="secondary"
                                     onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
                                     📄 Vista previa PDF

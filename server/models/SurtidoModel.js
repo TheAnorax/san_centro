@@ -66,12 +66,28 @@ cron.schedule('*/1 * * * *', async () => {
 // Obtener todos los pedidos en proceso de surtido
 const getPedidosSurtiendo = async () => {
     const [rows] = await pool.query(`
-        SELECT ps.*, u.nombre AS nombre_usuario
+        SELECT ps.*, u.nombre AS nombre_usuario, prod.descripcion AS descripcion_producto
         FROM pedidos_surtiendo ps
         LEFT JOIN usuarios u ON ps.id_usuario = u.id
+        LEFT JOIN productos prod ON ps.codigo_pedido = prod.codigo
         ORDER BY ps.no_orden DESC
     `);
     return rows;
+};
+
+// ✏️ Edición manual desde el dashboard web: permite corregir cantidad,
+// cant_surtida, cant_no_enviada y motivo de una línea en pedidos_surtiendo.
+const actualizarProductoSurtiendo = async (id_pedi, { cantidad, cant_surtida, cant_no_enviada, motivo }) => {
+    const [result] = await pool.query(`
+        UPDATE pedidos_surtiendo
+        SET cantidad = ?,
+            cant_surtida = ?,
+            cant_no_enviada = ?,
+            motivo = ?
+        WHERE id_pedi = ?
+    `, [cantidad, cant_surtida, cant_no_enviada, motivo || null, id_pedi]);
+
+    return result.affectedRows > 0;
 };
 
 // Mover el pedido completo a la tabla de embarques
@@ -678,5 +694,6 @@ const obtenerProductosPorOrdenUniversalConFusion = async (noOrden, tipo) => {
 module.exports = {
     getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado,
     getpedidosFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
-    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido, insertarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion
+    liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido, insertarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion,
+    actualizarProductoSurtiendo
 };

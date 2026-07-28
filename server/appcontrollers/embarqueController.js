@@ -104,13 +104,13 @@ SELECT
   tipo_caja,
   cajas
 FROM pedidos_embarques
-WHERE estado = ?;
+WHERE estado = ? AND no_orden = ?;
 
-    `, [estado]);
+    `, [estado, pedido]);
 
     // 🔍 Si no se insertaron registros, no ejecutar el DELETE
     if (insertResult.affectedRows > 0) {
-      await connection.query(`DELETE FROM pedidos_embarques WHERE estado = ?;`, [estado]);
+      await connection.query(`DELETE FROM pedidos_embarques WHERE estado = ? AND no_orden = ?;`, [estado, pedido]);
     }
 
     await connection.commit(); // Confirmar la transacción

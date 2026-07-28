@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPedidosSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria
+const { obtenerPedidosSurtiendo, actualizarProductoSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria
     , obtenerPedidoPorOrdenYTipo, getDetallePedido, sincronizarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion } = require('../controllers/surtidoController');
 const { emitPedidosActualizados } = require('../socket');
 
@@ -13,6 +13,7 @@ router.post('/notificar-cambio', (req, res) => {
 });
 
 router.get('/pedidos/pedidos-surtiendo', obtenerPedidosSurtiendo);
+router.put('/pedidos/actualizar-producto/:id_pedi', actualizarProductoSurtiendo);
 
 router.get("/pedido/:noOrden/:tipo", obtenerPedidoPorOrdenYTipo);
 router.post('/finalizar/:noOrden/:tipo', finalizarPedido);
