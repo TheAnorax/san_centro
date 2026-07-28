@@ -186,12 +186,54 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)
         `, [noOrden, tipo]);
 
+        // 🔥 EL PEDIDO YA QUEDÓ REGISTRADO EN EMBARQUE (pedidos_embarques).
+        // Aquí, y no antes, se descuenta el inventario real.
+        const inventarioResumen = [];
+
+        for (const p of lineasActivas) {
+            const cantASurtir = Number(p.cant_surtida) || 0;
+            if (cantASurtir <= 0) continue;
+
+            const [ubicaciones] = await connection.query(
+                `SELECT id_ubicaccion, cant_stock_real, ubicacion
+                 FROM inventario
+                 WHERE codigo_producto = ?
+                 ORDER BY cant_stock_real DESC
+                 LIMIT 1`,
+                [p.codigo_pedido]
+            );
+
+            if (ubicaciones.length === 0) {
+                console.warn(`⚠️ Sin ubicación de inventario para el producto ${p.codigo_pedido} (pedido ${noOrden}-${tipo}).`);
+                inventarioResumen.push({ codigo_pedido: p.codigo_pedido, ok: false, motivo: "sin_ubicacion" });
+                continue;
+            }
+
+            const { id_ubicaccion, cant_stock_real, ubicacion } = ubicaciones[0];
+
+            if (cant_stock_real < cantASurtir) {
+                console.warn(`⚠️ Stock insuficiente al descontar en embarque. Producto ${p.codigo_pedido}, ubicación ${ubicacion}. Disponible: ${cant_stock_real}, requerido: ${cantASurtir}.`);
+                inventarioResumen.push({ codigo_pedido: p.codigo_pedido, ok: false, motivo: "stock_insuficiente" });
+                continue;
+            }
+
+            await connection.query(
+                "UPDATE inventario SET cant_stock_real = cant_stock_real - ? WHERE id_ubicaccion = ?",
+                [cantASurtir, id_ubicaccion]
+            );
+
+            inventarioResumen.push({ codigo_pedido: p.codigo_pedido, ok: true, descontado: cantASurtir });
+        }
+
+        console.log("📦 Resumen de descuento de inventario en embarque:", inventarioResumen);
+
         await connection.commit();
 
         return {
             ok: true,
             estadoPedido: totalNoEnviado > 0 ? 'PARCIAL' : 'COMPLETO',
-            mensaje: `Pedido ${noOrden}-${tipo} movido a embarques.`
+            mensaje: `Pedido ${noOrden}-${tipo} movido a embarques.`,
+            inventario: inventarioResumen
         };
 
     } catch (error) {

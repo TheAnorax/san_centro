@@ -60,6 +60,8 @@ const actualizarCantidadSurtida = async (req, res) => {
     return res.status(400).json({ error: "Unidad de medida no soportada" });
   }
 
+  // 🔥 El descuento de inventario se quitó de aquí (escaneo en Surtido).
+  // La app ya NO reduce el stock en este paso.
   let connection;
   try {
     connection = await pool.getConnection();
@@ -77,7 +79,7 @@ const actualizarCantidadSurtida = async (req, res) => {
     const { cant_surtida, cantidad } = pedidoCheck[0];
 
     if (cant_surtida >= cantidad) {
-      return res.status(200).json({ message: "El pedido ya ha sido surtido completamente. No se descuenta stock." });
+      return res.status(200).json({ message: "El pedido ya ha sido surtido completamente." });
     }
 
     const [resultPedido] = await connection.query(updatePedidoQuery, [totalUnidades, usuarioS, no_orden, id_pedi]);
@@ -85,6 +87,7 @@ const actualizarCantidadSurtida = async (req, res) => {
     if (resultPedido.affectedRows > 0) {
       await connection.query(updateUmQuery, [cant_surti_um, no_orden, id_pedi]);
       await connection.commit();
+      return res.status(200).json({ message: "Cantidad surtida actualizada correctamente." });
     } else {
       throw new Error("No se pudo actualizar `cant_surtida`, verifica las condiciones.");
     }
@@ -92,47 +95,6 @@ const actualizarCantidadSurtida = async (req, res) => {
     if (connection) await connection.rollback();
     console.error("Error en la transacción pedidos_surtiendo:", transactionError);
     return res.status(500).json({ error: transactionError.message });
-  } finally {
-    if (connection) connection.release();
-  }
-
-  try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    const [ubicaciones] = await connection.query(
-      "SELECT id_ubicaccion, cant_stock_real, ubicacion, almacen FROM inventario WHERE codigo_producto = ? ORDER BY cant_stock_real DESC LIMIT 1",
-      [codigo_ped]
-    );
-
-    if (ubicaciones.length === 0) {
-      throw new Error(`No se encontró el producto con código ${codigo_ped} en la tabla de inventario.`);
-    }
-
-    const { id_ubicaccion, cant_stock_real, ubicacion, almacen } = ubicaciones[0];
-
-    if (cant_stock_real < totalUnidades) {
-      throw new Error(`Stock insuficiente en la ubicación (${ubicacion}). Disponible: ${cant_stock_real}, Intentando descontar: ${totalUnidades}`);
-    }
-
-    const [updateStock] = await connection.query(
-      "UPDATE inventario SET cant_stock_real = cant_stock_real - ? WHERE id_ubicaccion = ?",
-      [totalUnidades, id_ubicaccion]
-    );
-
-    if (updateStock.affectedRows === 0) {
-      throw new Error("No se pudo actualizar el stock en la ubicación.");
-    }
-
-
-    await connection.commit();
-
-    res.status(200).json({ message: "Cantidad surtida actualizada y stock descontado correctamente." });
-
-  } catch (transactionError) {
-    if (connection) await connection.rollback();
-    console.error("Error en la transacción inventario:", transactionError);
-    res.status(500).json({ error: transactionError.message });
   } finally {
     if (connection) connection.release();
   }

@@ -409,9 +409,12 @@ function Surtiendo() {
             });
             if (!isConfirmed) return;
 
+            setModalSurtido(prev => ({ ...prev, loading: true, error: null }));
+
             const { data } = await axios.get(`http://66.232.105.107:3001/api/surtido/productos-fusion/${noOrden}/${tipo}`);
             const productos = data.productos;
             if (!productos || productos.length === 0) {
+                setModalSurtido(prev => ({ ...prev, loading: false }));
                 await Swal.fire({ title: "Sin datos", text: `No se encontraron productos para el pedido ${noOrden}-${tipo}.`, icon: "warning" });
                 return;
             }
@@ -445,7 +448,10 @@ function Surtiendo() {
                     confirmButtonText: "Continuar de todas formas", cancelButtonText: "Cancelar y corregir",
                     confirmButtonColor: "#e67e22", cancelButtonColor: "#3085d6", width: 520,
                 });
-                if (!continuar) return;
+                if (!continuar) {
+                    setModalSurtido(prev => ({ ...prev, loading: false }));
+                    return;
+                }
             }
 
             const doc = new jsPDF();
@@ -458,11 +464,17 @@ function Surtiendo() {
             const res = await axios.post(`http://66.232.105.107:3001/api/surtido/finalizar/${noOrden}/${tipo}`);
             setPedidos(prev => prev.filter(p => !(p.no_orden === noOrden && p.tipo === tipo)));
             setEmbarques(prev => prev.filter(p => !(p.no_orden === noOrden && p.tipo === tipo)));
+            setModalSurtido({ open: false, pedido: null, error: null, loading: false });
             Swal.fire({ title: "Liberado", text: res.data.message || "Pedido Liberado", icon: "success", confirmButtonColor: "#0ee231ff" });
 
         } catch (err) {
             console.error(err);
-            Swal.fire({ title: "❌ Error del servidor", text: "Ocurrió un problema al generar el PDF o finalizar el pedido.", icon: "error", confirmButtonColor: "#e74c3c", confirmButtonText: "Cerrar" });
+            const mensajeServidor = err.response?.data?.message;
+            setModalSurtido(prev => ({
+                ...prev,
+                loading: false,
+                error: mensajeServidor || "Ocurrió un problema al generar el PDF o finalizar el pedido."
+            }));
         }
     };
 
@@ -811,6 +823,9 @@ function Surtiendo() {
     const [miUbicacion, setMiUbicacion] = useState(null);
     const [loadingModal, setLoadingModal] = useState(false);
 
+    // Modal de la pestaña Surtido: ver detalle del pedido y liberarlo
+    const [modalSurtido, setModalSurtido] = useState({ open: false, pedido: null, error: null, loading: false });
+
     const abrirModalUbicacion = async (noOrden, tipo) => {
         setLoadingModal(true);
         setModalUbicacion({ open: true, pedido: { noOrden, tipo }, cliente: null });
@@ -853,96 +868,65 @@ function Surtiendo() {
                     {/* ==================== TAB SURTIDO ==================== */}
                     {tabActual === 0 && (
                         <div>
-                            <Box p={3} sx={{ height: 'calc(100vh - 180px)', overflowY: 'auto', background: "#faf9f9" }}>
+                            <Box p={2} sx={{ height: 'calc(100vh - 180px)', overflowY: 'auto', background: "#faf9f9" }}>
                                 {pedidos.length === 0 ? (
                                     <Typography color="textSecondary" align="center" mt={4}>No hay pedidos en surtido.</Typography>
-                                ) : pedidos.map(pedido => {
-                                    const progreso = calcularProgreso(pedido.productos);
-                                    const rowKey = pedido.key || (pedido.no_orden + pedido.tipo);
-                                    const esFusionado = !!pedido.ordenes_unidas;
+                                ) : (
+                                    <Paper variant="outlined">
+                                        <Table size="small">
+                                            <TableHead>
+                                                <TableRow sx={{ background: '#f5f5f5' }}>
+                                                    <TableCell>Tipo</TableCell>
+                                                    <TableCell>No. Orden</TableCell>
+                                                    <TableCell>Bahía</TableCell>
+                                                    <TableCell>Surtido por</TableCell>
+                                                    <TableCell>Progreso</TableCell>
+                                                    <TableCell align="right">Acción</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {pedidos.map(pedido => {
+                                                    const progreso = calcularProgreso(pedido.productos);
+                                                    const rowKey = pedido.key || (pedido.no_orden + pedido.tipo);
+                                                    const esFusionado = !!pedido.ordenes_unidas;
 
-                                    return (
-                                        <Card key={rowKey} sx={{ mb: 4, border: esFusionado ? '2px solid #7b1fa2' : undefined }}>
-                                            <CardContent>
-                                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                                                    <Box>
-                                                        <Typography variant="h6" fontWeight={600}>{pedido.tipo} : {pedido.no_orden} : {pedido.bahia}</Typography>
-                                                        <Typography fontWeight={600}>Surtido por: <b>{pedido.nombre_usuario || "?"}</b></Typography>
-                                                        {esFusionado && (
-                                                            <Typography variant="body2" sx={{ color: '#7b1fa2', fontWeight: 600, mt: 0.5 }}>
-                                                                🔗 Órdenes fusionadas: {pedido.ordenes_unidas}
-                                                            </Typography>
-                                                        )}
-                                                    </Box>
-
-                                                    <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
-                                                        <Button size="small" variant="outlined"
-                                                            onClick={() => setExpanded(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}>
-                                                            {expanded[rowKey] ? "Ocultar" : "Ver productos"}
-                                                        </Button>
-
-                                                        {/* ✅ Vista previa PDF — fuente surtido */}
-                                                        <Button size="small" variant="outlined" color="secondary"
-                                                            onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
-                                                            📄 Vista previa PDF
-                                                        </Button>
-
-                                                        {progreso === 100 && (
-                                                            <Button size="small" variant="contained" color="success"
-                                                                onClick={() => finalizarPedido(pedido.no_orden, pedido.tipo)}>
-                                                                Autorización
-                                                            </Button>
-                                                        )}
-                                                    </Box>
-                                                </Box>
-
-                                                <Box mt={1} mb={2}>
-                                                    <Typography variant="body2" mb={0.5}>Progreso</Typography>
-                                                    <Box display="flex" alignItems="center">
-                                                        <LinearProgress variant="determinate" value={progreso}
-                                                            sx={{
-                                                                flex: 1, height: 8, borderRadius: 8, mr: 2, background: "#d6eaff",
-                                                                '& .MuiLinearProgress-bar': { background: progreso === 100 ? '#2ecc40' : progreso > 0 ? '#82f263' : '#c4e0fc' }
-                                                            }}
-                                                        />
-                                                        <Typography width={40} fontWeight={600} textAlign="right">{progreso}%</Typography>
-                                                    </Box>
-                                                </Box>
-
-                                                {expanded[rowKey] && (
-                                                    <Table size="small" sx={{ mt: 2 }}>
-                                                        <TableHead>
-                                                            <TableRow>
-                                                                <TableCell>Código</TableCell>
-                                                                <TableCell>Cantidad</TableCell>
-                                                                <TableCell>Cant. Surtida</TableCell>
-                                                                <TableCell>Cant. No Enviada</TableCell>
-                                                                <TableCell>Motivo</TableCell>
-                                                                <TableCell>Unificado</TableCell>
-                                                            </TableRow>
-                                                        </TableHead>
-                                                        <TableBody>
-                                                            {(pedido.productos || []).map((prod, idx) => (
-                                                                <TableRow key={prod.codigo_pedido + idx}>
-                                                                    <TableCell>{prod.codigo_pedido}</TableCell>
-                                                                    <TableCell>{prod.cantidad}</TableCell>
-                                                                    <TableCell>{prod.cant_surtida}</TableCell>
-                                                                    <TableCell>{prod.cant_no_enviada}</TableCell>
-                                                                    <TableCell>{prod.motivo}</TableCell>
-                                                                    <TableCell>
-                                                                        {Number(prod.unido) === 1
-                                                                            ? <span style={{ color: '#7b1fa2', fontWeight: 700 }}>Sí</span>
-                                                                            : ''}
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                        </TableBody>
-                                                    </Table>
-                                                )}
-                                            </CardContent>
-                                        </Card>
-                                    );
-                                })}
+                                                    return (
+                                                        <TableRow key={rowKey} hover>
+                                                            <TableCell>{pedido.tipo}</TableCell>
+                                                            <TableCell>
+                                                                {pedido.no_orden}
+                                                                {esFusionado && (
+                                                                    <Typography variant="caption" display="block" sx={{ color: '#7b1fa2', fontWeight: 600 }}>
+                                                                        🔗 {pedido.ordenes_unidas}
+                                                                    </Typography>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>{pedido.bahia}</TableCell>
+                                                            <TableCell>{pedido.nombre_usuario || "?"}</TableCell>
+                                                            <TableCell>
+                                                                <Box display="flex" alignItems="center" gap={1}>
+                                                                    <LinearProgress variant="determinate" value={progreso}
+                                                                        sx={{
+                                                                            width: 80, height: 8, borderRadius: 8, background: "#d6eaff",
+                                                                            '& .MuiLinearProgress-bar': { background: progreso === 100 ? '#2ecc40' : progreso > 0 ? '#82f263' : '#c4e0fc' }
+                                                                        }}
+                                                                    />
+                                                                    <Typography variant="body2">{progreso}%</Typography>
+                                                                </Box>
+                                                            </TableCell>
+                                                            <TableCell align="right">
+                                                                <Button size="small" variant="contained"
+                                                                    onClick={() => setModalSurtido({ open: true, pedido, error: null, loading: false })}>
+                                                                    Ver / Liberar
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </Paper>
+                                )}
                             </Box>
                         </div>
                     )}
@@ -1254,6 +1238,98 @@ function Surtiendo() {
 
                 </Box>
             </Box>
+
+            {/* ========== MODAL SURTIDO (ver detalle / liberar) ========== */}
+            {modalSurtido.open && modalSurtido.pedido && (() => {
+                const pedido = modalSurtido.pedido;
+                const progreso = calcularProgreso(pedido.productos);
+                const esFusionado = !!pedido.ordenes_unidas;
+
+                return (
+                    <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div style={{ background: "#fff", borderRadius: "12px", padding: "24px", width: "90%", maxWidth: "700px", maxHeight: "90vh", overflowY: "auto" }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                <Typography variant="h6" fontWeight="bold">{pedido.tipo} : {pedido.no_orden} : {pedido.bahia}</Typography>
+                                <IconButton
+                                    disabled={modalSurtido.loading}
+                                    onClick={() => setModalSurtido({ open: false, pedido: null, error: null, loading: false })}
+                                >
+                                    <ClearIcon />
+                                </IconButton>
+                            </Box>
+
+                            <Typography fontWeight={600} mb={1}>Surtido por: <b>{pedido.nombre_usuario || "?"}</b></Typography>
+                            {esFusionado && (
+                                <Typography variant="body2" sx={{ color: '#7b1fa2', fontWeight: 600, mb: 1 }}>
+                                    🔗 Órdenes fusionadas: {pedido.ordenes_unidas}
+                                </Typography>
+                            )}
+
+                            <Box mt={1} mb={2}>
+                                <Typography variant="body2" mb={0.5}>Progreso</Typography>
+                                <Box display="flex" alignItems="center">
+                                    <LinearProgress variant="determinate" value={progreso}
+                                        sx={{
+                                            flex: 1, height: 8, borderRadius: 8, mr: 2, background: "#d6eaff",
+                                            '& .MuiLinearProgress-bar': { background: progreso === 100 ? '#2ecc40' : progreso > 0 ? '#82f263' : '#c4e0fc' }
+                                        }}
+                                    />
+                                    <Typography width={40} fontWeight={600} textAlign="right">{progreso}%</Typography>
+                                </Box>
+                            </Box>
+
+                            <Table size="small" sx={{ mb: 2 }}>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell>Código</TableCell>
+                                        <TableCell>Cantidad</TableCell>
+                                        <TableCell>Cant. Surtida</TableCell>
+                                        <TableCell>Cant. No Enviada</TableCell>
+                                        <TableCell>Motivo</TableCell>
+                                        <TableCell>Unificado</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {(pedido.productos || []).map((prod, idx) => (
+                                        <TableRow key={prod.codigo_pedido + idx}>
+                                            <TableCell>{prod.codigo_pedido}</TableCell>
+                                            <TableCell>{prod.cantidad}</TableCell>
+                                            <TableCell>{prod.cant_surtida}</TableCell>
+                                            <TableCell>{prod.cant_no_enviada}</TableCell>
+                                            <TableCell>{prod.motivo}</TableCell>
+                                            <TableCell>
+                                                {Number(prod.unido) === 1
+                                                    ? <span style={{ color: '#7b1fa2', fontWeight: 700 }}>Sí</span>
+                                                    : ''}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+
+                            {modalSurtido.error && (
+                                <Box sx={{ background: '#fdecea', border: '1px solid #f5c6cb', color: '#611a15', borderRadius: 2, p: 1.5, mb: 2 }}>
+                                    <Typography variant="body2" fontWeight={600}>❌ {modalSurtido.error}</Typography>
+                                </Box>
+                            )}
+
+                            <Box display="flex" gap={1} flexWrap="wrap">
+                                <Button size="small" variant="outlined" color="secondary"
+                                    onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
+                                    📄 Vista previa PDF
+                                </Button>
+
+                                {progreso === 100 && (
+                                    <Button size="small" variant="contained" color="success" disabled={modalSurtido.loading}
+                                        onClick={() => finalizarPedido(pedido.no_orden, pedido.tipo)}>
+                                        {modalSurtido.loading ? "Procesando..." : "Autorización"}
+                                    </Button>
+                                )}
+                            </Box>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ========== MODAL UBICACIÓN ========== */}
             {modalUbicacion.open && (
