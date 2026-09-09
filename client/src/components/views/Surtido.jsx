@@ -567,8 +567,29 @@ function Surtiendo() {
     const [modalDetalle, setModalDetalle] = useState({ open: false, pedido: null });
     const [qFin, setQFin] = useState('');
 
-    const cargarPedidosFinalizados = () => {
-        axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados")
+    // ✅ Filtro por mes — mesFin en formato "YYYY-MM" (vacío = todos).
+    // Por default siempre arranca en el mes actual, sin que el usuario tenga que elegirlo.
+    const getMesActual = () => {
+        const hoy = new Date();
+        return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+    };
+    const [mesFin, setMesFin] = useState(getMesActual());
+    const [mesesDisponibles, setMesesDisponibles] = useState([]);
+
+    const cargarMesesDisponibles = () => {
+        axios.get("http://66.232.105.107:3001/api/surtido/meses-disponibles-finalizados")
+            .then(res => setMesesDisponibles(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setMesesDisponibles([]));
+    };
+
+    const cargarPedidosFinalizados = (mesSeleccionado) => {
+        const params = {};
+        if (mesSeleccionado) {
+            const [anio, mes] = mesSeleccionado.split('-');
+            params.anio = anio;
+            params.mes = mes;
+        }
+        axios.get("http://66.232.105.107:3001/api/surtido/Obtener-pedidos-finalizados", { params })
             .then(res => {
                 const rows = Array.isArray(res.data) ? res.data : [];
                 const map = {};
@@ -584,7 +605,8 @@ function Surtiendo() {
             .catch(() => setPedidosFinalizados([]));
     };
 
-    useEffect(() => { cargarPedidosFinalizados(); }, []);
+    useEffect(() => { cargarMesesDisponibles(); }, []);
+    useEffect(() => { cargarPedidosFinalizados(mesFin); }, [mesFin]);
 
     const PAGE_SIZE_FIN = 5;
     const [pageFin, setPageFin] = useState(1);
@@ -1180,6 +1202,8 @@ function Surtiendo() {
                         const td = { padding: '7px 10px', color: '#333', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap' };
                         const tdAlert = { padding: '7px 10px', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap', background: '#FCEBEB', color: '#791F1F' };
 
+                        const NOMBRES_MES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
                         return (
                             <Box p={2}>
                                 <Box display="flex" alignItems="center" gap={2} mb={2} flexWrap="wrap">
@@ -1190,6 +1214,24 @@ function Surtiendo() {
                                             endAdornment: qFin ? (<InputAdornment position="end"><IconButton size="small" onClick={() => { setQFin(''); setPageFin(1); }}><ClearIcon fontSize="small" /></IconButton></InputAdornment>) : null,
                                         }}
                                     />
+
+                                    {/* ✅ Filtro por mes — se llena con los meses que realmente tienen pedidos finalizados */}
+                                    <select
+                                        value={mesFin}
+                                        onChange={(e) => setMesFin(e.target.value)}
+                                        style={{ height: 38, borderRadius: 8, border: '1px solid #ddd', fontSize: 13, padding: '0 10px', background: '#fff', minWidth: 170 }}
+                                    >
+                                        <option value="">Todos los meses</option>
+                                        {mesesDisponibles.map(m => {
+                                            const value = `${m.anio}-${String(m.mes).padStart(2, '0')}`;
+                                            return (
+                                                <option key={value} value={value}>
+                                                    {NOMBRES_MES[Number(m.mes)]} {m.anio}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+
                                     <span style={{ fontSize: 12, color: '#888', background: '#f3f3f3', padding: '4px 12px', borderRadius: 20, border: '1px solid #e0e0e0' }}>{finalizadosFiltrados.length} pedidos</span>
                                     <Box ml="auto">
                                         <Pagination count={totalPagesFin} page={pageFin} onChange={(_, p) => setPageFin(p)} size="small" color="primary" showFirstButton showLastButton />

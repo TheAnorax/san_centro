@@ -42,7 +42,7 @@ const actualizarUbicacion = async (id, ubicacion) => {
 
 // ================================================
 // PUT Calcular inv_opt
-// ================================================
+// ================================================ 
 const actualizarInvOpt = async () => {
   const [result] = await pool.query(`
     UPDATE inventario

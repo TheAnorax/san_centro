@@ -73,7 +73,7 @@ const actualizarProducto = async (req, res) => {
     }
 
     console.log("✅ Producto actualizado correctamente en DB");
-    notificarWeb({ motivo: 'producto-embarque-escaneado', id_pedi });
+    notificarWeb({ motivo: 'producto-embarque-escaneado', id_pedi: idPedi });
     res.status(200).json({ message: 'Producto actualizado correctamente' });
 
   } catch (err) {

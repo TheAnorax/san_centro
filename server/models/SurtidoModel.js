@@ -349,7 +349,7 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
                 p.id_usuario, p.id_usuario_paqueteria, p.registro,
                 p.inicio_surtido, p.fin_surtido, p.inicio_embarque, p.fin_embarque,
                 p.unido, p.registro_surtido, p.registro_embarque, p.caja, p.motivo,
-                p.unificado, null, null,  // registro_fin, id_usuario_surtido
+                p.unificado, new Date(), null,  // registro_fin (✅ antes quedaba NULL), id_usuario_surtido
                 p.fusion, p.tipo_caja, p.cajas, p.ordenes_unidas
             ]);
         }
@@ -372,9 +372,24 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
     }
 };
 
-const getpedidosFinalizados = async () => {
+// ✅ anio/mes son opcionales: si vienen, filtra por pf.registro_fin (fecha en que se finalizó el pedido)
+const getpedidosFinalizados = async (anio, mes) => {
+    const condiciones = [];
+    const params = [];
+
+    if (anio) {
+        condiciones.push('YEAR(pf.registro_fin) = ?');
+        params.push(Number(anio));
+    }
+    if (mes) {
+        condiciones.push('MONTH(pf.registro_fin) = ?');
+        params.push(Number(mes));
+    }
+
+    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+
     const [rows] = await pool.query(`
-        SELECT 
+        SELECT
             pf.no_orden,
             pf.tipo,
             pf.id_usuario,
@@ -396,6 +411,7 @@ const getpedidosFinalizados = async () => {
             pf.v_inner,
             pf.inicio_embarque,
             pf.fin_embarque,
+            pf.registro_fin,
             -- 🔥 DATOS DE SANCED
             s.no_factura,
             s.total,
@@ -404,7 +420,21 @@ const getpedidosFinalizados = async () => {
         LEFT JOIN usuarios u ON pf.id_usuario = u.id
         LEFT JOIN usuarios a ON pf.id_usuario_paqueteria = a.id
         LEFT JOIN sanced s ON pf.no_orden = s.no_orden  -- 🔥 JOIN
-        ORDER BY pf.no_orden DESC;
+        ${where}
+        ORDER BY pf.registro_fin DESC, pf.no_orden DESC;
+    `, params);
+    return rows;
+};
+
+// ✅ Meses/años que realmente tienen pedidos finalizados, para llenar el selector
+const getMesesDisponiblesFinalizados = async () => {
+    const [rows] = await pool.query(`
+        SELECT DISTINCT
+            YEAR(registro_fin) AS anio,
+            MONTH(registro_fin) AS mes
+        FROM pedido_finalizado
+        WHERE registro_fin IS NOT NULL
+        ORDER BY anio DESC, mes DESC;
     `);
     return rows;
 };
@@ -693,7 +723,7 @@ const obtenerProductosPorOrdenUniversalConFusion = async (noOrden, tipo) => {
 
 module.exports = {
     getPedidosSurtiendo, moverPedidoASurtidoFinalizado, getPedidosEmbarque, moverPedidoAFinalizado,
-    getpedidosFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
+    getpedidosFinalizados, getMesesDisponiblesFinalizados, verificarYFinalizarPedido, getUsuariosEmbarques, actualizarUsuarioPaqueteria,
     liberarUsuarioPaqueteria, obtenerPedidoPorOrdenYTipo, obtenerDetallePedido, insertarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion,
     actualizarProductoSurtiendo
 };

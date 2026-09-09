@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerPedidosSurtiendo, actualizarProductoSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria
+const { obtenerPedidosSurtiendo, actualizarProductoSurtiendo, finalizarPedido, obtenerPedidosEmbarque, cerrarPedidoEmbarque, obtenerPedidosFinalizados, obtenerMesesDisponiblesFinalizados, asignarUsuarioPaqueteria, obtenerUsuariosEmbarques, getPedidosEmbarquePacking, liberarUsuarioPaqueteria
     , obtenerPedidoPorOrdenYTipo, getDetallePedido, sincronizarSanced, obtenerDatosSanced, obtenerProductosPorOrdenUniversalConFusion } = require('../controllers/surtidoController');
 const { emitPedidosActualizados } = require('../socket');
 
@@ -24,6 +24,7 @@ router.get('/embarque', obtenerPedidosEmbarque);
 router.post('/pedido-finalizado/:noOrden', cerrarPedidoEmbarque);
 
 router.get('/Obtener-pedidos-finalizados', obtenerPedidosFinalizados);
+router.get('/meses-disponibles-finalizados', obtenerMesesDisponiblesFinalizados);
 
 router.get('/Obtener-usuarios', obtenerUsuariosEmbarques);
 

@@ -56,11 +56,23 @@ const cerrarPedidoEmbarque = async (req, res) => {
 
 const obtenerPedidosFinalizados = async (req, res) => {
     try {
-        const pedidos = await SurtidoModel.getpedidosFinalizados();
+        // ✅ Filtro opcional por mes: /Obtener-pedidos-finalizados?anio=2026&mes=7
+        const { anio, mes } = req.query;
+        const pedidos = await SurtidoModel.getpedidosFinalizados(anio, mes);
         res.status(200).json(pedidos);
     } catch (error) {
         console.error("Error al obtener pedidos finalizados", error);
         res.status(500).json({ ok: false, message: "Error al obtner pedidos Finalizados" });
+    }
+};
+
+const obtenerMesesDisponiblesFinalizados = async (req, res) => {
+    try {
+        const meses = await SurtidoModel.getMesesDisponiblesFinalizados();
+        res.status(200).json(meses);
+    } catch (error) {
+        console.error("Error al obtener meses disponibles", error);
+        res.status(500).json({ ok: false, message: "Error al obtener meses disponibles" });
     }
 };
 
@@ -426,6 +438,7 @@ module.exports = {
     finalizarPedido,
     cerrarPedidoEmbarque,
     obtenerPedidosFinalizados,
+    obtenerMesesDisponiblesFinalizados,
     obtenerPedidosEmbarque,
     obtenerUsuariosEmbarques,
     asignarUsuarioPaqueteria,
