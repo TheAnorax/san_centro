@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     Card, CardContent, Typography, Box, Button,
     Table, TableBody, TableCell, TableHead, TableRow,
@@ -67,6 +67,10 @@ function Surtiendo() {
     const [tabActual, setTabActual] = useState(0);
     const handleChange = (_e, v) => setTabActual(v);
 
+    // ✅ Guarda siempre el mes seleccionado en Finalizados, para que el listener
+    // de tiempo real (más abajo) pueda respetarlo aunque solo se cree una vez al montar.
+    const mesFinRef = useRef(null);
+
     /* ---------- Surtido ---------- */
     const [pedidos, setPedidos] = useState([]);
     const [expanded, setExpanded] = useState({});
@@ -98,7 +102,9 @@ function Surtiendo() {
             cargarPedidosEmbarques();
             cargarUsuariosPaqueteria();
             cargarPedidosPendientes();
-            cargarPedidosFinalizados();
+            // ✅ Respeta el mes que el usuario tiene seleccionado en vez de
+            // volver a traer TODOS los pedidos finalizados (eso reseteaba el filtro).
+            cargarPedidosFinalizados(mesFinRef.current);
         });
 
         return () => {
@@ -575,6 +581,9 @@ function Surtiendo() {
     };
     const [mesFin, setMesFin] = useState(getMesActual());
     const [mesesDisponibles, setMesesDisponibles] = useState([]);
+
+    // ✅ Mantiene mesFinRef al día con lo que el usuario tiene seleccionado.
+    useEffect(() => { mesFinRef.current = mesFin; }, [mesFin]);
 
     const cargarMesesDisponibles = () => {
         axios.get("http://66.232.105.107:3001/api/surtido/meses-disponibles-finalizados")
