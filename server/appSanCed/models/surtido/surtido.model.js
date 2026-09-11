@@ -37,6 +37,16 @@ const listarPedidosEnSurtido = async (id_usuario) => {
             ps.ubi_bahia, ps.estado, ps.avance, ps.id_usuario,
             ps.unido, ps.fusion, ps.ordenes_unidas,
             prod.descripcion,
+            -- Piezas por empaque (catálogo), para convertir un escaneo de
+            -- INNER/MASTER/PALET a piezas reales (ver FACTOR_POR_UM).
+            prod._pz AS factor_pz, prod._inner AS factor_inner,
+            prod._master AS factor_master, prod._palet AS factor_palet,
+            -- Códigos de barras del catálogo, como texto (vienen como
+            -- DOUBLE en productos), para comparar contra lo que lee el lector.
+            CAST(prod.barcode_pz AS CHAR) AS barcode_pz,
+            CAST(prod.barcode_inner AS CHAR) AS barcode_inner,
+            CAST(prod.barcode_master AS CHAR) AS barcode_master,
+            CAST(prod.barcode_palet AS CHAR) AS barcode_palet,
             inv.ubicacion,
             inv.cant_stock_real
         FROM pedidos_surtiendo ps
@@ -133,9 +143,10 @@ const registrarEscaneo = async ({ id_pedi, unidadesEscaneadas, um, factorEmpaque
 };
 
 /**
- * Marca cantidad no disponible (faltante) en una línea, con motivo.
+ * Marca cantidad no disponible (faltante) en una línea, con motivo y el id
+ * del supervisor (rol_id 13) que autorizó/liberó la acción.
  */
-const registrarNoSurtido = async ({ id_pedi, cantidadNoEnviada, motivo }) => {
+const registrarNoSurtido = async ({ id_pedi, cantidadNoEnviada, motivo, idUsuarioLibero }) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
@@ -155,9 +166,10 @@ const registrarNoSurtido = async ({ id_pedi, cantidadNoEnviada, motivo }) => {
         await conn.query(
             `UPDATE pedidos_surtiendo
              SET cant_no_enviada = cant_no_enviada + ?,
-                 motivo = ?
+                 motivo = ?,
+                 id_usuario_libero = ?
              WHERE id_pedi = ?`,
-            [cantidadNoEnviada, motivo || null, id_pedi]
+            [cantidadNoEnviada, motivo || null, idUsuarioLibero || null, id_pedi]
         );
 
         await conn.query(
@@ -217,13 +229,13 @@ const finalizarSurtido = async (no_orden, tipo) => {
                         no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
                         um, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
                         registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas,
-                        motivo, registro_fin
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NO_ATENDIDO', ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                        motivo, id_usuario_libero, registro_fin
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NO_ATENDIDO', ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
                     [
                         l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
                         l.um, l._pz, l._pq, l._inner, l._master, l.ubi_bahia, l.id_usuario,
                         l.registro, l.inicio_surtido, l.fin_surtido, l.unido, l.fusion, l.ordenes_unidas,
-                        l.motivo || 'Sin surtido',
+                        l.motivo || 'Sin surtido', l.id_usuario_libero,
                     ]
                 );
             }
@@ -233,12 +245,14 @@ const finalizarSurtido = async (no_orden, tipo) => {
                     `INSERT INTO pedidos_embarques (
                         no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
                         um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
-                        registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas, motivo
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'E', ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas, motivo,
+                        id_usuario_libero
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'E', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
                         l.um, l._bl, l._pz, l._pq, l._inner, l._master, l.ubi_bahia, l.id_usuario,
                         l.registro, l.inicio_surtido, l.fin_surtido, l.unido, l.fusion, l.ordenes_unidas, l.motivo,
+                        l.id_usuario_libero,
                     ]
                 );
             }

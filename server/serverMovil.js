@@ -9,6 +9,7 @@ const routes = require('./appapp'); // Archivo de rutas (app vieja de surtido/em
 // pero rutas propias bajo /api/app/... para no chocar con nada de lo de arriba).
 const surtidoRoutesNuevo = require('./appSanCed/routes/surtido/surtido.routes');
 const embarquesRoutesNuevo = require('./appSanCed/routes/embarques/embarques.routes');
+const autorizacionRoutesNuevo = require('./appSanCed/routes/comun/autorizacion.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +22,7 @@ app.use('/', routes);
 
 app.use('/api/app/surtido', surtidoRoutesNuevo);
 app.use('/api/app/embarques', embarquesRoutesNuevo);
+app.use('/api/app/autorizacion', autorizacionRoutesNuevo);
 app.get('/api/app/health', (_req, res) => res.json({ ok: true, app: 'appSanCed (dentro de serverMovil)' }));
 
 io.on('connection', (socket) => {

@@ -50,16 +50,34 @@ const escanearProducto = async (req, res) => {
     }
 };
 
+const MOTIVOS_NO_SURTIDO = [
+    'CERO X FALTA DE EXISTENCIA',
+    'UM NO COINCIDE',
+    'CICLICO',
+    'A MENOS X FALTA DE INVENTARIO',
+    'ELIMINADO X VENTAS',
+    'CUARENTENA',
+];
+
 const marcarNoSurtido = async (req, res) => {
     try {
         const { id_pedi } = req.params;
-        const { cantidadNoEnviada, motivo } = req.body;
+        const { cantidadNoEnviada, motivo, idUsuarioLibero } = req.body;
 
         if (!cantidadNoEnviada || Number(cantidadNoEnviada) <= 0) {
             return res.status(400).json({ ok: false, message: 'cantidadNoEnviada debe ser mayor a 0.' });
         }
+        if (!motivo || !MOTIVOS_NO_SURTIDO.includes(motivo)) {
+            return res.status(400).json({
+                ok: false,
+                message: `El motivo debe ser uno de: ${MOTIVOS_NO_SURTIDO.join(', ')}.`,
+            });
+        }
+        if (!idUsuarioLibero) {
+            return res.status(400).json({ ok: false, message: 'Falta la autorización del supervisor (idUsuarioLibero).' });
+        }
 
-        const resultado = await surtidoModel.registrarNoSurtido({ id_pedi, cantidadNoEnviada, motivo });
+        const resultado = await surtidoModel.registrarNoSurtido({ id_pedi, cantidadNoEnviada, motivo, idUsuarioLibero });
         if (!resultado.ok) return res.status(resultado.code || 500).json(resultado);
         res.json(resultado);
     } catch (err) {
