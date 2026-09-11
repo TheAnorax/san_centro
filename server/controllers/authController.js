@@ -21,7 +21,8 @@ const login = async (req, res) => {
       {
         id: user.id,
         nombre: user.nombre,
-        rol: user.rol
+        rol: user.rol,
+        rol_id: user.rol_id // ✅ para poder validar acceso por id (estable) y no por el nombre (frágil: mayúsculas/typos)
       },
       process.env.JWT_SECRET || 'secreto123',
       { expiresIn: '8h' }
