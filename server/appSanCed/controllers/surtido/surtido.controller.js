@@ -5,9 +5,16 @@
 
 const surtidoModel = require('../../models/surtido/surtido.model');
 
+// Un Surtidor (rol_id 2) solo ve los pedidos que tiene asignados (ps.id_usuario);
+// Admin (1) y Master (4) ven todos los pedidos en surtido, sin filtrar por usuario.
+const ROL_SURTIDOR = 2;
+
 const listarPedidosEnSurtido = async (req, res) => {
     try {
-        const pedidos = await surtidoModel.listarPedidosEnSurtido();
+        const esSurtidor = Number(req.usuario?.rol_id) === ROL_SURTIDOR;
+        const id_usuario = esSurtidor ? req.usuario?.id : null;
+
+        const pedidos = await surtidoModel.listarPedidosEnSurtido(id_usuario);
         res.json({ ok: true, data: pedidos });
     } catch (err) {
         console.error('❌ [surtido] listarPedidosEnSurtido:', err);

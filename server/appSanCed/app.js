@@ -1,11 +1,14 @@
 /**
- * app.js — appSanCed
- * Nueva aplicación, separada y ordenada, solo para los módulos de
- * Surtido y Embarques (los demás de la captura se agregan después
- * siguiendo el mismo patrón de carpetas: config / controllers / models / routes).
+ * app.js — appSanCed (YA NO SE USA COMO SERVIDOR APARTE)
  *
- * Esto NO reemplaza server.js ni serverMovil.js todavía — corre en su propio
- * puerto para poder probarse en paralelo sin arriesgar lo que ya funciona.
+ * Las rutas de Surtido y Embarques de este módulo ahora se montan
+ * directamente dentro de `serverMovil.js` (puerto 3003), bajo
+ * /api/app/surtido y /api/app/embarques, para no tener que levantar
+ * un tercer proceso/puerto. Este archivo se deja solo de referencia;
+ * NO lo corras (no lo arranques con `node app.js`), ya no hace falta.
+ *
+ * El código real que sí se usa son los archivos de:
+ *   appSanCed/routes/**, appSanCed/controllers/**, appSanCed/models/**
  */
 
 require('dotenv').config();

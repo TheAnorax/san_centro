@@ -19,10 +19,18 @@ const FACTOR_POR_UM = (um, factorEmpaque) => {
 
 /**
  * Pedidos actualmente en surtido (estado 'S'), agrupados por no_orden+tipo.
+ * Si se pasa id_usuario, solo trae los pedidos asignados a ese surtidor
+ * (ps.id_usuario = id_usuario); sin id_usuario trae todo (uso admin/master).
  */
-const listarPedidosEnSurtido = async () => {
-    const [rows] = await pool.query(`
-        SELECT
+const listarPedidosEnSurtido = async (id_usuario) => {
+    const condicionUsuario = id_usuario ? 'AND ps.id_usuario = ?' : '';
+    const params = id_usuario ? [id_usuario] : [];
+
+    // inv: un producto puede estar en varias ubicaciones dentro de `inventario`.
+    // Se toma solo UNA (la de mayor cant_stock_real) para no duplicar líneas del
+    // pedido cuando se hace el JOIN por codigo_producto.
+    const [rows] = await pool.query(
+        `SELECT
             ps.id_pedi, ps.no_orden, ps.tipo, ps.codigo_pedido, ps.clave,
             ps.cantidad, ps.cant_surtida, ps.cant_no_enviada, ps.um,
             ps._bl, ps._pz, ps._pq, ps._inner, ps._master,
@@ -33,10 +41,21 @@ const listarPedidosEnSurtido = async () => {
             inv.cant_stock_real
         FROM pedidos_surtiendo ps
         LEFT JOIN productos prod ON ps.codigo_pedido = prod.codigo
-        LEFT JOIN inventario inv ON ps.codigo_pedido = inv.codigo_producto
+        LEFT JOIN (
+            SELECT i.codigo_producto, i.ubicacion, i.cant_stock_real
+            FROM inventario i
+            INNER JOIN (
+                SELECT codigo_producto, MAX(cant_stock_real) AS max_stock
+                FROM inventario
+                GROUP BY codigo_producto
+            ) tope ON tope.codigo_producto = i.codigo_producto AND tope.max_stock = i.cant_stock_real
+            GROUP BY i.codigo_producto
+        ) inv ON inv.codigo_producto = ps.codigo_pedido
         WHERE ps.estado = 'S'
-        ORDER BY ps.no_orden DESC, ps.id_pedi ASC;
-    `);
+        ${condicionUsuario}
+        ORDER BY ps.no_orden ASC, ps.id_pedi ASC;`,
+        params
+    );
     return rows;
 };
 
