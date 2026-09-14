@@ -33,7 +33,7 @@ const listarPedidosEnSurtido = async (id_usuario) => {
         `SELECT
             ps.id_pedi, ps.no_orden, ps.tipo, ps.codigo_pedido, ps.clave,
             ps.cantidad, ps.cant_surtida, ps.cant_no_enviada, ps.um,
-            ps._bl, ps._pz, ps._pq, ps._inner, ps._master,
+            ps._bl, ps._pz, ps._pq, ps._inner, ps._master, ps._palet,
             ps.ubi_bahia, ps.estado, ps.avance, ps.id_usuario,
             ps.unido, ps.fusion, ps.ordenes_unidas,
             prod.descripcion,
@@ -112,7 +112,9 @@ const registrarEscaneo = async ({ id_pedi, unidadesEscaneadas, um, factorEmpaque
             };
         }
 
-        const columnaEmpaque = { PZ: '_pz', PQ: '_pq', INNER: '_inner', MASTER: '_master' }[String(um).toUpperCase()] || '_pz';
+        const columnaEmpaque =
+            { PZ: '_pz', PQ: '_pq', INNER: '_inner', MASTER: '_master', PALET: '_palet' }[String(um).toUpperCase()] ||
+            '_pz';
 
         await conn.query(
             `UPDATE pedidos_surtiendo
@@ -193,8 +195,12 @@ const registrarNoSurtido = async ({ id_pedi, cantidadNoEnviada, motivo, idUsuari
  * Finaliza el surtido de un pedido completo: valida que todas las líneas activas
  * (no canceladas) cuadren, y las mueve a `pedidos_embarques`. Si nada se surtió,
  * el pedido cae directo a `pedido_finalizado` como NO_ATENDIDO.
+ *
+ * `bahia`, si se manda, se guarda en `ubi_bahia` de todas las líneas del
+ * pedido (la confirma/captura el surtidor al terminar). El `estado` NO se
+ * pone en 'E' aquí: eso lo libera la web de Embarques, no la app de Surtido.
  */
-const finalizarSurtido = async (no_orden, tipo) => {
+const finalizarSurtido = async (no_orden, tipo, bahia) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
@@ -207,6 +213,12 @@ const finalizarSurtido = async (no_orden, tipo) => {
         if (lineas.length === 0) {
             await conn.rollback();
             return { ok: false, code: 404, message: 'No se encontraron líneas de este pedido en surtido.' };
+        }
+
+        if (bahia) {
+            for (const l of lineas) {
+                l.ubi_bahia = bahia;
+            }
         }
 
         const activas = lineas.filter((l) => l.estado !== 'C');
@@ -227,13 +239,13 @@ const finalizarSurtido = async (no_orden, tipo) => {
                 await conn.query(
                     `INSERT INTO pedido_finalizado (
                         no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                        um, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
+                        um, _pz, _pq, _inner, _master, _palet, ubi_bahia, estado, id_usuario,
                         registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas,
                         motivo, id_usuario_libero, registro_fin
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NO_ATENDIDO', ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NO_ATENDIDO', ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
                     [
                         l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
-                        l.um, l._pz, l._pq, l._inner, l._master, l.ubi_bahia, l.id_usuario,
+                        l.um, l._pz, l._pq, l._inner, l._master, l._palet, l.ubi_bahia, l.id_usuario,
                         l.registro, l.inicio_surtido, l.fin_surtido, l.unido, l.fusion, l.ordenes_unidas,
                         l.motivo || 'Sin surtido', l.id_usuario_libero,
                     ]
@@ -241,16 +253,18 @@ const finalizarSurtido = async (no_orden, tipo) => {
             }
         } else {
             for (const l of lineas) {
+                // `estado` se deja en NULL a propósito: la app de Surtido solo entrega
+                // el pedido a Embarques, no lo "libera" — eso lo hace la web.
                 await conn.query(
                     `INSERT INTO pedidos_embarques (
                         no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                        um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, id_usuario,
+                        um, _bl, _pz, _pq, _inner, _master, _palet, ubi_bahia, estado, id_usuario,
                         registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas, motivo,
                         id_usuario_libero
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'E', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
-                        l.um, l._bl, l._pz, l._pq, l._inner, l._master, l.ubi_bahia, l.id_usuario,
+                        l.um, l._bl, l._pz, l._pq, l._inner, l._master, l._palet, l.ubi_bahia, l.id_usuario,
                         l.registro, l.inicio_surtido, l.fin_surtido, l.unido, l.fusion, l.ordenes_unidas, l.motivo,
                         l.id_usuario_libero,
                     ]

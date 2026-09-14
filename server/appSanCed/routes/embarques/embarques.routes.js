@@ -33,4 +33,7 @@ router.put('/:no_orden/paqueteria/liberar', embarquesController.liberarUsuarioPa
 // POST /api/app/embarques/:no_orden/:tipo/finalizar -> mover a pedido_finalizado
 router.post('/:no_orden/:tipo/finalizar', embarquesController.finalizarEmbarque);
 
+// POST /api/app/embarques/:no_orden/:tipo/regresar-surtido -> regresa el pedido a pedidos_surtiendo
+router.post('/:no_orden/:tipo/regresar-surtido', embarquesController.regresarASurtido);
+
 module.exports = router;

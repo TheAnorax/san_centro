@@ -28,6 +28,7 @@ router.put('/:id_pedi/escaneo', surtidoController.escanearProducto);
 router.put('/:id_pedi/no-surtido', surtidoController.marcarNoSurtido);
 
 // POST /api/app/surtido/:no_orden/:tipo/finalizar -> mover a embarques (o a finalizado si nada se surtió)
+//      body opcional: { bahia } -> se guarda en ubi_bahia de todas las líneas del pedido
 router.post('/:no_orden/:tipo/finalizar', surtidoController.finalizarSurtido);
 
 module.exports = router;

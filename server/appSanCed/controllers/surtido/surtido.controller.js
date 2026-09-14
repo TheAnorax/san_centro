@@ -89,7 +89,8 @@ const marcarNoSurtido = async (req, res) => {
 const finalizarSurtido = async (req, res) => {
     try {
         const { no_orden, tipo } = req.params;
-        const resultado = await surtidoModel.finalizarSurtido(no_orden, tipo);
+        const { bahia } = req.body || {};
+        const resultado = await surtidoModel.finalizarSurtido(no_orden, tipo, bahia);
         if (!resultado.ok) return res.status(resultado.code || 500).json(resultado);
         res.json(resultado);
     } catch (err) {

@@ -183,10 +183,65 @@ const finalizarEmbarque = async (no_orden, tipo) => {
     }
 };
 
+/**
+ * Regresa un pedido completo de `pedidos_embarques` a `pedidos_surtiendo`
+ * (por si se mandó a embarques por error, o hay que corregir/completar algo
+ * del surtido). Los contadores de empaque (_bl, _pz, _pq, _inner, _master,
+ * _palet) se regresan en 0 — el pedido vuelve a aparecer en la lista de
+ * Surtido con estado 'S', como si no se hubiera escaneado nada todavía.
+ */
+const regresarASurtido = async (no_orden, tipo) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const [lineas] = await conn.query(
+            `SELECT * FROM pedidos_embarques WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) FOR UPDATE`,
+            [no_orden, tipo]
+        );
+
+        if (lineas.length === 0) {
+            await conn.rollback();
+            return { ok: false, code: 404, message: 'No se encontraron líneas de este pedido en embarques.' };
+        }
+
+        for (const l of lineas) {
+            await conn.query(
+                `INSERT INTO pedidos_surtiendo (
+                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
+                    um, _bl, _pz, _pq, _inner, _master, _palet, ubi_bahia, estado, id_usuario,
+                    id_usuario_paqueteria, registro, inicio_surtido, fin_surtido, unido,
+                    ordenes_unidas, registro_surtido, motivo, id_usuario_libero, unificado, fusion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
+                    l.um, l.ubi_bahia, l.id_usuario,
+                    l.id_usuario_paqueteria, l.registro, l.inicio_surtido, l.fin_surtido, l.unido,
+                    l.ordenes_unidas, l.registro_surtido, l.motivo, l.id_usuario_libero, l.unificado, l.fusion,
+                ]
+            );
+        }
+
+        await conn.query(
+            `DELETE FROM pedidos_embarques WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
+            [no_orden, tipo]
+        );
+
+        await conn.commit();
+        return { ok: true };
+    } catch (err) {
+        await conn.rollback();
+        return { ok: false, code: 500, message: err.message };
+    } finally {
+        conn.release();
+    }
+};
+
 module.exports = {
     listarPedidosEnEmbarque,
     asignarCaja,
     asignarUsuarioPaqueteria,
     liberarUsuarioPaqueteria,
     finalizarEmbarque,
+    regresarASurtido,
 };

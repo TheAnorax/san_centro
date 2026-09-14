@@ -78,10 +78,23 @@ const finalizarEmbarque = async (req, res) => {
     }
 };
 
+const regresarASurtido = async (req, res) => {
+    try {
+        const { no_orden, tipo } = req.params;
+        const resultado = await embarquesModel.regresarASurtido(no_orden, tipo);
+        if (!resultado.ok) return res.status(resultado.code || 500).json(resultado);
+        res.json(resultado);
+    } catch (err) {
+        console.error('❌ [embarques] regresarASurtido:', err);
+        res.status(500).json({ ok: false, message: 'Error al regresar el pedido a Surtido.' });
+    }
+};
+
 module.exports = {
     listarPedidosEnEmbarque,
     asignarCaja,
     asignarUsuarioPaqueteria,
     liberarUsuarioPaqueteria,
     finalizarEmbarque,
+    regresarASurtido,
 };
