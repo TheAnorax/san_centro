@@ -193,12 +193,13 @@ const registrarNoSurtido = async ({ id_pedi, cantidadNoEnviada, motivo, idUsuari
 
 /**
  * Finaliza el surtido de un pedido completo: valida que todas las líneas activas
- * (no canceladas) cuadren, y las mueve a `pedidos_embarques`. Si nada se surtió,
- * el pedido cae directo a `pedido_finalizado` como NO_ATENDIDO.
+ * (no canceladas) cuadren, y SOLO marca el pedido como terminado (estado = 'E')
+ * dentro de la misma tabla `pedidos_surtiendo` — YA NO lo mueve a
+ * `pedidos_embarques` ni a `pedido_finalizado`. Como `listarPedidosEnSurtido`
+ * solo trae `estado = 'S'`, el pedido deja de verse en la lista de Surtido,
+ * pero la fila sigue existiendo tal cual, nada más con otro estado.
  *
- * `bahia`, si se manda, se guarda en `ubi_bahia` de todas las líneas del
- * pedido (la confirma/captura el surtidor al terminar). El `estado` NO se
- * pone en 'E' aquí: eso lo libera la web de Embarques, no la app de Surtido.
+ * `bahia`, si se manda, se guarda en `ubi_bahia` de todas las líneas del pedido.
  */
 const finalizarSurtido = async (no_orden, tipo, bahia) => {
     const conn = await pool.getConnection();
@@ -215,12 +216,6 @@ const finalizarSurtido = async (no_orden, tipo, bahia) => {
             return { ok: false, code: 404, message: 'No se encontraron líneas de este pedido en surtido.' };
         }
 
-        if (bahia) {
-            for (const l of lineas) {
-                l.ubi_bahia = bahia;
-            }
-        }
-
         const activas = lineas.filter((l) => l.estado !== 'C');
         const noCuadran = activas.filter(
             (l) => Number(l.cantidad) !== Number(l.cant_surtida) + Number(l.cant_no_enviada)
@@ -233,58 +228,25 @@ const finalizarSurtido = async (no_orden, tipo, bahia) => {
         const totalSurtido = activas.reduce((s, l) => s + Number(l.cant_surtida), 0);
         const totalNoEnviado = activas.reduce((s, l) => s + Number(l.cant_no_enviada), 0);
 
-        if (totalSurtido === 0 && totalNoEnviado > 0) {
-            // Nada se pudo surtir: va directo a pedido_finalizado como NO_ATENDIDO.
-            for (const l of lineas) {
-                await conn.query(
-                    `INSERT INTO pedido_finalizado (
-                        no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                        um, _pz, _pq, _inner, _master, _palet, ubi_bahia, estado, id_usuario,
-                        registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas,
-                        motivo, id_usuario_libero, registro_fin
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NO_ATENDIDO', ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-                    [
-                        l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
-                        l.um, l._pz, l._pq, l._inner, l._master, l._palet, l.ubi_bahia, l.id_usuario,
-                        l.registro, l.inicio_surtido, l.fin_surtido, l.unido, l.fusion, l.ordenes_unidas,
-                        l.motivo || 'Sin surtido', l.id_usuario_libero,
-                    ]
-                );
-            }
-        } else {
-            for (const l of lineas) {
-                // `estado` se deja en NULL a propósito: la app de Surtido solo entrega
-                // el pedido a Embarques, no lo "libera" — eso lo hace la web.
-                await conn.query(
-                    `INSERT INTO pedidos_embarques (
-                        no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                        um, _bl, _pz, _pq, _inner, _master, _palet, ubi_bahia, estado, id_usuario,
-                        registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas, motivo,
-                        id_usuario_libero
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
-                        l.um, l._bl, l._pz, l._pq, l._inner, l._master, l._palet, l.ubi_bahia, l.id_usuario,
-                        l.registro, l.inicio_surtido, l.fin_surtido, l.unido, l.fusion, l.ordenes_unidas, l.motivo,
-                        l.id_usuario_libero,
-                    ]
-                );
-            }
-
-            // Descuenta el inventario real por lo que sí se surtió.
-            await conn.query(
-                `UPDATE inventario i
-                 INNER JOIN pedidos_surtiendo ps ON ps.codigo_pedido = i.codigo_producto
-                 SET i.cant_stock_real = i.cant_stock_real - ps.cant_surtida
-                 WHERE ps.no_orden = ? AND UPPER(ps.tipo) = UPPER(?)
-                   AND ps.cant_surtida > 0 AND i.cant_stock_real >= ps.cant_surtida`,
-                [no_orden, tipo]
-            );
-        }
-
+        // Descuenta el inventario real por lo que sí se surtió (igual que antes).
         await conn.query(
-            `DELETE FROM pedidos_surtiendo WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
+            `UPDATE inventario i
+             INNER JOIN pedidos_surtiendo ps ON ps.codigo_pedido = i.codigo_producto
+             SET i.cant_stock_real = i.cant_stock_real - ps.cant_surtida
+             WHERE ps.no_orden = ? AND UPPER(ps.tipo) = UPPER(?)
+               AND ps.cant_surtida > 0 AND i.cant_stock_real >= ps.cant_surtida`,
             [no_orden, tipo]
+        );
+
+        // Único cambio real: estado -> 'E', y la bahía si se escaneó una.
+        // No se mueve ni se borra ninguna fila.
+        await conn.query(
+            `UPDATE pedidos_surtiendo
+             SET estado = 'E',
+                 fin_surtido = IF(fin_surtido IS NULL, NOW(), fin_surtido),
+                 ubi_bahia = COALESCE(?, ubi_bahia)
+             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
+            [bahia || null, no_orden, tipo]
         );
 
         await conn.commit();
