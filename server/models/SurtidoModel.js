@@ -121,6 +121,28 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
             throw new Error("El pedido no está correctamente cerrado en surtido.");
         }
 
+        // 2️⃣.1 Validar que el motivo tenga sentido con lo capturado: si hay
+        // piezas no enviadas, tiene que traer motivo; y si el motivo es
+        // "CERO X FALTA DE EXISTENCIA" o "A MENOS X FALTA DE INVENTARIO", la
+        // cant. no enviada no puede quedar en 0 (motivo puesto pero sin nada
+        // realmente marcado como no enviado — como pasaba con 4051/4052).
+        const erroresMotivoSurtido = lineasActivas.filter(p => {
+            const motivo = (p.motivo || '').trim().toUpperCase();
+            const noEnviada = Number(p.cant_no_enviada) || 0;
+            const cantidad = Number(p.cantidad) || 0;
+
+            if (noEnviada > 0 && !motivo) return true;
+            if (motivo === 'CERO X FALTA DE EXISTENCIA' && noEnviada !== cantidad) return true;
+            if (motivo === 'A MENOS X FALTA DE INVENTARIO' && noEnviada <= 0) return true;
+            return false;
+        });
+        if (erroresMotivoSurtido.length > 0) {
+            const detalle = erroresMotivoSurtido
+                .map(p => `${p.codigo_pedido} (motivo: "${p.motivo || 'sin motivo'}", no enviada: ${p.cant_no_enviada})`)
+                .join('; ');
+            throw new Error(`El motivo no coincide con lo capturado y no se puede liberar. Revisa: ${detalle}.`);
+        }
+
         // 3️⃣ Calcular totales
         const totalSurtido = lineasActivas.reduce(
             (sum, p) => sum + Number(p.cant_surtida), 0
