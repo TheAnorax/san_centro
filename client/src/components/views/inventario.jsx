@@ -110,6 +110,9 @@ function InventarioListado() {
     const [cantidadSolicitada, setCantidadSolicitada] = useState("");
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
     const user = JSON.parse(localStorage.getItem("user"));
+    // Por ahora, poder solicitar cualquier producto (no solo los faltantes)
+    // queda solo para el rol admin.
+    const userRole = user?.rol;
 
     const abrirModalSolicitud = (row) => {
         setProductoSeleccionado(row);
@@ -120,7 +123,7 @@ function InventarioListado() {
     // 🆕 Manda también el desglose al correo
     const enviarSolicitud = async () => {
         const emp = calcularEmpaques(
-            productoSeleccionado?.inv_opt,
+            cantidadSolicitada,
             productoSeleccionado?._master,
             productoSeleccionado?._inner
         );
@@ -456,7 +459,7 @@ function InventarioListado() {
                                                                 }}>
                                                                 Editar
                                                             </Button>
-                                                            {(isEmpty || bajoMinimo) && (
+                                                            {(isEmpty || bajoMinimo || userRole === 'admin') && (
                                                                 <Button variant="contained" color="warning" size="small"
                                                                     onClick={() => abrirModalSolicitud(row)}>
                                                                     Solicitar
@@ -483,10 +486,21 @@ function InventarioListado() {
                                 <p><b>Inv. Máximo:</b> {productoSeleccionado?.inv_max ?? "-"}</p>
                                 <p><b>Cantidad faltante:</b> {productoSeleccionado?.inv_opt ?? "-"}</p>
 
-                                {/* 🆕 Desglose visual */}
-                                {productoSeleccionado?.inv_opt && (() => {
+                                <TextField
+                                    label="Cantidad a solicitar"
+                                    type="number"
+                                    fullWidth
+                                    size="small"
+                                    sx={{ mt: 1 }}
+                                    value={cantidadSolicitada}
+                                    onChange={(e) => setCantidadSolicitada(e.target.value)}
+                                    helperText="Se prellena con el faltante si el producto está por debajo del mínimo; si no, escribe la cantidad que quieres pedir."
+                                />
+
+                                {/* 🆕 Desglose visual (según lo que se vaya a solicitar de verdad) */}
+                                {cantidadSolicitada && (() => {
                                     const emp = calcularEmpaques(
-                                        productoSeleccionado.inv_opt,
+                                        cantidadSolicitada,
                                         productoSeleccionado._master,
                                         productoSeleccionado._inner
                                     );
