@@ -881,6 +881,9 @@ function Surtiendo() {
     // Ediciones manuales de cantidad/cant_surtida/cant_no_enviada/motivo dentro del modal, por id_pedi
     const [edicionesSurtido, setEdicionesSurtido] = useState({});
     const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+    // Los campos de cantidad/cant_surtida/cant_no_enviada/motivo son de solo
+    // lectura hasta que se toca "Modificar" — así nadie los edita sin querer.
+    const [modoEdicionSurtido, setModoEdicionSurtido] = useState(false);
 
     // Evita que la página de fondo se desplace mientras el modal de Surtido está abierto
     useEffect(() => {
@@ -925,6 +928,7 @@ function Surtiendo() {
             });
             setModalSurtido(prev => ({ ...prev, pedido: { ...prev.pedido, productos: productosActualizados } }));
             setEdicionesSurtido({});
+            setModoEdicionSurtido(false);
             cargarPedidosSurtiendo();
         } catch (err) {
             const mensajeServidor = err?.response?.data?.message;
@@ -1024,7 +1028,7 @@ function Surtiendo() {
                                                             </TableCell>
                                                             <TableCell align="right">
                                                                 <Button size="small" variant="contained"
-                                                                    onClick={() => setModalSurtido({ open: true, pedido, error: null, loading: false })}>
+                                                                    onClick={() => { setModalSurtido({ open: true, pedido, error: null, loading: false }); setEdicionesSurtido({}); setModoEdicionSurtido(false); }}>
                                                                     Ver / Liberar
                                                                 </Button>
                                                             </TableCell>
@@ -1382,7 +1386,7 @@ function Surtiendo() {
                                 <Typography variant="h6" fontWeight="bold">{pedido.tipo} : {pedido.no_orden} : {pedido.bahia}</Typography>
                                 <IconButton
                                     disabled={modalSurtido.loading}
-                                    onClick={() => { setModalSurtido({ open: false, pedido: null, error: null, loading: false }); setEdicionesSurtido({}); }}
+                                    onClick={() => { setModalSurtido({ open: false, pedido: null, error: null, loading: false }); setEdicionesSurtido({}); setModoEdicionSurtido(false); }}
                                 >
                                     <ClearIcon />
                                 </IconButton>
@@ -1436,37 +1440,45 @@ function Surtiendo() {
                                                         {prod.codigo_pedido}
                                                     </TableCell>
                                                     <TableCell>{prod.descripcion_producto || ''}</TableCell>
-                                                    <TableCell>
-                                                        <TextField
-                                                            variant="standard" type="number" size="small"
-                                                            value={valCantidad ?? ''}
-                                                            sx={{ width: 60, input: sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined }}
-                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cantidad', e.target.value)}
-                                                        />
+                                                    <TableCell sx={sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined}>
+                                                        {modoEdicionSurtido ? (
+                                                            <TextField
+                                                                variant="standard" type="number" size="small"
+                                                                value={valCantidad ?? ''}
+                                                                sx={{ width: 60, input: sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined }}
+                                                                onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cantidad', e.target.value)}
+                                                            />
+                                                        ) : (valCantidad ?? '')}
+                                                    </TableCell>
+                                                    <TableCell sx={sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined}>
+                                                        {modoEdicionSurtido ? (
+                                                            <TextField
+                                                                variant="standard" type="number" size="small"
+                                                                value={valSurtida ?? ''}
+                                                                sx={{ width: 60, input: sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined }}
+                                                                onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cant_surtida', e.target.value)}
+                                                            />
+                                                        ) : (valSurtida ?? '')}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <TextField
-                                                            variant="standard" type="number" size="small"
-                                                            value={valSurtida ?? ''}
-                                                            sx={{ width: 60, input: sobreSurtido ? { color: '#d32f2f', fontWeight: 700 } : undefined }}
-                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cant_surtida', e.target.value)}
-                                                        />
+                                                        {modoEdicionSurtido ? (
+                                                            <TextField
+                                                                variant="standard" type="number" size="small"
+                                                                value={valNoEnviada ?? ''}
+                                                                sx={{ width: 60 }}
+                                                                onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cant_no_enviada', e.target.value)}
+                                                            />
+                                                        ) : (valNoEnviada ?? '')}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <TextField
-                                                            variant="standard" type="number" size="small"
-                                                            value={valNoEnviada ?? ''}
-                                                            sx={{ width: 60 }}
-                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'cant_no_enviada', e.target.value)}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <TextField
-                                                            variant="standard" size="small"
-                                                            value={valMotivo}
-                                                            sx={{ width: 160 }}
-                                                            onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'motivo', e.target.value)}
-                                                        />
+                                                        {modoEdicionSurtido ? (
+                                                            <TextField
+                                                                variant="standard" size="small"
+                                                                value={valMotivo}
+                                                                sx={{ width: 160 }}
+                                                                onChange={(e) => cambiarEdicionProducto(prod.id_pedi, 'motivo', e.target.value)}
+                                                            />
+                                                        ) : (valMotivo || '')}
                                                     </TableCell>
                                                     <TableCell>
                                                         {Number(prod.unido) === 1
@@ -1487,10 +1499,24 @@ function Surtiendo() {
                             )}
 
                             <Box display="flex" gap={1} flexWrap="wrap" mt={1.5}>
-                                {hayEdiciones && (
+                                {!modoEdicionSurtido && (
+                                    <Button size="small" variant="outlined" color="warning"
+                                        onClick={() => setModoEdicionSurtido(true)}>
+                                        ✏️ Modificar
+                                    </Button>
+                                )}
+
+                                {modoEdicionSurtido && hayEdiciones && (
                                     <Button size="small" variant="contained" color="primary" disabled={guardandoEdicion}
                                         onClick={guardarEdicionesSurtido}>
                                         {guardandoEdicion ? "Guardando..." : "💾 Guardar cambios"}
+                                    </Button>
+                                )}
+
+                                {modoEdicionSurtido && (
+                                    <Button size="small" variant="text" color="inherit" disabled={guardandoEdicion}
+                                        onClick={() => { setModoEdicionSurtido(false); setEdicionesSurtido({}); }}>
+                                        Cancelar edición
                                     </Button>
                                 )}
 
