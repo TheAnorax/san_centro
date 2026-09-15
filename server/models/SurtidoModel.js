@@ -318,13 +318,49 @@ const moverPedidoAFinalizado = async (noOrden, tipo) => {
         await connection.beginTransaction();
 
         const [productos] = await connection.query(
-            `SELECT * FROM pedidos_embarques 
+            `SELECT * FROM pedidos_embarques
              WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
             [noOrden, tipo]  // 🔥 agrega tipo
         );
 
         if (productos.length === 0) {
             throw new Error("No se encontraron productos en embarques para este pedido.");
+        }
+
+        // ✅ Validar cuadratura (excluyendo cancelados) antes de liberar/finalizar.
+        // Sin esto, una línea mal capturada (ej. cant_surtida y cant_no_enviada
+        // sumando más que cantidad) se podía finalizar igual — ahora se bloquea.
+        const lineasActivasFin = productos.filter(p => p.estado !== 'C');
+        const erroresFin = lineasActivasFin.filter(p =>
+            Number(p.cantidad) !== (Number(p.cant_surtida) + Number(p.cant_no_enviada))
+        );
+        if (erroresFin.length > 0) {
+            const detalle = erroresFin
+                .map(p => `${p.codigo_pedido} (cant: ${p.cantidad}, surtida: ${p.cant_surtida}, no enviada: ${p.cant_no_enviada})`)
+                .join('; ');
+            throw new Error(`El pedido no cuadra y no se puede liberar. Revisa: ${detalle}.`);
+        }
+
+        // ✅ Validar que el motivo tenga sentido con lo que se capturó: si hay
+        // piezas no enviadas, tiene que traer motivo; y si el motivo es "CERO
+        // X FALTA DE EXISTENCIA" o "A MENOS X FALTA DE INVENTARIO", la cant.
+        // no enviada no puede quedar en 0 (o sea, con motivo pero sin nada
+        // realmente marcado como no enviado).
+        const erroresMotivo = lineasActivasFin.filter(p => {
+            const motivo = (p.motivo || '').trim().toUpperCase();
+            const noEnviada = Number(p.cant_no_enviada) || 0;
+            const cantidad = Number(p.cantidad) || 0;
+
+            if (noEnviada > 0 && !motivo) return true;
+            if (motivo === 'CERO X FALTA DE EXISTENCIA' && noEnviada !== cantidad) return true;
+            if (motivo === 'A MENOS X FALTA DE INVENTARIO' && noEnviada <= 0) return true;
+            return false;
+        });
+        if (erroresMotivo.length > 0) {
+            const detalle = erroresMotivo
+                .map(p => `${p.codigo_pedido} (motivo: "${p.motivo || 'sin motivo'}", no enviada: ${p.cant_no_enviada})`)
+                .join('; ');
+            throw new Error(`El motivo no coincide con lo capturado y no se puede liberar. Revisa: ${detalle}.`);
         }
 
         for (const p of productos) {
