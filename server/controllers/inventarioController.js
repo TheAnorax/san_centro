@@ -6,9 +6,11 @@ const {
   actualizarLimites,
   actualizarInvOpt,
   limpiarInvOpt,
-  cargaMasivaLimites
+  cargaMasivaLimites,
+  buscarProductosPorCodigos
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
+const { plantillaCorreoStockMasivo } = require("../utils/plantillaCorreoStock");
 
 const DESTINATARIOS = ["desarrollo4@santul.net"];
 
@@ -167,6 +169,78 @@ const cargaMasivaLimitesController = async (req, res) => {
 
 
 
+// ================================================
+// POST Solicitud masiva por Excel (código + cantidad)
+// Busca cada código en inventario; a los que sí existen
+// les manda UN solo correo consolidado y regresa cuáles
+// se agregaron a la solicitud y cuáles no se encontraron.
+// ================================================
+const solicitarProductoMasivoController = async (req, res) => {
+  try {
+    const { productos, solicitante } = req.body;
+
+    if (!Array.isArray(productos) || productos.length === 0) {
+      return res.status(400).json({ ok: false, message: "No se recibieron productos" });
+    }
+    if (!solicitante) {
+      return res.status(400).json({ ok: false, message: "Falta el solicitante" });
+    }
+
+    // Normaliza: quita filas sin código y sin cantidad válida.
+    const filas = productos
+      .map((p) => ({
+        codigo: String(p.codigo ?? "").trim(),
+        cantidad: Number(p.cantidad),
+      }))
+      .filter((p) => p.codigo && Number.isFinite(p.cantidad) && p.cantidad > 0);
+
+    if (filas.length === 0) {
+      return res.status(400).json({ ok: false, message: "El archivo no tiene filas válidas (código + cantidad)" });
+    }
+
+    const { encontrados, noEncontrados } = await buscarProductosPorCodigos(filas.map((f) => f.codigo));
+
+    // Une cada producto encontrado con la cantidad que traía su fila del Excel.
+    const mapaCantidades = {};
+    filas.forEach((f) => { mapaCantidades[f.codigo] = f.cantidad; });
+
+    const agregados = encontrados.map((row) => ({
+      codigo: row.codigo_producto,
+      descripcion: row.descripcion,
+      ubicacion: row.ubicacion,
+      stock: row.cant_stock_real,
+      cantidadSolicitada: mapaCantidades[String(row.codigo_producto).trim()] ?? "",
+    }));
+
+    if (agregados.length > 0) {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: "crossdoog@gmail.com", pass: "lrzm nkgj ysbi gmpt" }
+      });
+
+      const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante });
+
+      await transporter.sendMail({
+        from: '"📦 Inventario Almacen 7240" <crossdoog@gmail.com>',
+        to: DESTINATARIOS.join(", "),
+        subject: `Solicitud masiva de reposición · ${agregados.length} producto(s)`,
+        html,
+        attachments: [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul" }]
+      });
+    }
+
+    return res.json({
+      ok: true,
+      agregados: agregados.map((a) => a.codigo),
+      faltan: noEncontrados,
+    });
+
+  } catch (error) {
+    console.error("❌ Error en solicitud masiva:", error);
+    return res.status(500).json({ ok: false, message: "Error enviando la solicitud masiva", error: error.message });
+  }
+};
+
 module.exports = {
   todosLosInventarios,
   solicitarProducto,
@@ -174,5 +248,6 @@ module.exports = {
   actualizarUbicacion: actualizarUbicacionController,
   actualizarLimites: actualizarLimitesController,
   recalcularInvOpt,
-  cargaMasivaLimites: cargaMasivaLimitesController
+  cargaMasivaLimites: cargaMasivaLimitesController,
+  solicitarProductoMasivo: solicitarProductoMasivoController
 };

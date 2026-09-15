@@ -142,11 +142,46 @@ const cargaMasivaLimites = async (productos) => {
 };
 
 
+// ================================================
+// Buscar productos por código (para la solicitud
+// masiva desde Excel: sku + cantidad). No modifica
+// nada, solo regresa qué códigos existen en inventario
+// (con su descripción/ubicación/stock) y cuáles no.
+// ================================================
+const buscarProductosPorCodigos = async (codigos) => {
+  const encontrados = [];
+  const noEncontrados = [];
+
+  for (const codigo of codigos) {
+    const codigoLimpio = String(codigo).trim();
+    if (!codigoLimpio) continue;
+
+    const [[row]] = await pool.query(
+      `SELECT i.id_ubicaccion, i.codigo_producto, i.ubicacion, i.cant_stock_real,
+              p.descripcion, p._inner, p._master
+       FROM inventario i
+       LEFT JOIN productos p ON p.codigo = CAST(i.codigo_producto AS UNSIGNED)
+       WHERE i.codigo_producto = ?
+       LIMIT 1`,
+      [codigoLimpio]
+    );
+
+    if (!row) {
+      noEncontrados.push(codigoLimpio);
+    } else {
+      encontrados.push(row);
+    }
+  }
+
+  return { encontrados, noEncontrados };
+};
+
 module.exports = {
   obtenerInventario,
   actualizarUbicacion,
   actualizarInvOpt,
   limpiarInvOpt,
   actualizarLimites,
-  cargaMasivaLimites
+  cargaMasivaLimites,
+  buscarProductosPorCodigos
 };

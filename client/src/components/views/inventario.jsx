@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import {
     Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-    CircularProgress, Alert, TablePagination, TextField, InputAdornment, Button, Dialog, DialogTitle, DialogContent, DialogActions
+    CircularProgress, Alert, TablePagination, TextField, InputAdornment, Button, Dialog, DialogTitle, DialogContent, DialogActions,
+    Tabs, Tab, Chip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import Swal from "sweetalert2";
@@ -274,6 +275,108 @@ function InventarioListado() {
 
     const [openCargaMasiva, setOpenCargaMasiva] = useState(false);
 
+    // ── Tabs: Inventario / Solicitar Inventario ──
+    const [activeTab, setActiveTab] = useState(0);
+
+    // Lista de faltantes (mismo criterio que "Mostrar faltantes"), independiente
+    // del buscador, para mostrarla siempre en la pestaña "Solicitar Inventario".
+    const faltantesParaSolicitar = inventario.filter(item => {
+        const qty = Number(item.cant_stock_real) || 0;
+        const invMin = item.inv_min !== null && item.inv_min !== "" ? Number(item.inv_min) : null;
+        const invMax = item.inv_max !== null && item.inv_max !== "" ? Number(item.inv_max) : null;
+        const tieneConfig = invMin !== null && invMax !== null;
+        return tieneConfig && (qty <= 0 || (qty <= invMin && qty > 0));
+    });
+
+    // ── Solicitud masiva por Excel (código + cantidad) ──
+    const [solicitudMasivaResultado, setSolicitudMasivaResultado] = useState(null);
+    const [solicitudMasivaProcesando, setSolicitudMasivaProcesando] = useState(false);
+
+    const descargarPlantillaSolicitudMasiva = () => {
+        const data = faltantesParaSolicitar.map(row => ({
+            codigo_producto: row.codigo_producto,
+            cantidad: row.inv_opt ?? "",
+        }));
+        const ws = XLSX.utils.json_to_sheet(data.length > 0 ? data : [{ codigo_producto: "", cantidad: "" }]);
+        ws["!cols"] = [{ wch: 20 }, { wch: 12 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
+        XLSX.writeFile(wb, "plantilla_solicitar_inventario.xlsx");
+    };
+
+    const handleSolicitudMasivaExcel = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target.result;
+                const workbook = XLSX.read(bstr, { type: "binary" });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                const primeraFila = jsonData[0];
+                if (!primeraFila?.codigo_producto && !primeraFila?.sku && !primeraFila?.SKU && !primeraFila?.codigo && !primeraFila?.Código) {
+                    Swal.fire("❌ Error", "El archivo debe tener una columna 'codigo_producto' (o 'sku') y una columna 'cantidad'", "error");
+                    return;
+                }
+
+                const productos = jsonData
+                    .map(row => ({
+                        codigo: String(row.codigo_producto || row.sku || row.SKU || row.codigo || row.Código || "").trim(),
+                        cantidad: Number(row.cantidad ?? row.Cantidad ?? 0),
+                    }))
+                    .filter(row => row.codigo && row.cantidad > 0);
+
+                if (productos.length === 0) {
+                    Swal.fire("⚠️ Sin datos", "No se encontraron filas válidas (código + cantidad) en el archivo", "warning");
+                    return;
+                }
+
+                const { isConfirmed } = await Swal.fire({
+                    title: "¿Enviar solicitud masiva?",
+                    html: `Se buscarán <b>${productos.length}</b> código(s) en inventario y se enviará un correo con los que sí existan.`,
+                    icon: "question",
+                    showCancelButton: true,
+                    confirmButtonText: "Sí, enviar",
+                    cancelButtonText: "Cancelar",
+                    confirmButtonColor: "#3085d6",
+                });
+
+                if (!isConfirmed) return;
+
+                setSolicitudMasivaProcesando(true);
+                setSolicitudMasivaResultado(null);
+
+                const res = await axios.post(
+                    "http://66.232.105.107:3001/api/inventario/solicitar-producto-masivo",
+                    { productos, solicitante: user?.nombre || "Usuario desconocido" }
+                );
+
+                setSolicitudMasivaResultado({
+                    agregados: res.data?.agregados || [],
+                    faltan: res.data?.faltan || [],
+                });
+
+                Swal.fire(
+                    "✅ Solicitud enviada",
+                    `Se agregaron ${res.data?.agregados?.length || 0} producto(s). ${res.data?.faltan?.length ? `${res.data.faltan.length} no se encontraron.` : ""}`,
+                    "success"
+                );
+
+            } catch (err) {
+                console.error(err);
+                Swal.fire("❌ Error", "No se pudo procesar el archivo o enviar la solicitud", "error");
+            } finally {
+                setSolicitudMasivaProcesando(false);
+            }
+        };
+
+        reader.readAsBinaryString(file);
+        e.target.value = "";
+    };
+
     // ── Modal Edición ──
     const [openEditModal, setOpenEditModal] = useState(false);
     const [ubicacionEdit, setUbicacionEdit] = useState("");
@@ -310,7 +413,114 @@ function InventarioListado() {
                 </button>
             </div>
 
-            <Box sx={{ mt: 3, mb: 2, px: { xs: 1, sm: 3 } }}>
+            <Box sx={{ px: { xs: 1, sm: 3 }, mt: 2 }}>
+                <Tabs
+                    value={activeTab}
+                    onChange={(_e, v) => setActiveTab(v)}
+                    sx={{ borderBottom: 1, borderColor: 'divider' }}
+                >
+                    <Tab label="Inventario" />
+                    <Tab label="Solicitar Inventario" />
+                </Tabs>
+            </Box>
+
+            {activeTab === 1 && (
+                <Box sx={{ mt: 3, mb: 2, px: { xs: 1, sm: 3 } }}>
+                    {loading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 7 }}><CircularProgress /></Box>
+                    ) : (
+                        <Paper elevation={3} sx={{ borderRadius: 4, boxShadow: "0 4px 24px rgba(200,70,50,.08)", overflow: "hidden", p: 2 }}>
+
+                            {/* Sección 1: lista de productos que necesitan solicitud (igual criterio que "Mostrar faltantes") */}
+                            <Box sx={{ mb: 3 }}>
+                                <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#e23b22" }}>
+                                    ⚠️ Productos para solicitar ({faltantesParaSolicitar.length})
+                                </p>
+                                <TableContainer sx={{ maxHeight: '40vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
+                                    <Table size="small" stickyHeader>
+                                        <TableHead>
+                                            <TableRow sx={{ background: "#ffe7e1" }}>
+                                                {["Código", "Descripción", "Ubicación", "Stock", "Faltante", "Acciones"].map(col => (
+                                                    <TableCell key={col} sx={{ fontWeight: "bold", color: "#e23b22" }}>{col}</TableCell>
+                                                ))}
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {faltantesParaSolicitar.length === 0 ? (
+                                                <TableRow><TableCell colSpan={6} align="center">No hay productos faltantes por ahora</TableCell></TableRow>
+                                            ) : (
+                                                faltantesParaSolicitar.map((row) => (
+                                                    <TableRow key={row.id_ubicaccion || row.codigo_producto}>
+                                                        <TableCell>{row.codigo_producto}</TableCell>
+                                                        <TableCell>{row.descripcion}</TableCell>
+                                                        <TableCell>{row.ubicacion}</TableCell>
+                                                        <TableCell>{row.cant_stock_real ?? "-"}</TableCell>
+                                                        <TableCell>{row.inv_opt ?? "-"}</TableCell>
+                                                        <TableCell>
+                                                            <Button size="small" variant="contained" color="warning"
+                                                                onClick={() => abrirModalSolicitud(row)}>
+                                                                Solicitar
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </Box>
+
+                            {/* Sección 2: carga masiva por Excel (sku + cantidad) */}
+                            <Box sx={{ p: 2, backgroundColor: "#f9f9f9", borderRadius: 2, border: "1px solid #ddd" }}>
+                                <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
+                                    📊 Solicitar varios productos por Excel
+                                </p>
+                                <p style={{ margin: "6px 0", fontSize: "0.85rem", color: "#555" }}>
+                                    Sube un Excel con las columnas <b>codigo_producto</b> (o <b>sku</b>) y <b>cantidad</b>.
+                                    Se buscará cada código en inventario y se enviará un correo con los que sí existan.
+                                </p>
+                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                                    <Button variant="outlined" color="primary" size="small" onClick={descargarPlantillaSolicitudMasiva}>
+                                        ⬇️ Descargar Plantilla Excel
+                                    </Button>
+                                    <Button variant="contained" color="success" component="label" size="small" disabled={solicitudMasivaProcesando}>
+                                        {solicitudMasivaProcesando ? "Procesando..." : "📂 Subir Excel (código + cantidad)"}
+                                        <input hidden type="file" accept=".xlsx,.xls" onChange={handleSolicitudMasivaExcel} />
+                                    </Button>
+                                </Box>
+
+                                {solicitudMasivaResultado && (
+                                    <Box sx={{ mt: 2 }}>
+                                        <p style={{ margin: "0 0 6px 0", fontWeight: "bold", color: "#2e7d32" }}>
+                                            ✅ Agregados ({solicitudMasivaResultado.agregados.length})
+                                        </p>
+                                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 2 }}>
+                                            {solicitudMasivaResultado.agregados.length === 0
+                                                ? <span style={{ color: "#888" }}>Ninguno</span>
+                                                : solicitudMasivaResultado.agregados.map(c => (
+                                                    <Chip key={c} label={c} color="success" size="small" />
+                                                ))}
+                                        </Box>
+
+                                        <p style={{ margin: "0 0 6px 0", fontWeight: "bold", color: "#d32f2f" }}>
+                                            ❌ No encontrados / faltan ({solicitudMasivaResultado.faltan.length})
+                                        </p>
+                                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                            {solicitudMasivaResultado.faltan.length === 0
+                                                ? <span style={{ color: "#888" }}>Ninguno</span>
+                                                : solicitudMasivaResultado.faltan.map(c => (
+                                                    <Chip key={c} label={c} color="error" size="small" variant="outlined" />
+                                                ))}
+                                        </Box>
+                                    </Box>
+                                )}
+                            </Box>
+                        </Paper>
+                    )}
+                </Box>
+            )}
+
+            <Box sx={{ mt: activeTab === 0 ? 0 : 0, mb: 2, px: { xs: 1, sm: 3 }, display: activeTab === 0 ? 'block' : 'none' }}>
                 {loading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 7 }}><CircularProgress /></Box>
                 ) : error ? (
@@ -459,7 +669,7 @@ function InventarioListado() {
                                                                 }}>
                                                                 Editar
                                                             </Button>
-                                                            {(isEmpty || bajoMinimo || userRole === 'admin') && (
+                                                            {(isEmpty || bajoMinimo) && (
                                                                 <Button variant="contained" color="warning" size="small"
                                                                     onClick={() => abrirModalSolicitud(row)}>
                                                                     Solicitar
