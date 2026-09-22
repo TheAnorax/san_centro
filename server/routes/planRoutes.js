@@ -8,7 +8,8 @@ const {
     registrarEntregaPaqueteria,
     obtenerPedidosPorFactura,
     obtenerPedidosFinalizadosPorMes,
-    obtenerHistoricoCrossDocking
+    obtenerHistoricoCrossDocking,
+    obtenerPedidosCD
 } = require('../controllers/planController');
 
 router.post('/insertar', insertarRutasPlan);
@@ -19,5 +20,6 @@ router.post('/registrar-paqueteria', registrarEntregaPaqueteria);
 
 router.post('/pedidos-finalizados-tipo', obtenerPedidosPorFactura);
 router.post('/pedidos-finalizados-mes-cd', obtenerPedidosFinalizadosPorMes);
-router.get('/historico-cross-docking', obtenerHistoricoCrossDocking); 
+router.get('/historico-cross-docking', obtenerHistoricoCrossDocking);
+router.get('/pedidos-cd', obtenerPedidosCD); // 👈 nueva: pedidos CD en vivo desde Sanced
 module.exports = router;

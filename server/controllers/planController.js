@@ -1,4 +1,5 @@
 const planModel = require('../models/planModel');
+const axios = require('axios');
 
 const insertarRutasPlan = async (req, res) => {
     const { rutas } = req.body;
@@ -111,6 +112,24 @@ const obtenerPedidosFinalizadosPorMes = async (req, res) => {
     }
 };
 
+// ✅ NUEVA - Pedidos CD "en vivo" desde la API de Sanced, para llenar la
+// tabla "Pedidos disponibles" del tab Plan sin tener que subir el Excel.
+// Es solo lectura (no inserta nada en BD, a diferencia de sincronizarSanced
+// en surtidoController.js que sí guarda en la tabla de surtido).
+const obtenerPedidosCD = async (req, res) => {
+    try {
+        const respuesta = await axios.post('http://santul.verpedidos.com:9010/Santul/Sanced');
+        const datos = Array.isArray(respuesta.data) ? respuesta.data : [];
+        const soloCD = datos.filter(
+            (item) => String(item.TpoOriginal || '').trim().toUpperCase() === 'CD'
+        );
+        res.status(200).json({ ok: true, data: soloCD });
+    } catch (error) {
+        console.error('❌ Error obteniendo pedidos CD de Sanced:', error.message);
+        res.status(500).json({ ok: false, message: 'Error al consultar pedidos CD de Sanced', error: error.message });
+    }
+};
+
 const obtenerHistoricoCrossDocking = async (req, res) => {
     try {
         const anio = req.query.anio ? parseInt(req.query.anio) : null;
@@ -130,5 +149,6 @@ module.exports = {
     registrarEntregaPaqueteria,
     obtenerPedidosPorFactura,
     obtenerPedidosFinalizadosPorMes,
-    obtenerHistoricoCrossDocking
+    obtenerHistoricoCrossDocking,
+    obtenerPedidosCD
 };

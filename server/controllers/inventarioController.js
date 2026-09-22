@@ -11,6 +11,10 @@ const {
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 const { plantillaCorreoStockMasivo } = require("../utils/plantillaCorreoStock");
+// 💲 Misma API de precios/unidad de medida que usa Muestras.jsx
+// (pedidoDetProd), para poder mostrar el correo de solicitud con la UM y el
+// costo real de cada producto, no solo el código y la cantidad.
+const { resolverUnidadYCosto } = require("../utils/preciosProducto");
 
 const DESTINATARIOS = ["desarrollo4@santul.net"];
 
@@ -37,6 +41,11 @@ async function solicitarProducto(req, res) {
       return res.status(400).json({ success: false, message: "Faltan datos obligatorios" });
     }
 
+    // 💲 Se consulta la unidad de medida y el costo real (mismo catálogo de
+    // ventas que usa Muestras.jsx) para que el correo no muestre solo la
+    // cantidad "pelona", sino en qué unidad y a qué costo se está pidiendo.
+    const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta } = await resolverUnidadYCosto(codigo, cantidadSolicitada);
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: { user: "crossdoog@gmail.com", pass: "lrzm nkgj ysbi gmpt" }
@@ -45,7 +54,8 @@ async function solicitarProducto(req, res) {
     const html = plantillaCorreoStock({
       codigo, descripcion, ubicacion, stock,
       cantidadSolicitada, solicitante,
-      masters, inners, sueltas  // 🆕
+      masters, inners, sueltas,  // 🆕
+      um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta
     });
 
     console.time("envioCorreo");
@@ -204,12 +214,23 @@ const solicitarProductoMasivoController = async (req, res) => {
     const mapaCantidades = {};
     filas.forEach((f) => { mapaCantidades[f.codigo] = f.cantidad; });
 
-    const agregados = encontrados.map((row) => ({
-      codigo: row.codigo_producto,
-      descripcion: row.descripcion,
-      ubicacion: row.ubicacion,
-      stock: row.cant_stock_real,
-      cantidadSolicitada: mapaCantidades[String(row.codigo_producto).trim()] ?? "",
+    // 💲 Para cada código encontrado se consulta su UM real y su costo
+    // (mismo catálogo de ventas que Muestras.jsx), en paralelo para no hacer
+    // la solicitud masiva lenta si son muchos códigos.
+    const agregados = await Promise.all(encontrados.map(async (row) => {
+      const cantidadSolicitada = mapaCantidades[String(row.codigo_producto).trim()] ?? "";
+      const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta } = await resolverUnidadYCosto(row.codigo_producto, cantidadSolicitada);
+      return {
+        codigo: row.codigo_producto,
+        descripcion: row.descripcion,
+        ubicacion: row.ubicacion,
+        stock: row.cant_stock_real,
+        cantidadSolicitada,
+        um,
+        precioUnitarioSinIva,
+        costoTotalSinIva,
+        minimoVenta,
+      };
     }));
 
     if (agregados.length > 0) {
@@ -229,10 +250,24 @@ const solicitarProductoMasivoController = async (req, res) => {
       });
     }
 
+    // Productos que sí se agregaron pero no completan su empaque mínimo de
+    // venta (cant_sec) — se avisa en pantalla además del correo, sin
+    // bloquear ni redondear nada.
+    const advertenciasEmpaque = agregados
+      .filter((a) => a.minimoVenta && !a.minimoVenta.completo)
+      .map((a) => ({
+        codigo: a.codigo,
+        cantidadSolicitada: a.cantidadSolicitada,
+        piezasPorEmpaque: a.minimoVenta.piezasPorEmpaque,
+        unidadEmpaque: a.minimoVenta.unidadEmpaque,
+        faltantePiezas: a.minimoVenta.faltantePiezas,
+      }));
+
     return res.json({
       ok: true,
       agregados: agregados.map((a) => a.codigo),
       faltan: noEncontrados,
+      advertenciasEmpaque,
     });
 
   } catch (error) {

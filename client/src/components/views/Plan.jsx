@@ -211,6 +211,69 @@ function Plan() {
         e.target.value = '';
     };
 
+    // ✅ NUEVO: trae en vivo todos los pedidos CD directamente de la API de
+    // Sanced (mismo origen que ya usa el cron de Surtido), sin necesidad de
+    // subir el Excel. Usa el mismo shape de objeto que handleFileUpload para
+    // que la tabla "Pedidos disponibles" y todo lo demás (asignar a ruta,
+    // modal de detalle, etc.) funcione igual sin importar de dónde vinieron
+    // los datos.
+    const [cargandoCD, setCargandoCD] = useState(false);
+
+    const cargarPedidosCDDesdeAPI = async () => {
+        setCargandoCD(true);
+        try {
+            const res = await axios.get('http://66.232.105.107:3001/api/Plan/pedidos-cd');
+            const datos = Array.isArray(res.data?.data) ? res.data.data : [];
+
+            const yaAsignados = new Set(Object.values(rutas).flat().map(p => p.NO_ORDEN));
+
+            const mapeado = datos
+                .filter(item => {
+                    const noOrden = String(item.NoOrden || '').trim();
+                    if (!noOrden) return false;
+                    if (yaAsignados.has(noOrden)) return false;
+                    return true;
+                })
+                .map(item => ({
+                    NO_ORDEN: String(item.NoOrden || '').trim(),
+                    tipo_original: String(item.TpoOriginal || '').trim(),
+                    FECHA: item.Fecha || '',
+                    ESTATUS: '',
+                    NUM_CLIENTE: String(item.NumConsigna || '').trim(),
+                    NOMBRE_DEL_CLIENTE: String(item.Nombre_Cliente || '').trim(),
+                    ZONA: String(item.Zona || '').trim(),
+                    TELEFONO: String(item.Telefono || '').trim(),
+                    CORREO: String(item.Correo || '').trim(),
+                    MUNICIPIO: String(item.Municipio || '').trim(),
+                    ESTADO: String(item.Estado || '').trim(),
+                    EJECUTIVO_VTAS: String(item.Ejecutivo || '').trim(),
+                    TOTAL: parseFloat(item.Total || 0) || 0,
+                    PARTIDAS: parseInt(item.Partidas || 0),
+                    PIEZAS: parseInt(item.Piezas || 0),
+                    DIRECCION: String(item.Direccion || '').trim(),
+                    NO_FACTURA: String(item.NoFactura || '0').trim(),
+                    rutaAsignada: null,
+                }));
+
+            setPedidos(prev => {
+                const nuevos = mapeado.filter(m => !prev.some(p => p.NO_ORDEN === m.NO_ORDEN));
+                return [...prev, ...nuevos];
+            });
+
+            Swal.fire({
+                icon: 'success',
+                title: `${mapeado.length} pedidos CD cargados`,
+                text: `${datos.length - mapeado.length} ya estaban en la tabla o ya tenían ruta asignada`,
+                timer: 2500, showConfirmButton: false
+            });
+        } catch (err) {
+            console.error('Error cargando pedidos CD:', err);
+            Swal.fire('❌ Error', 'No se pudieron cargar los pedidos CD de la API', 'error');
+        } finally {
+            setCargandoCD(false);
+        }
+    };
+
     const agregarRuta = () => {
         if (!nuevaRuta.trim()) { Swal.fire({ icon: 'warning', title: 'Escribe el nombre de la ruta' }); return; }
         if (rutas[nuevaRuta]) { Swal.fire({ icon: 'warning', title: 'Esa ruta ya existe' }); return; }
@@ -432,6 +495,10 @@ function Plan() {
                             <Button variant="contained" component="label" sx={{ bgcolor: '#1976d2', textTransform: 'none' }}>
                                 📂 Subir Excel
                                 <input hidden type="file" accept=".xlsx,.xls" onChange={handleFileUpload} />
+                            </Button>
+                            <Button variant="contained" disabled={cargandoCD} onClick={cargarPedidosCDDesdeAPI}
+                                sx={{ bgcolor: '#00897b', textTransform: 'none' }}>
+                                {cargandoCD ? 'Cargando...' : '🔄 Cargar CD (API)'}
                             </Button>
                             <TextField size="small" placeholder="Nombre de Ruta" value={nuevaRuta}
                                 onChange={e => setNuevaRuta(e.target.value)}

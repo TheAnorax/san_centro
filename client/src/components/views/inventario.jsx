@@ -357,6 +357,7 @@ function InventarioListado() {
                 setSolicitudMasivaResultado({
                     agregados: res.data?.agregados || [],
                     faltan: res.data?.faltan || [],
+                    advertenciasEmpaque: res.data?.advertenciasEmpaque || [],
                 });
 
                 Swal.fire(
@@ -375,6 +376,62 @@ function InventarioListado() {
 
         reader.readAsBinaryString(file);
         e.target.value = "";
+    };
+
+    // Manda de un jalón TODOS los productos que hoy aparecen en "Productos
+    // para solicitar" (mismo criterio que la lista de arriba), sin necesidad
+    // de subir un Excel. Usa como cantidad el faltante (inv_opt) de cada uno.
+    const handleSolicitarTodos = async () => {
+        if (faltantesParaSolicitar.length === 0) {
+            Swal.fire("Sin pendientes", "No hay productos faltantes por solicitar ahora mismo", "info");
+            return;
+        }
+
+        const productos = faltantesParaSolicitar
+            .map(row => ({
+                codigo: row.codigo_producto,
+                cantidad: Number(row.inv_opt) > 0 ? Number(row.inv_opt) : 1,
+            }))
+            .filter(p => p.codigo);
+
+        const { isConfirmed } = await Swal.fire({
+            title: "¿Solicitar todos los faltantes?",
+            html: `Se enviará una sola solicitud con los <b>${productos.length}</b> producto(s) que aparecen como faltantes.`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Sí, solicitar todos",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#3085d6",
+        });
+
+        if (!isConfirmed) return;
+
+        setSolicitudMasivaProcesando(true);
+        setSolicitudMasivaResultado(null);
+
+        try {
+            const res = await axios.post(
+                "http://66.232.105.107:3001/api/inventario/solicitar-producto-masivo",
+                { productos, solicitante: user?.nombre || "Usuario desconocido" }
+            );
+
+            setSolicitudMasivaResultado({
+                agregados: res.data?.agregados || [],
+                faltan: res.data?.faltan || [],
+                advertenciasEmpaque: res.data?.advertenciasEmpaque || [],
+            });
+
+            Swal.fire(
+                "✅ Solicitud enviada",
+                `Se agregaron ${res.data?.agregados?.length || 0} producto(s). ${res.data?.faltan?.length ? `${res.data.faltan.length} no se encontraron.` : ""}`,
+                "success"
+            );
+        } catch (err) {
+            console.error(err);
+            Swal.fire("❌ Error", "No se pudo enviar la solicitud", "error");
+        } finally {
+            setSolicitudMasivaProcesando(false);
+        }
     };
 
     // ── Modal Edición ──
@@ -433,9 +490,21 @@ function InventarioListado() {
 
                             {/* Sección 1: lista de productos que necesitan solicitud (igual criterio que "Mostrar faltantes") */}
                             <Box sx={{ mb: 3 }}>
-                                <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#e23b22" }}>
-                                    ⚠️ Productos para solicitar ({faltantesParaSolicitar.length})
-                                </p>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                                    <p style={{ margin: 0, fontWeight: "bold", color: "#e23b22" }}>
+                                        ⚠️ Productos para solicitar ({faltantesParaSolicitar.length})
+                                    </p>
+                                    <Button
+                                        variant="contained"
+                                        color="error"
+                                        size="small"
+                                        disabled={solicitudMasivaProcesando || faltantesParaSolicitar.length === 0}
+                                        onClick={handleSolicitarTodos}
+                                        sx={{ textTransform: 'none' }}
+                                    >
+                                        {solicitudMasivaProcesando ? "Enviando..." : "📨 Solicitar todos"}
+                                    </Button>
+                                </Box>
                                 <TableContainer sx={{ maxHeight: '40vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
                                     <Table size="small" stickyHeader>
                                         <TableHead>
@@ -505,13 +574,31 @@ function InventarioListado() {
                                         <p style={{ margin: "0 0 6px 0", fontWeight: "bold", color: "#d32f2f" }}>
                                             ❌ No encontrados / faltan ({solicitudMasivaResultado.faltan.length})
                                         </p>
-                                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 2 }}>
                                             {solicitudMasivaResultado.faltan.length === 0
                                                 ? <span style={{ color: "#888" }}>Ninguno</span>
                                                 : solicitudMasivaResultado.faltan.map(c => (
                                                     <Chip key={c} label={c} color="error" size="small" variant="outlined" />
                                                 ))}
                                         </Box>
+
+                                        {/* La cantidad se pide tal cual (en piezas), sin redondear al empaque
+                                            mínimo de venta — aquí solo se AVISA cuáles no lo completan, igual
+                                            que en el correo, para que quien autorice decida. */}
+                                        {solicitudMasivaResultado.advertenciasEmpaque?.length > 0 && (
+                                            <>
+                                                <p style={{ margin: "0 0 6px 0", fontWeight: "bold", color: "#e65100" }}>
+                                                    ⚠️ No completan empaque cerrado ({solicitudMasivaResultado.advertenciasEmpaque.length})
+                                                </p>
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                                    {solicitudMasivaResultado.advertenciasEmpaque.map(a => (
+                                                        <span key={a.codigo} style={{ fontSize: '0.8rem', color: '#e65100' }}>
+                                                            • {a.codigo}: pidió {a.cantidadSolicitada} PZ, empaque de {a.piezasPorEmpaque} PZ ({a.unidadEmpaque}) — faltan {a.faltantePiezas} PZ para completarlo
+                                                        </span>
+                                                    ))}
+                                                </Box>
+                                            </>
+                                        )}
                                     </Box>
                                 )}
                             </Box>
