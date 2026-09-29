@@ -51,7 +51,7 @@ async function solicitarProducto(req, res) {
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
-      auth: { user: "crossdoog@gmail.com", pass: "lrzm nkgj ysbi gmpt" }
+      auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
     });
 
     const html = plantillaCorreoStock({
@@ -63,7 +63,7 @@ async function solicitarProducto(req, res) {
 
     console.time("envioCorreo");
     await transporter.sendMail({
-      from: '"📦 Inventario Almacen 7240" <crossdoog@gmail.com>',
+      from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
       to: DESTINATARIOS.join(", "),
       subject: `Solicitud de reposición · Código: ${codigo}`,
       html,
@@ -74,7 +74,8 @@ async function solicitarProducto(req, res) {
     // 📝 Se registra en "No Pedido": el correo ya avisó que hay una
     // solicitud, pero todavía falta que el siguiente departamento la
     // revise/ajuste (Modificación) y Dirección la apruebe (Autorizada).
-    await crearSolicitudesInventario([{ sku: codigo, cantidad: cantidadSolicitada }]);
+    // `solicitante` (quien la mandó) queda guardado como solicitado_por.
+    await crearSolicitudesInventario([{ sku: codigo, cantidad: cantidadSolicitada }], solicitante);
 
     return res.json({ success: true, message: "Solicitud enviada correctamente" });
 
@@ -244,13 +245,13 @@ const solicitarProductoMasivoController = async (req, res) => {
     if (agregados.length > 0) {
       const transporter = nodemailer.createTransport({
         service: "gmail",
-        auth: { user: "crossdoog@gmail.com", pass: "lrzm nkgj ysbi gmpt" }
+        auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
       });
 
       const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante });
 
       await transporter.sendMail({
-        from: '"📦 Inventario Almacen 7240" <crossdoog@gmail.com>',
+        from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
         to: DESTINATARIOS.join(", "),
         subject: `Solicitud masiva de reposición · ${agregados.length} producto(s)`,
         html,
@@ -258,9 +259,11 @@ const solicitarProductoMasivoController = async (req, res) => {
       });
 
       // 📝 Igual que en la solicitud individual: cada producto que sí se
-      // agregó y se mandó por correo queda registrado en "No Pedido".
+      // agregó y se mandó por correo queda registrado en "No Pedido", con
+      // `solicitante` como solicitado_por.
       await crearSolicitudesInventario(
-        agregados.map((a) => ({ sku: a.codigo, cantidad: a.cantidadSolicitada }))
+        agregados.map((a) => ({ sku: a.codigo, cantidad: a.cantidadSolicitada })),
+        solicitante
       );
     }
 
@@ -315,15 +318,18 @@ const listarSolicitudesInventarioController = async (req, res) => {
 const actualizarEstadoSolicitudInventarioController = async (req, res) => {
   try {
     const { id } = req.params;
-    const { estado } = req.body;
+    const { estado, modificadoPor } = req.body;
     const estadosValidos = ["No Pedido", "Modificacion", "Autorizada"];
 
     if (!id) return res.status(400).json({ ok: false, message: "ID requerido" });
     if (!estadosValidos.includes(estado)) {
       return res.status(400).json({ ok: false, message: `Estado inválido. Debe ser uno de: ${estadosValidos.join(", ")}` });
     }
+    if (!modificadoPor) {
+      return res.status(400).json({ ok: false, message: "Falta modificadoPor (quién está haciendo el cambio)" });
+    }
 
-    const result = await actualizarEstadoSolicitudInventario(id, estado);
+    const result = await actualizarEstadoSolicitudInventario(id, estado, modificadoPor);
     if (result.affectedRows === 0) return res.status(404).json({ ok: false, message: "No se encontró la solicitud" });
 
     res.json({ ok: true, message: "Estado actualizado correctamente" });

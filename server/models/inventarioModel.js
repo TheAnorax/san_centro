@@ -184,7 +184,7 @@ const buscarProductosPorCodigos = async (codigos) => {
 // (el siguiente departamento revisa/ajusta en Modificacion,
 // Dirección aprueba en Autorizada).
 // ================================================
-const crearSolicitudesInventario = async (items) => {
+const crearSolicitudesInventario = async (items, solicitadoPor) => {
   // items: [{ sku, cantidad }]
   const filas = (items || [])
     .map((it) => [String(it.sku ?? '').trim(), Number(it.cantidad) || 0])
@@ -192,9 +192,9 @@ const crearSolicitudesInventario = async (items) => {
 
   if (filas.length === 0) return { insertados: 0 };
 
-  const values = filas.map(([sku, cantidad]) => [sku, cantidad, 'No Pedido']);
+  const values = filas.map(([sku, cantidad]) => [sku, cantidad, 'No Pedido', solicitadoPor || null]);
   const [result] = await pool.query(
-    `INSERT INTO solicitudes_inventario (sku, cantidad, estado) VALUES ?`,
+    `INSERT INTO solicitudes_inventario (sku, cantidad, estado, solicitado_por) VALUES ?`,
     [values]
   );
   return { insertados: result.affectedRows };
@@ -212,10 +212,13 @@ const listarSolicitudesInventario = async (estado) => {
   return rows;
 };
 
-const actualizarEstadoSolicitudInventario = async (id, estado) => {
+// `modificadoPor` se guarda en CUALQUIER cambio de estado (incluido pasar a
+// "Autorizada"), para saber quién fue la última persona que tocó la
+// solicitud, sin importar en qué paso del flujo estaba.
+const actualizarEstadoSolicitudInventario = async (id, estado, modificadoPor) => {
   const [result] = await pool.query(
-    `UPDATE solicitudes_inventario SET estado = ? WHERE id = ?`,
-    [estado, id]
+    `UPDATE solicitudes_inventario SET estado = ?, modificado_por = ? WHERE id = ?`,
+    [estado, modificadoPor || null, id]
   );
   return result;
 };

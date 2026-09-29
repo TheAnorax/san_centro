@@ -461,7 +461,12 @@ function InventarioListado() {
     const enviarSolicitudExcelPreview = async () => {
         if (productosExcelPreview.length === 0) return;
 
-        const sinCerrar = productosExcelPreview.filter(p => p.cierre === 'ninguno');
+        // 🔒 La validación de cierre a Inner/Master es solo para admin (es quien
+        // ve y resuelve esos botones). Otros roles (ej. supervisor) solo piden
+        // lo que les falta, así que no les debe salir esta advertencia.
+        const sinCerrar = userRole === 'admin'
+            ? productosExcelPreview.filter(p => p.cierre === 'ninguno')
+            : [];
         if (sinCerrar.length > 0) {
             const { isConfirmed: continuarSinCerrar } = await Swal.fire({
                 title: "Hay códigos sin cerrar a Inner ni Master",
@@ -689,7 +694,14 @@ function InventarioListado() {
                                             <Table size="small" stickyHeader>
                                                 <TableHead>
                                                     <TableRow sx={{ background: "#ffe7e1" }}>
-                                                        {["Código", "Descripción", "Stock", "Cantidad a solicitar", "Master / Inner solicitados", "Empaque (Inner/Master)"].map(col => (
+                                                        {[
+                                                            "Código", "Descripción", "Stock", "Cantidad a solicitar",
+                                                            // 🔒 El desglose Master/Inner y la validación de cierre de
+                                                            // empaque son cosas que solo el admin necesita ver/resolver;
+                                                            // otros roles (ej. supervisor) solo ven qué están pidiendo
+                                                            // y el botón de mandarlo.
+                                                            ...(userRole === 'admin' ? ["Master / Inner solicitados", "Empaque (Inner/Master)"] : []),
+                                                        ].map(col => (
                                                             <TableCell key={col} sx={{ fontWeight: "bold", color: "#e23b22" }}>{col}</TableCell>
                                                         ))}
                                                     </TableRow>
@@ -706,41 +718,45 @@ function InventarioListado() {
                                                                 <TableCell>{row.descripcion}</TableCell>
                                                                 <TableCell>{row.stock}</TableCell>
                                                                 <TableCell>{row.cantidad} PZ</TableCell>
-                                                                <TableCell>
-                                                                    {row.masterQty > 1 || row.innerQty > 1 ? (
-                                                                        <span style={{ fontSize: '0.8rem' }}>
-                                                                            {row.desglose?.masters > 0 && <span>📦 {row.desglose.masters} Master </span>}
-                                                                            {row.desglose?.inners > 0 && <span>📬 {row.desglose.inners} Inner </span>}
-                                                                            {row.desglose?.sueltas > 0 && <span>🔹 {row.desglose.sueltas} PZ</span>}
-                                                                            {!row.desglose?.masters && !row.desglose?.inners && !row.desglose?.sueltas && <span>0</span>}
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span style={{ color: '#aaa' }}>—</span>
-                                                                    )}
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    {row.cierre === null ? (
-                                                                        <span style={{ color: '#aaa' }}>—</span>
-                                                                    ) : row.cierre === 'ninguno' ? (
-                                                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                                                            <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.78rem' }}>
-                                                                                ⚠️ No cierra a Inner ({row.innerQty}) ni a Master ({row.masterQty})
-                                                                            </span>
-                                                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                                                <Button size="small" variant="outlined" onClick={() => cerrarFilaPreviewA(row.codigo, 'master')}>
-                                                                                    Cerrar a Master
-                                                                                </Button>
-                                                                                <Button size="small" variant="outlined" onClick={() => cerrarFilaPreviewA(row.codigo, 'inner')}>
-                                                                                    Cerrar a Inner
-                                                                                </Button>
-                                                                            </Box>
-                                                                        </Box>
-                                                                    ) : (
-                                                                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
-                                                                            ✅ Cierra a {row.cierre === 'master' ? 'Master' : 'Inner'}
-                                                                        </span>
-                                                                    )}
-                                                                </TableCell>
+                                                                {userRole === 'admin' && (
+                                                                    <>
+                                                                        <TableCell>
+                                                                            {row.masterQty > 1 || row.innerQty > 1 ? (
+                                                                                <span style={{ fontSize: '0.8rem' }}>
+                                                                                    {row.desglose?.masters > 0 && <span>📦 {row.desglose.masters} Master </span>}
+                                                                                    {row.desglose?.inners > 0 && <span>📬 {row.desglose.inners} Inner </span>}
+                                                                                    {row.desglose?.sueltas > 0 && <span>🔹 {row.desglose.sueltas} PZ</span>}
+                                                                                    {!row.desglose?.masters && !row.desglose?.inners && !row.desglose?.sueltas && <span>0</span>}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span style={{ color: '#aaa' }}>—</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            {row.cierre === null ? (
+                                                                                <span style={{ color: '#aaa' }}>—</span>
+                                                                            ) : row.cierre === 'ninguno' ? (
+                                                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                                                                    <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.78rem' }}>
+                                                                                        ⚠️ No cierra a Inner ({row.innerQty}) ni a Master ({row.masterQty})
+                                                                                    </span>
+                                                                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                                                        <Button size="small" variant="outlined" onClick={() => cerrarFilaPreviewA(row.codigo, 'master')}>
+                                                                                            Cerrar a Master
+                                                                                        </Button>
+                                                                                        <Button size="small" variant="outlined" onClick={() => cerrarFilaPreviewA(row.codigo, 'inner')}>
+                                                                                            Cerrar a Inner
+                                                                                        </Button>
+                                                                                    </Box>
+                                                                                </Box>
+                                                                            ) : (
+                                                                                <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                                                                                    ✅ Cierra a {row.cierre === 'master' ? 'Master' : 'Inner'}
+                                                                                </span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                    </>
+                                                                )}
                                                             </TableRow>
                                                         );
                                                     })}

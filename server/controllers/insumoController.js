@@ -122,8 +122,8 @@ async function enviarSolicitud(req, res) {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: "crossdoog@gmail.com",
-        pass: "lrzm nkgj ysbi gmpt",
+        user: "santuldesarrollo@gmail.com",
+        pass: "kcjx obmc cvaz vecr",
       },
     });
 
@@ -138,7 +138,7 @@ async function enviarSolicitud(req, res) {
 
     // 👉 4: Configurar correo
     const mailOptions = {
-      from: '"Santul – Insumos del Centro Historico" <crossdoog@gmail.com>',
+      from: '"Santul – Insumos del Centro Historico" <santuldesarrollo@gmail.com>',
       to: "desarrollo4@santul.net",
       subject: `Nueva Solicitud de Insumo (${codigo})`,
       html,
@@ -191,8 +191,8 @@ async function cambiarEstadoSolicitud(req, res) {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: "crossdoog@gmail.com",
-        pass: "lrzm nkgj ysbi gmpt"
+        user: "santuldesarrollo@gmail.com",
+        pass: "kcjx obmc cvaz vecr"
       }
     });
 
@@ -206,7 +206,7 @@ async function cambiarEstadoSolicitud(req, res) {
     });
 
     const mailOptions = {
-      from: '"Santul – Insumos del Centro Historico" <crossdoog@gmail.com>',
+      from: '"Santul – Insumos del Centro Historico" <santuldesarrollo@gmail.com>',
       to: "desarrollo4@santul.net",
       subject: `Solicitud ${estado} (${solicitud.codigo})`,
       html,
