@@ -242,16 +242,34 @@ const actualizarCantidadSolicitudInventario = async (id, cantidad, modificadoPor
   return result;
 };
 
-// Manda TODO el lote (el "pedido completo") a Autorizada de un solo golpe —
-// Planeación revisa/edita las cantidades y con un solo botón autoriza todo,
-// no uno por uno.
-const autorizarSolicitudesInventarioLote = async (ids, modificadoPor) => {
+// 📨 Planeación manda TODO el lote (el "pedido completo") a pedir
+// autorización de un solo golpe, no uno por uno. No se marca "Autorizada"
+// directamente: queda "Pendiente Autorizacion" hasta que Dirección responda
+// desde los botones del correo (autorizar/cancelar). `token` agrupa todos los
+// renglones que se mandaron juntos en ese correo.
+const marcarLotePendienteAutorizacion = async (ids, token, modificadoPor) => {
   const listaIds = (ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id));
   if (listaIds.length === 0) return { affectedRows: 0 };
 
   const [result] = await pool.query(
-    `UPDATE solicitudes_inventario SET estado = 'Autorizada', modificado_por = ? WHERE id IN (?)`,
-    [modificadoPor || null, listaIds]
+    `UPDATE solicitudes_inventario SET estado = 'Pendiente Autorizacion', lote_token = ?, modificado_por = ? WHERE id IN (?)`,
+    [token, modificadoPor || null, listaIds]
+  );
+  return result;
+};
+
+const obtenerLotePorToken = async (token) => {
+  const [rows] = await pool.query(`${SELECT_SOLICITUDES} WHERE si.lote_token = ?`, [token]);
+  return rows;
+};
+
+// Dirección da clic en "Autorizar" o "Cancelar" desde el correo (sin login) —
+// solo resuelve lotes que sigan "Pendiente Autorizacion" (evita que un link
+// viejo o clic doble vuelva a cambiar algo que ya se resolvió).
+const resolverLotePorToken = async (token, nuevoEstado, modificadoPor) => {
+  const [result] = await pool.query(
+    `UPDATE solicitudes_inventario SET estado = ?, modificado_por = ? WHERE lote_token = ? AND estado = 'Pendiente Autorizacion'`,
+    [nuevoEstado, modificadoPor || null, token]
   );
   return result;
 };
@@ -268,5 +286,7 @@ module.exports = {
   listarSolicitudesInventario,
   actualizarEstadoSolicitudInventario,
   actualizarCantidadSolicitudInventario,
-  autorizarSolicitudesInventarioLote
+  marcarLotePendienteAutorizacion,
+  obtenerLotePorToken,
+  resolverLotePorToken
 };

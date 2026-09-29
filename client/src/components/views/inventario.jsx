@@ -386,17 +386,20 @@ function InventarioListado() {
         }
     };
 
-    // 📨 Manda TODO el pedido a autorizar de un solo golpe (no uno por uno).
+    // 📨 Manda TODO el pedido a PEDIR autorización de un solo golpe (no uno
+    // por uno). Esto NO autoriza directo: le manda un correo a Dirección con
+    // el resumen (total ya recalculado) y dos botones (Autorizar/Cancelar)
+    // para que resuelva desde ahí, sin entrar al sistema.
     const autorizarLoteSolicitudes = async () => {
-        const pendientes = solicitudesPlaneacion.filter(s => s.estado !== 'Autorizada');
+        const pendientes = solicitudesPlaneacion.filter(s => s.estado === 'No Pedido' || s.estado === 'Modificacion');
         if (pendientes.length === 0) return;
 
         const { isConfirmed } = await Swal.fire({
-            title: "¿Mandar este pedido a autorizar?",
-            html: `Se autorizarán <b>${pendientes.length}</b> producto(s) de esta solicitud.`,
+            title: "¿Mandar este pedido a pedir autorización?",
+            html: `Se mandará un correo a Dirección para autorizar <b>${pendientes.length}</b> producto(s) de esta solicitud.`,
             icon: "question",
             showCancelButton: true,
-            confirmButtonText: "Sí, autorizar todo",
+            confirmButtonText: "Sí, mandar a autorizar",
             cancelButtonText: "Cancelar",
             confirmButtonColor: "#3085d6",
         });
@@ -408,12 +411,12 @@ function InventarioListado() {
                 modificadoPor: user?.nombre || "Usuario desconocido",
             });
             setSolicitudesPlaneacion(prev => prev.map(s => (
-                pendientes.some(p => p.id === s.id) ? { ...s, estado: 'Autorizada' } : s
+                pendientes.some(p => p.id === s.id) ? { ...s, estado: 'Pendiente Autorizacion' } : s
             )));
-            Swal.fire("✅ Pedido autorizado", `Se autorizaron ${pendientes.length} producto(s).`, "success");
+            Swal.fire("📨 Enviado", `Se mandó a pedir autorización a Dirección (${pendientes.length} producto(s)).`, "success");
         } catch (err) {
             console.error(err);
-            Swal.fire("❌ Error", "No se pudo autorizar el pedido", "error");
+            Swal.fire("❌ Error", "No se pudo mandar a pedir autorización", "error");
         }
     };
 
@@ -788,7 +791,7 @@ function InventarioListado() {
                                                     variant="contained"
                                                     color="primary"
                                                     size="small"
-                                                    disabled={solicitudesPlaneacion.every(s => s.estado === 'Autorizada')}
+                                                    disabled={!solicitudesPlaneacion.some(s => s.estado === 'No Pedido' || s.estado === 'Modificacion')}
                                                     onClick={autorizarLoteSolicitudes}
                                                     sx={{ textTransform: 'none' }}
                                                 >
@@ -814,7 +817,7 @@ function InventarioListado() {
                                                             const innerQty = Number(s._inner) || 0;
                                                             const { cierre, desglose } = calcularCierreSolicitud(Number(s.cantidad) || 0, masterQty, innerQty);
                                                             const sinCerrar = cierre === 'ninguno';
-                                                            const bloqueada = s.estado === 'Autorizada';
+                                                            const bloqueada = s.estado === 'Autorizada' || s.estado === 'Pendiente Autorizacion' || s.estado === 'Cancelada';
                                                             return (
                                                                 <TableRow key={s.id} sx={sinCerrar ? { backgroundColor: '#ffebee' } : undefined}>
                                                                     <TableCell>{s.sku}</TableCell>
@@ -855,8 +858,19 @@ function InventarioListado() {
                                                                     <TableCell>
                                                                         <Chip
                                                                             size="small"
-                                                                            label={s.estado === 'Modificacion' ? 'En revisión' : s.estado}
-                                                                            color={s.estado === 'Autorizada' ? 'success' : s.estado === 'Modificacion' ? 'warning' : 'default'}
+                                                                            label={
+                                                                                s.estado === 'Modificacion' ? 'En revisión'
+                                                                                    : s.estado === 'Pendiente Autorizacion' ? 'Pendiente de autorizar'
+                                                                                        : s.estado === 'Cancelada' ? 'Cancelado'
+                                                                                            : s.estado
+                                                                            }
+                                                                            color={
+                                                                                s.estado === 'Autorizada' ? 'success'
+                                                                                    : s.estado === 'Cancelada' ? 'error'
+                                                                                        : s.estado === 'Pendiente Autorizacion' ? 'info'
+                                                                                            : s.estado === 'Modificacion' ? 'warning'
+                                                                                                : 'default'
+                                                                            }
                                                                         />
                                                                     </TableCell>
                                                                 </TableRow>

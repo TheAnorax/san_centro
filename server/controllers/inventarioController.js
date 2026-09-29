@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const axios = require("axios");
+const crypto = require("crypto");
 const {
   obtenerInventario,
   actualizarUbicacion,
@@ -12,10 +13,12 @@ const {
   listarSolicitudesInventario,
   actualizarEstadoSolicitudInventario,
   actualizarCantidadSolicitudInventario,
-  autorizarSolicitudesInventarioLote
+  marcarLotePendienteAutorizacion,
+  obtenerLotePorToken,
+  resolverLotePorToken
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
-const { plantillaCorreoStockMasivo } = require("../utils/plantillaCorreoStock");
+const { plantillaCorreoStockMasivo, plantillaCorreoSolicitarAutorizacion } = require("../utils/plantillaCorreoStock");
 // 💲 Misma API de precios/unidad de medida que usa Muestras.jsx
 // (pedidoDetProd), para poder mostrar el correo de solicitud con la UM y el
 // costo real de cada producto, no solo el código y la cantidad.
@@ -371,25 +374,103 @@ const actualizarCantidadSolicitudInventarioController = async (req, res) => {
 };
 
 // ================================================
-// PUT Autorizar TODO el lote de solicitudes de un
-// solo golpe (el "pedido completo"), no uno por uno.
+// PUT Planeación manda TODO el lote (el "pedido
+// completo") a PEDIR autorización de un solo golpe, no
+// uno por uno. No autoriza directo: manda el 2do correo
+// a Dirección con el resumen (reducido, sin tabla) y el
+// costo total ya recalculado con los ajustes de
+// Planeación, más los botones de Autorizar/Cancelar.
 // ================================================
 const autorizarSolicitudesInventarioLoteController = async (req, res) => {
   try {
     const { ids, modificadoPor } = req.body;
 
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ ok: false, message: "Falta la lista de ids a autorizar" });
+      return res.status(400).json({ ok: false, message: "Falta la lista de ids a mandar a autorizar" });
     }
     if (!modificadoPor) {
       return res.status(400).json({ ok: false, message: "Falta modificadoPor (quién está haciendo el cambio)" });
     }
 
-    const result = await autorizarSolicitudesInventarioLote(ids, modificadoPor);
-    res.json({ ok: true, message: "Lote autorizado correctamente", autorizados: result.affectedRows });
+    const token = crypto.randomBytes(16).toString("hex");
+    await marcarLotePendienteAutorizacion(ids, token, modificadoPor);
+
+    const lote = await obtenerLotePorToken(token);
+
+    // 💲 Se recalcula el costo total por si Planeación modificó cantidades
+    // (cierres a Master/Inner, etc.) antes de mandarlo.
+    const conCosto = await Promise.all(lote.map(async (item) => {
+      const { costoTotalSinIva } = await resolverUnidadYCosto(item.sku, item.cantidad);
+      return costoTotalSinIva;
+    }));
+    const granTotal = conCosto.reduce((acc, c) => acc + (Number(c) || 0), 0);
+
+    const baseUrl = process.env.APP_BASE_URL || "http://66.232.105.107:3001";
+    const linkAutorizar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=autorizar`;
+    const linkCancelar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=cancelar`;
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
+    });
+
+    const html = plantillaCorreoSolicitarAutorizacion({
+      cantidadProductos: lote.length,
+      total: granTotal,
+      solicitante: modificadoPor,
+      linkAutorizar,
+      linkCancelar,
+    });
+
+    await transporter.sendMail({
+      from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
+      to: DESTINATARIOS.join(", "),
+      subject: `Autorización pendiente · ${lote.length} producto(s)`,
+      html,
+      attachments: [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul" }]
+    });
+
+    res.json({ ok: true, message: "Se mandó a pedir autorización", token, productos: lote.length });
   } catch (error) {
-    console.error("Error autorizando lote de solicitudes:", error);
+    console.error("Error mandando lote a pedir autorización:", error);
     res.status(500).json({ ok: false, message: "Error en el servidor", error: error.message });
+  }
+};
+
+// ================================================
+// GET Dirección resuelve el pedido directo desde los
+// botones del correo (sin login). Solo resuelve lotes
+// que sigan "Pendiente Autorizacion" (evita que un link
+// viejo o un clic doble cambie algo ya resuelto).
+// ================================================
+const resolverLotePorTokenController = async (req, res) => {
+  try {
+    const { token, accion } = req.query;
+
+    if (!token || !["autorizar", "cancelar"].includes(accion)) {
+      return res.status(400).send("<h2>Enlace inválido.</h2>");
+    }
+
+    const lote = await obtenerLotePorToken(token);
+    if (lote.length === 0) {
+      return res.send("<h2>Este enlace ya no es válido.</h2>");
+    }
+    if (lote[0].estado !== "Pendiente Autorizacion") {
+      return res.send(`<h2>Este pedido ya fue procesado (estado actual: ${lote[0].estado}).</h2>`);
+    }
+
+    const nuevoEstado = accion === "autorizar" ? "Autorizada" : "Cancelada";
+    await resolverLotePorToken(token, nuevoEstado, "Dirección (correo)");
+
+    res.send(`
+      <body style="font-family:Arial, sans-serif; text-align:center; padding:40px;">
+        <h2>${accion === "autorizar" ? "✅ Pedido autorizado" : "❌ Pedido cancelado"}</h2>
+        <p>${lote.length} producto(s) fueron marcados como "${nuevoEstado}".</p>
+      </body>
+    `);
+  } catch (error) {
+    console.error("Error resolviendo lote por token:", error);
+    res.status(500).send("<h2>Ocurrió un error procesando tu solicitud.</h2>");
   }
 };
 
@@ -405,5 +486,6 @@ module.exports = {
   listarSolicitudesInventario: listarSolicitudesInventarioController,
   actualizarEstadoSolicitudInventario: actualizarEstadoSolicitudInventarioController,
   actualizarCantidadSolicitudInventario: actualizarCantidadSolicitudInventarioController,
-  autorizarSolicitudesInventarioLote: autorizarSolicitudesInventarioLoteController
+  autorizarSolicitudesInventarioLote: autorizarSolicitudesInventarioLoteController,
+  resolverLotePorToken: resolverLotePorTokenController
 };

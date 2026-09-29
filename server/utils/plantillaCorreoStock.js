@@ -181,5 +181,77 @@ function plantillaCorreoStockMasivo({ productos, solicitante }) {
     `;
 }
 
+// ================================================
+// Correo de "pedir autorización" (segundo correo del
+// flujo): Planeación ya revisó/ajustó el pedido y este
+// correo le pide a Dirección que lo autorice. Va
+// reducido (sin tabla de productos, solo el resumen y
+// el total ya recalculado con los ajustes de Planeación)
+// y trae dos botones para que Dirección resuelva
+// directamente desde el correo, sin tener que entrar
+// al sistema.
+// ================================================
+function plantillaCorreoSolicitarAutorizacion({ cantidadProductos, total, solicitante, linkAutorizar, linkCancelar }) {
+    return `
+    <body style="background-color:#f4f4f4; padding:20px; font-family:Arial, sans-serif;">
+    <table style="max-width:600px; margin:auto; background:#fff; border-radius:8px; box-shadow:0 0 10px #ccc;">
+
+        <!-- LOGO -->
+        <tr>
+            <td style="text-align:center; padding:20px;">
+                <img src="cid:logo_santul" alt="Logo Santul" width="180" />
+            </td>
+        </tr>
+
+        <!-- TITULO -->
+        <tr>
+            <td style="background:#e65100; color:white; padding:20px; border-radius:8px 8px 0 0;">
+                <h2 style="margin:0;">🔔 Autorización pendiente</h2>
+            </td>
+        </tr>
+
+        <!-- CONTENIDO -->
+        <tr>
+            <td style="padding:22px;">
+
+                <p>Planeación revisó y mandó el siguiente pedido para su autorización:</p>
+
+                <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+                    <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Productos:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${cantidadProductos}</td>
+                    </tr>
+                    <tr style="background:#f9f9f9;">
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Costo total (sin IVA):</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>${formatCurrency(total)}</b></td>
+                    </tr>
+                    <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Revisado por:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${solicitante}</td>
+                    </tr>
+                </table>
+
+                <p style="margin-top:20px; text-align:center;">
+                    <a href="${linkAutorizar}" style="display:inline-block; background:#2e7d32; color:#fff; text-decoration:none; padding:12px 26px; border-radius:6px; font-weight:bold; margin:0 8px;">
+                        ✅ Autorizar pedido
+                    </a>
+                    <a href="${linkCancelar}" style="display:inline-block; background:#c62828; color:#fff; text-decoration:none; padding:12px 26px; border-radius:6px; font-weight:bold; margin:0 8px;">
+                        ❌ Cancelar pedido
+                    </a>
+                </p>
+
+                <p style="font-size:12px; color:#888; margin-top:30px;">
+                    Este correo fue generado automáticamente por el sistema de inventario · Santul San Cen.
+                </p>
+
+            </td>
+        </tr>
+
+    </table>
+    </body>
+    `;
+}
+
 module.exports = plantillaCorreoStock;
 module.exports.plantillaCorreoStockMasivo = plantillaCorreoStockMasivo;
+module.exports.plantillaCorreoSolicitarAutorizacion = plantillaCorreoSolicitarAutorizacion;
