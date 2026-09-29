@@ -13,9 +13,8 @@ import * as XLSX from "xlsx";
 const IMG_BASE = 'http://66.232.105.83:9101/images';
 const PLACEHOLDER = 'http://66.232.105.83:9101/images/noimage.png';
 
-// ================================================
+// #region UTILIDADES_EMPAQUE
 // Calcula masters, inners y sueltas del faltante
-// ================================================
 const UMBRAL_REDONDEO = 0.60;
 
 function calcularEmpaques(faltante, master, inner) {
@@ -48,7 +47,9 @@ function calcularEmpaques(faltante, master, inner) {
 
     return { masters, inners, sueltas: 0 };
 }
+// #endregion UTILIDADES_EMPAQUE
 
+// #region COMPONENTE_IMAGEN_PRODUCTO
 function ProductImage({ code }) {
     const [src, setSrc] = useState(`${IMG_BASE}/${encodeURIComponent(code || '')}.jpg`);
     useEffect(() => { setSrc(`${IMG_BASE}/${code}.jpg`); }, [code]);
@@ -60,8 +61,10 @@ function ProductImage({ code }) {
         />
     );
 }
+// #endregion COMPONENTE_IMAGEN_PRODUCTO
 
 function InventarioListado() {
+    // #region ESTADO_TABLA_INVENTARIO
     const [inventario, setInventario] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -82,7 +85,9 @@ function InventarioListado() {
             const tieneConfig = invMin !== null && invMax !== null;
             return tieneConfig && (qty <= 0 || (qty <= invMin && qty > 0));
         });
+    // #endregion ESTADO_TABLA_INVENTARIO
 
+    // #region CARGA_INVENTARIO
     const cargarInventario = async () => {
         setLoading(true);
         try {
@@ -114,7 +119,9 @@ function InventarioListado() {
         };
         cargarSolicitudes();
     }, []);
+    // #endregion CARGA_INVENTARIO
 
+    // #region PAGINACION_TABLA
     const handleChangePage = (_event, newPage) => setPage(newPage);
     const handleChangeRowsPerPage = (event) => {
         setRowsPerPage(parseInt(event.target.value, 10));
@@ -122,8 +129,9 @@ function InventarioListado() {
     };
 
     const paginated = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    // #endregion PAGINACION_TABLA
 
-    // ── Modal Solicitar ──
+    // #region MODAL_SOLICITAR_INDIVIDUAL
     const [openModal, setOpenModal] = useState(false);
     const [cantidadSolicitada, setCantidadSolicitada] = useState("");
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
@@ -132,11 +140,19 @@ function InventarioListado() {
     // queda solo para el rol admin.
     const userRole = user?.rol;
     // 🔒 Se valida por rol_id (estable) y no por el nombre (frágil: mayúsculas/typos).
-    // Solo admin (1) y supervisor (13) pueden ver la pestaña "Solicitar Inventario".
+    // #region ACCESO_TAB_SOLICITAR_INVENTARIO
+    // Por el momento SOLO admin (1) puede ver la pestaña "Solicitar Inventario".
+    // Los otros roles que en algún momento la van a necesitar quedan comentados
+    // aquí mismo (no borrados) para reactivarlos después:
+    //   - 13 = supervisor  (manda solicitudes por Excel, sin ver Master/Inner)
+    //   - 20 = Planeación  (gestiona el pedido y lo manda a pedir autorización)
     const userRolId = Number(user?.rol_id);
-    // Planeación (20) entra a esta pestaña para gestionar el flujo de estados
-    // (No Pedido -> Modificación/revisión -> Autorizada), no para pedir productos.
-    const puedeVerSolicitarInventario = userRolId === 1 || userRolId === 13 || userRolId === 20;
+    const puedeVerSolicitarInventario = (
+        userRolId === 1
+        // || userRolId === 13 // supervisor — deshabilitado temporalmente
+        // || userRolId === 20 // Planeación — deshabilitado temporalmente
+    );
+    // #endregion ACCESO_TAB_SOLICITAR_INVENTARIO
 
     const abrirModalSolicitud = (row) => {
         setProductoSeleccionado(row);
@@ -166,8 +182,9 @@ function InventarioListado() {
         Swal.fire("Solicitud enviada", "Tu solicitud fue enviada correctamente", "success");
         setOpenModal(false);
     };
+    // #endregion MODAL_SOLICITAR_INDIVIDUAL
 
-    // ── Stock JDE ──
+    // #region STOCK_JDE
     const [stockJDE, setStockJDE] = useState({});
 
     useEffect(() => {
@@ -181,8 +198,9 @@ function InventarioListado() {
         }
         cargarJDE();
     }, []);
+    // #endregion STOCK_JDE
 
-    // ── Excel ──
+    // #region EXPORTAR_EXCEL_INVENTARIO
     const exportarExcel = () => {
         const data = filtered.map(row => {
             const qty = row.cant_stock_real !== null ? Number(row.cant_stock_real) : null;
@@ -212,7 +230,9 @@ function InventarioListado() {
         XLSX.utils.book_append_sheet(wb, ws, "Inventario");
         XLSX.writeFile(wb, "inventario.xlsx");
     };
+    // #endregion EXPORTAR_EXCEL_INVENTARIO
 
+    // #region CARGA_MASIVA_MIN_MAX
     const handleCargaMasiva = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -297,8 +317,9 @@ function InventarioListado() {
     };
 
     const [openCargaMasiva, setOpenCargaMasiva] = useState(false);
+    // #endregion CARGA_MASIVA_MIN_MAX
 
-    // ── Tabs: Inventario / Solicitar Inventario ──
+    // #region TABS_INVENTARIO_SOLICITAR
     const [activeTab, setActiveTab] = useState(0);
 
     // Lista de faltantes (mismo criterio que "Mostrar faltantes"), independiente
@@ -310,8 +331,9 @@ function InventarioListado() {
         const tieneConfig = invMin !== null && invMax !== null;
         return tieneConfig && (qty <= 0 || (qty <= invMin && qty > 0));
     });
+    // #endregion TABS_INVENTARIO_SOLICITAR
 
-    // ── Solicitud masiva por Excel (código + cantidad) ──
+    // #region SOLICITUD_MASIVA_EXCEL_ESTADO
     const [solicitudMasivaResultado, setSolicitudMasivaResultado] = useState(null);
     const [solicitudMasivaProcesando, setSolicitudMasivaProcesando] = useState(false);
     // 🆕 Acumula (durante la sesión) todos los códigos que ya se mandaron en
@@ -323,7 +345,9 @@ function InventarioListado() {
     // los 647 faltantes de inventario": ahora solo se ve lo que el usuario
     // sube.
     const [productosExcelPreview, setProductosExcelPreview] = useState([]);
+    // #endregion SOLICITUD_MASIVA_EXCEL_ESTADO
 
+    // #region BANDEJA_PLANEACION
     // 🆕 Bandeja de Planeación: ve las solicitudes ya mandadas (guardadas en
     // solicitudes_inventario) y las mueve en el flujo de estados
     // No Pedido -> Modificación (a esto le llamamos "revisión" en pantalla)
@@ -331,6 +355,10 @@ function InventarioListado() {
     const puedeGestionarSolicitudes = userRolId === 20 || userRolId === 1;
     const [solicitudesPlaneacion, setSolicitudesPlaneacion] = useState([]);
     const [cargandoSolicitudesPlaneacion, setCargandoSolicitudesPlaneacion] = useState(false);
+    // 🆕 Las cantidades ya no se editan siempre abiertas (causaba líos al
+    // escribir); se activa un modo edición con un botón general y ahí sí se
+    // pueden modificar todas las cantidades del pedido.
+    const [editandoCantidadesPlaneacion, setEditandoCantidadesPlaneacion] = useState(false);
 
     const cargarSolicitudesPlaneacion = async () => {
         setCargandoSolicitudesPlaneacion(true);
@@ -419,7 +447,9 @@ function InventarioListado() {
             Swal.fire("❌ Error", "No se pudo mandar a pedir autorización", "error");
         }
     };
+    // #endregion BANDEJA_PLANEACION
 
+    // #region PLANTILLA_EXCEL_Y_CIERRE_INNER_MASTER
     const descargarPlantillaSolicitudMasiva = () => {
         const data = faltantesParaSolicitar.map(row => ({
             codigo_producto: row.codigo_producto,
@@ -503,7 +533,9 @@ function InventarioListado() {
             };
         }));
     };
+    // #endregion PLANTILLA_EXCEL_Y_CIERRE_INNER_MASTER
 
+    // #region SUBIR_EXCEL_SOLICITUD
     const handleSolicitudMasivaExcel = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -556,7 +588,9 @@ function InventarioListado() {
         reader.readAsBinaryString(file);
         e.target.value = "";
     };
+    // #endregion SUBIR_EXCEL_SOLICITUD
 
+    // #region ENVIAR_SOLICITUD_EXCEL_PREVIEW
     // Manda al backend justo lo que se muestra en la vista previa del Excel
     // (productosExcelPreview) — este es el momento en que de verdad se busca
     // en inventario, se manda el correo y se marca como "Solicitado".
@@ -623,7 +657,9 @@ function InventarioListado() {
             setSolicitudMasivaProcesando(false);
         }
     };
+    // #endregion ENVIAR_SOLICITUD_EXCEL_PREVIEW
 
+    // #region SINCRONIZAR_FALTANTES
     // 🔄 Sincronizar Faltantes: vuelve a calcular el faltante (inv_opt) y
     // recarga el inventario, sin mostrar ninguna tabla — solo para que los
     // datos contra los que se cruza el Excel estén al día antes de subirlo.
@@ -639,7 +675,12 @@ function InventarioListado() {
             setSincronizandoFaltantes(false);
         }
     };
+    // #endregion SINCRONIZAR_FALTANTES
 
+    // #region SOLICITAR_TODOS_FALTANTES_LEGACY
+    // ⚠️ Ya no tiene botón en pantalla (se reemplazó por el flujo de subir
+    // Excel + vista previa). Se deja la función por si se vuelve a necesitar
+    // un acceso directo para pedir todos los faltantes de un jalón.
     // Manda de un jalón TODOS los productos que hoy aparecen en "Productos
     // para solicitar" (mismo criterio que la lista de arriba), sin necesidad
     // de subir un Excel. Usa como cantidad el faltante (inv_opt) de cada uno.
@@ -696,8 +737,9 @@ function InventarioListado() {
             setSolicitudMasivaProcesando(false);
         }
     };
+    // #endregion SOLICITAR_TODOS_FALTANTES_LEGACY
 
-    // ── Modal Edición ──
+    // #region MODAL_EDICION_PRODUCTO
     const [openEditModal, setOpenEditModal] = useState(false);
     const [ubicacionEdit, setUbicacionEdit] = useState("");
     const [invMinEdit, setInvMinEdit] = useState("");
@@ -723,7 +765,9 @@ function InventarioListado() {
             Swal.fire("Error", "No se pudo actualizar", "error");
         }
     };
+    // #endregion MODAL_EDICION_PRODUCTO
 
+    // #region RENDER_HEADER_Y_TABS_NAV
     return (
         <div className="place_holder-container fade-in">
             <div className="place_holder-header">
@@ -743,7 +787,9 @@ function InventarioListado() {
                     {puedeVerSolicitarInventario && <Tab label="Solicitar Inventario" />}
                 </Tabs>
             </Box>
+            {/* #endregion RENDER_HEADER_Y_TABS_NAV */}
 
+            {/* #region RENDER_TAB_SOLICITAR_INVENTARIO */}
             {activeTab === 1 && puedeVerSolicitarInventario && (
                 <Box sx={{ mt: 3, mb: 2, px: { xs: 1, sm: 3 } }}>
                     {loading ? (
@@ -751,6 +797,7 @@ function InventarioListado() {
                     ) : (
                         <Paper elevation={3} sx={{ borderRadius: 4, boxShadow: "0 4px 24px rgba(200,70,50,.08)", overflow: "hidden", p: 2 }}>
 
+                            {/* #region UI_SUBIR_EXCEL_SOLICITUD */}
                             {/* Sección: carga por Excel (sku + cantidad). Por ahora NO se
                                 carga automáticamente la lista de faltantes de inventario —
                                 solo se trabaja con lo que el usuario sube. */}
@@ -774,7 +821,9 @@ function InventarioListado() {
                                         {sincronizandoFaltantes ? "Sincronizando..." : "🔄 Sincronizar Faltantes"}
                                     </Button>
                                 </Box>
+                            {/* #endregion UI_SUBIR_EXCEL_SOLICITUD */}
 
+                                {/* #region UI_BANDEJA_PLANEACION */}
                                 {/* 🆕 Bandeja de Planeación: revisar solicitudes ya mandadas y
                                     moverlas de No Pedido -> Revisión (Modificación) -> Autorizada. */}
                                 {puedeGestionarSolicitudes && (
@@ -786,6 +835,15 @@ function InventarioListado() {
                                             <Box sx={{ display: 'flex', gap: 1 }}>
                                                 <Button variant="outlined" size="small" disabled={cargandoSolicitudesPlaneacion} onClick={cargarSolicitudesPlaneacion}>
                                                     {cargandoSolicitudesPlaneacion ? "Cargando..." : "🔄 Actualizar"}
+                                                </Button>
+                                                <Button
+                                                    variant={editandoCantidadesPlaneacion ? "contained" : "outlined"}
+                                                    color="secondary"
+                                                    size="small"
+                                                    onClick={() => setEditandoCantidadesPlaneacion(v => !v)}
+                                                    sx={{ textTransform: 'none' }}
+                                                >
+                                                    {editandoCantidadesPlaneacion ? "🔒 Terminar edición" : "✏️ Modificar cantidades"}
                                                 </Button>
                                                 <Button
                                                     variant="contained"
@@ -823,15 +881,18 @@ function InventarioListado() {
                                                                     <TableCell>{s.sku}</TableCell>
                                                                     <TableCell>{s.descripcion || '(no está en catálogo)'}</TableCell>
                                                                     <TableCell>
-                                                                        <TextField
-                                                                            size="small"
-                                                                            type="number"
-                                                                            value={s.cantidad}
-                                                                            disabled={bloqueada}
-                                                                            onChange={(e) => editarCantidadSolicitudLocal(s.id, e.target.value)}
-                                                                            onBlur={(e) => guardarCantidadSolicitud(s.id, e.target.value)}
-                                                                            sx={{ width: 90 }}
-                                                                        />
+                                                                        {editandoCantidadesPlaneacion && !bloqueada ? (
+                                                                            <TextField
+                                                                                size="small"
+                                                                                type="number"
+                                                                                value={s.cantidad}
+                                                                                onChange={(e) => editarCantidadSolicitudLocal(s.id, e.target.value)}
+                                                                                onBlur={(e) => guardarCantidadSolicitud(s.id, e.target.value)}
+                                                                                sx={{ width: 90 }}
+                                                                            />
+                                                                        ) : (
+                                                                            <span>{s.cantidad} PZ</span>
+                                                                        )}
                                                                     </TableCell>
                                                                     <TableCell>
                                                                         {cierre === null ? (
@@ -882,7 +943,9 @@ function InventarioListado() {
                                         )}
                                     </Box>
                                 )}
+                                {/* #endregion UI_BANDEJA_PLANEACION */}
 
+                                {/* #region UI_PREVIEW_EXCEL_ANTES_DE_ENVIAR */}
                                 {productosExcelPreview.length > 0 && (
                                     <Box sx={{ mt: 2 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
@@ -975,7 +1038,9 @@ function InventarioListado() {
                                         </TableContainer>
                                     </Box>
                                 )}
+                                {/* #endregion UI_PREVIEW_EXCEL_ANTES_DE_ENVIAR */}
 
+                                {/* #region UI_RESULTADO_ENVIO_SOLICITUD */}
                                 {solicitudMasivaResultado && (
                                     <Box sx={{ mt: 2 }}>
                                         <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#333" }}>
@@ -1026,12 +1091,16 @@ function InventarioListado() {
                                         </TableContainer>
                                     </Box>
                                 )}
+                                {/* #endregion UI_RESULTADO_ENVIO_SOLICITUD */}
                             </Box>
                         </Paper>
                     )}
                 </Box>
             )}
 
+            {/* #endregion RENDER_TAB_SOLICITAR_INVENTARIO */}
+
+            {/* #region RENDER_TAB_INVENTARIO */}
             <Box sx={{ mt: activeTab === 0 ? 0 : 0, mb: 2, px: { xs: 1, sm: 3 }, display: activeTab === 0 ? 'block' : 'none' }}>
                 {loading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 7 }}><CircularProgress /></Box>
@@ -1191,6 +1260,7 @@ function InventarioListado() {
                             </Table>
                         </TableContainer>
 
+                        {/* #region MODAL_SOLICITAR_INDIVIDUAL_UI */}
                         {/* Modal Solicitar 🆕 con desglose */}
                         <Dialog open={openModal} onClose={() => setOpenModal(false)}>
                             <DialogTitle>Solicitar Producto</DialogTitle>
@@ -1256,7 +1326,9 @@ function InventarioListado() {
                                 <Button onClick={enviarSolicitud} variant="contained" color="primary">Enviar Solicitud</Button>
                             </DialogActions>
                         </Dialog>
+                        {/* #endregion MODAL_SOLICITAR_INDIVIDUAL_UI */}
 
+                        {/* #region MODAL_EDICION_PRODUCTO_UI */}
                         {/* Modal Editar */}
                         <Dialog open={openEditModal} onClose={() => setOpenEditModal(false)}>
                             <DialogTitle>Editar Producto</DialogTitle>
@@ -1284,7 +1356,9 @@ function InventarioListado() {
                                 <Button onClick={guardarUbicacion} variant="contained">Guardar</Button>
                             </DialogActions>
                         </Dialog>
+                        {/* #endregion MODAL_EDICION_PRODUCTO_UI */}
 
+                        {/* #region MODAL_CARGA_MASIVA_UI */}
                         {/* Modal Carga Masiva */}
                         <Dialog open={openCargaMasiva} onClose={() => setOpenCargaMasiva(false)} maxWidth="sm" fullWidth>
                             <DialogTitle>📥 Carga Masiva Min/Max</DialogTitle>
@@ -1358,6 +1432,7 @@ function InventarioListado() {
                                 <Button onClick={() => setOpenCargaMasiva(false)}>Cerrar</Button>
                             </DialogActions>
                         </Dialog>
+                        {/* #endregion MODAL_CARGA_MASIVA_UI */}
 
                         <TablePagination component="div" count={filtered.length} page={page}
                             onPageChange={handleChangePage} rowsPerPage={rowsPerPage}
@@ -1365,6 +1440,7 @@ function InventarioListado() {
                     </Paper>
                 )}
             </Box>
+            {/* #endregion RENDER_TAB_INVENTARIO */}
         </div>
     );
 }
