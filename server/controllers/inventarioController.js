@@ -7,7 +7,10 @@ const {
   actualizarInvOpt,
   limpiarInvOpt,
   cargaMasivaLimites,
-  buscarProductosPorCodigos
+  buscarProductosPorCodigos,
+  crearSolicitudesInventario,
+  listarSolicitudesInventario,
+  actualizarEstadoSolicitudInventario
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 const { plantillaCorreoStockMasivo } = require("../utils/plantillaCorreoStock");
@@ -67,6 +70,11 @@ async function solicitarProducto(req, res) {
       attachments: [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul" }]
     });
     console.timeEnd("envioCorreo");
+
+    // 📝 Se registra en "No Pedido": el correo ya avisó que hay una
+    // solicitud, pero todavía falta que el siguiente departamento la
+    // revise/ajuste (Modificación) y Dirección la apruebe (Autorizada).
+    await crearSolicitudesInventario([{ sku: codigo, cantidad: cantidadSolicitada }]);
 
     return res.json({ success: true, message: "Solicitud enviada correctamente" });
 
@@ -248,6 +256,12 @@ const solicitarProductoMasivoController = async (req, res) => {
         html,
         attachments: [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul" }]
       });
+
+      // 📝 Igual que en la solicitud individual: cada producto que sí se
+      // agregó y se mandó por correo queda registrado en "No Pedido".
+      await crearSolicitudesInventario(
+        agregados.map((a) => ({ sku: a.codigo, cantidad: a.cantidadSolicitada }))
+      );
     }
 
     // Productos que sí se agregaron pero no completan su empaque mínimo de
@@ -265,7 +279,10 @@ const solicitarProductoMasivoController = async (req, res) => {
 
     return res.json({
       ok: true,
-      agregados: agregados.map((a) => a.codigo),
+      // Detalle completo (código, descripción, cantidad, UM, costo, empaque
+      // mínimo) para que la pantalla pueda mostrar una tabla de resultados,
+      // no solo la lista de códigos.
+      agregados,
       faltan: noEncontrados,
       advertenciasEmpaque,
     });
@@ -273,6 +290,46 @@ const solicitarProductoMasivoController = async (req, res) => {
   } catch (error) {
     console.error("❌ Error en solicitud masiva:", error);
     return res.status(500).json({ ok: false, message: "Error enviando la solicitud masiva", error: error.message });
+  }
+};
+
+// ================================================
+// GET Listar solicitudes de inventario (sku/cantidad/estado)
+// Filtro opcional ?estado=No Pedido|Modificacion|Autorizada
+// ================================================
+const listarSolicitudesInventarioController = async (req, res) => {
+  try {
+    const { estado } = req.query;
+    const solicitudes = await listarSolicitudesInventario(estado || null);
+    res.json({ ok: true, data: solicitudes });
+  } catch (error) {
+    console.error("Error listando solicitudes de inventario:", error);
+    res.status(500).json({ ok: false, message: "Error al listar solicitudes", error: error.message });
+  }
+};
+
+// ================================================
+// PUT Cambiar estado de una solicitud
+// (No Pedido -> Modificacion -> Autorizada)
+// ================================================
+const actualizarEstadoSolicitudInventarioController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado } = req.body;
+    const estadosValidos = ["No Pedido", "Modificacion", "Autorizada"];
+
+    if (!id) return res.status(400).json({ ok: false, message: "ID requerido" });
+    if (!estadosValidos.includes(estado)) {
+      return res.status(400).json({ ok: false, message: `Estado inválido. Debe ser uno de: ${estadosValidos.join(", ")}` });
+    }
+
+    const result = await actualizarEstadoSolicitudInventario(id, estado);
+    if (result.affectedRows === 0) return res.status(404).json({ ok: false, message: "No se encontró la solicitud" });
+
+    res.json({ ok: true, message: "Estado actualizado correctamente" });
+  } catch (error) {
+    console.error("Error actualizando estado de solicitud:", error);
+    res.status(500).json({ ok: false, message: "Error en el servidor", error: error.message });
   }
 };
 
@@ -284,5 +341,7 @@ module.exports = {
   actualizarLimites: actualizarLimitesController,
   recalcularInvOpt,
   cargaMasivaLimites: cargaMasivaLimitesController,
-  solicitarProductoMasivo: solicitarProductoMasivoController
+  solicitarProductoMasivo: solicitarProductoMasivoController,
+  listarSolicitudesInventario: listarSolicitudesInventarioController,
+  actualizarEstadoSolicitudInventario: actualizarEstadoSolicitudInventarioController
 };

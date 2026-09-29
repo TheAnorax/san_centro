@@ -8,7 +8,9 @@ const {
   actualizarLimites,
   recalcularInvOpt,
   cargaMasivaLimites,
-  solicitarProductoMasivo
+  solicitarProductoMasivo,
+  listarSolicitudesInventario,
+  actualizarEstadoSolicitudInventario
 } = require('../controllers/inventarioController');
 
 router.get('/Obtenerinventario', todosLosInventarios);
@@ -19,5 +21,7 @@ router.put("/actualizar-ubicacion", actualizarUbicacion);
 router.put("/actualizar-limites", actualizarLimites);
 router.put("/recalcular-inv-opt", recalcularInvOpt);
 router.post('/carga-masiva-limites', cargaMasivaLimites);
+router.get('/solicitudes', listarSolicitudesInventario); // 👈 nueva: ?estado=No Pedido|Modificacion|Autorizada
+router.put('/solicitudes/:id/estado', actualizarEstadoSolicitudInventario); // 👈 nueva
 
 module.exports = router;

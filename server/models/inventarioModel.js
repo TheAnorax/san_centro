@@ -176,6 +176,50 @@ const buscarProductosPorCodigos = async (codigos) => {
   return { encontrados, noEncontrados };
 };
 
+// ================================================
+// Solicitudes de inventario (sku + cantidad + estado).
+// Se crean en "No Pedido" apenas se manda el correo de
+// solicitud (individual o masiva). El flujo de estados es:
+//   No Pedido -> Modificacion -> Autorizada
+// (el siguiente departamento revisa/ajusta en Modificacion,
+// Dirección aprueba en Autorizada).
+// ================================================
+const crearSolicitudesInventario = async (items) => {
+  // items: [{ sku, cantidad }]
+  const filas = (items || [])
+    .map((it) => [String(it.sku ?? '').trim(), Number(it.cantidad) || 0])
+    .filter(([sku, cantidad]) => sku && cantidad > 0);
+
+  if (filas.length === 0) return { insertados: 0 };
+
+  const values = filas.map(([sku, cantidad]) => [sku, cantidad, 'No Pedido']);
+  const [result] = await pool.query(
+    `INSERT INTO solicitudes_inventario (sku, cantidad, estado) VALUES ?`,
+    [values]
+  );
+  return { insertados: result.affectedRows };
+};
+
+const listarSolicitudesInventario = async (estado) => {
+  if (estado) {
+    const [rows] = await pool.query(
+      `SELECT * FROM solicitudes_inventario WHERE estado = ? ORDER BY creado_en DESC`,
+      [estado]
+    );
+    return rows;
+  }
+  const [rows] = await pool.query(`SELECT * FROM solicitudes_inventario ORDER BY creado_en DESC`);
+  return rows;
+};
+
+const actualizarEstadoSolicitudInventario = async (id, estado) => {
+  const [result] = await pool.query(
+    `UPDATE solicitudes_inventario SET estado = ? WHERE id = ?`,
+    [estado, id]
+  );
+  return result;
+};
+
 module.exports = {
   obtenerInventario,
   actualizarUbicacion,
@@ -183,5 +227,8 @@ module.exports = {
   limpiarInvOpt,
   actualizarLimites,
   cargaMasivaLimites,
-  buscarProductosPorCodigos
+  buscarProductosPorCodigos,
+  crearSolicitudesInventario,
+  listarSolicitudesInventario,
+  actualizarEstadoSolicitudInventario
 };
