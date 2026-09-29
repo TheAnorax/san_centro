@@ -114,28 +114,6 @@ function plantillaCorreoStock({ codigo, descripcion, ubicacion, stock, cantidadS
 function plantillaCorreoStockMasivo({ productos, solicitante }) {
     const lista = productos || [];
 
-    // La cantidad de cada renglón siempre está en PIEZAS (viene de inv_opt o
-    // de la columna "cantidad" del Excel) — se muestra como tal. Si el
-    // producto tiene empaque mínimo de venta (cant_sec) y la cantidad no lo
-    // completa, la fila se marca en amarillo y se agrega el detalle abajo.
-    const filas = lista.map((p) => {
-        const noCompleta = p.minimoVenta && !p.minimoVenta.completo;
-        return `
-        <tr${noCompleta ? ' style="background:#fff8e1;"' : ''}>
-            <td style="border:1px solid #ccc; padding:8px;">${p.codigo}</td>
-            <td style="border:1px solid #ccc; padding:8px;">${p.descripcion || '-'}</td>
-            <td style="border:1px solid #ccc; padding:8px;">${p.ubicacion || '-'}</td>
-            <td style="border:1px solid #ccc; padding:8px; color:red;"><b>${p.stock ?? '-'}</b></td>
-            <td style="border:1px solid #ccc; padding:8px;">
-                ${p.cantidadSolicitada} PZ
-                ${noCompleta ? `<br/><span style="color:#e65100; font-size:11px;">⚠️ Empaque ${p.minimoVenta.unidadEmpaque} de ${p.minimoVenta.piezasPorEmpaque} PZ — faltan ${p.minimoVenta.faltantePiezas} PZ</span>` : ''}
-            </td>
-            <td style="border:1px solid #ccc; padding:8px;">${formatCurrency(p.precioUnitarioSinIva)}</td>
-            <td style="border:1px solid #ccc; padding:8px;"><b>${formatCurrency(p.costoTotalSinIva)}</b></td>
-        </tr>
-    `;
-    }).join('');
-
     const granTotal = lista.reduce((acc, p) => acc + (Number(p.costoTotalSinIva) || 0), 0);
     const hayNoResueltos = lista.some((p) => p.precioUnitarioSinIva === null || p.precioUnitarioSinIva === undefined);
     const hayEmpaquesIncompletos = lista.some((p) => p.minimoVenta && !p.minimoVenta.completo);
@@ -162,43 +140,30 @@ function plantillaCorreoStockMasivo({ productos, solicitante }) {
         <tr>
             <td style="padding:22px;">
 
-                <p>Se generó una solicitud de reabastecimiento masiva con <b>${lista.length}</b> producto(s):</p>
-
-                <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:13px;">
-                    <tr style="background:#f0f0f0;">
-                        <td style="border:1px solid #ccc; padding:8px;"><b>Código</b></td>
-                        <td style="border:1px solid #ccc; padding:8px;"><b>Descripción</b></td>
-                        <td style="border:1px solid #ccc; padding:8px;"><b>Ubicación</b></td>
-                        <td style="border:1px solid #ccc; padding:8px;"><b>Stock actual</b></td>
-                        <td style="border:1px solid #ccc; padding:8px;"><b>Cantidad (PZ)</b></td>
-                        <td style="border:1px solid #ccc; padding:8px;"><b>Precio unit. (s/IVA)</b></td>
-                        <td style="border:1px solid #ccc; padding:8px;"><b>Costo total (s/IVA)</b></td>
+                <table style="width:100%; border-collapse:collapse; margin-top:5px;">
+                    <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Productos solicitados:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${lista.length}</td>
                     </tr>
-                    ${filas}
                     <tr style="background:#f9f9f9;">
-                        <td colspan="6" style="border:1px solid #ccc; padding:8px; text-align:right;"><b>Costo total de la solicitud (sin IVA):</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Costo total de la solicitud (sin IVA):</b></td>
                         <td style="border:1px solid #ccc; padding:8px;"><b>${formatCurrency(granTotal)}</b></td>
                     </tr>
-                </table>
-
-                ${hayNoResueltos ? `
-                <p style="font-size:12px; color:#e65100; margin-top:10px;">
-                    ⚠️ Algunos códigos no se encontraron en el catálogo de ventas, así que no se les pudo calcular
-                    costo (se muestran con cantidad en piezas y sin precio).
-                </p>` : ""}
-
-                ${hayEmpaquesIncompletos ? `
-                <p style="font-size:12px; color:#e65100; margin-top:10px;">
-                    ⚠️ Los renglones resaltados en amarillo no completan un empaque cerrado (mínimo de venta) —
-                    se solicitan tal cual, sin redondear, para que se decida si se ajustan antes de surtir.
-                </p>` : ""}
-
-                <table style="width:100%; border-collapse:collapse; margin-top:15px;">
                     <tr>
                         <td style="border:1px solid #ccc; padding:8px;"><b>Solicitante:</b></td>
                         <td style="border:1px solid #ccc; padding:8px;">${solicitante}</td>
                     </tr>
                 </table>
+
+                ${hayNoResueltos ? `
+                <p style="font-size:12px; color:#e65100; margin-top:10px;">
+                    ⚠️ Algunos códigos no se encontraron en el catálogo de ventas, así que no se les pudo calcular costo.
+                </p>` : ""}
+
+                ${hayEmpaquesIncompletos ? `
+                <p style="font-size:12px; color:#e65100; margin-top:10px;">
+                    ⚠️ Algunos productos no completan un empaque cerrado (mínimo de venta) — se solicitan tal cual, sin redondear.
+                </p>` : ""}
 
                 <p style="margin-top:20px;">
                     Favor de reabastecer estos productos a la brevedad.

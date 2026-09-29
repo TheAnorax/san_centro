@@ -200,15 +200,24 @@ const crearSolicitudesInventario = async (items, solicitadoPor) => {
   return { insertados: result.affectedRows };
 };
 
+// Se trae descripcion/_inner/_master del catálogo para que Planeación pueda
+// ver, por cada renglón, si la cantidad cierra a Inner o a Master (mismo
+// criterio que la vista previa del Excel: ambos empaques > 1 para que aplique).
+const SELECT_SOLICITUDES = `
+  SELECT si.*, p.descripcion, p._inner, p._master
+  FROM solicitudes_inventario si
+  LEFT JOIN productos p ON p.codigo = CAST(si.sku AS UNSIGNED)
+`;
+
 const listarSolicitudesInventario = async (estado) => {
   if (estado) {
     const [rows] = await pool.query(
-      `SELECT * FROM solicitudes_inventario WHERE estado = ? ORDER BY creado_en DESC`,
+      `${SELECT_SOLICITUDES} WHERE si.estado = ? ORDER BY si.creado_en DESC`,
       [estado]
     );
     return rows;
   }
-  const [rows] = await pool.query(`SELECT * FROM solicitudes_inventario ORDER BY creado_en DESC`);
+  const [rows] = await pool.query(`${SELECT_SOLICITUDES} ORDER BY si.creado_en DESC`);
   return rows;
 };
 
@@ -223,6 +232,30 @@ const actualizarEstadoSolicitudInventario = async (id, estado, modificadoPor) =>
   return result;
 };
 
+// Planeación puede ajustar la cantidad de un renglón antes de mandarlo a
+// autorizar (por ejemplo, para cerrarlo a Master/Inner).
+const actualizarCantidadSolicitudInventario = async (id, cantidad, modificadoPor) => {
+  const [result] = await pool.query(
+    `UPDATE solicitudes_inventario SET cantidad = ?, modificado_por = ? WHERE id = ?`,
+    [cantidad, modificadoPor || null, id]
+  );
+  return result;
+};
+
+// Manda TODO el lote (el "pedido completo") a Autorizada de un solo golpe —
+// Planeación revisa/edita las cantidades y con un solo botón autoriza todo,
+// no uno por uno.
+const autorizarSolicitudesInventarioLote = async (ids, modificadoPor) => {
+  const listaIds = (ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id));
+  if (listaIds.length === 0) return { affectedRows: 0 };
+
+  const [result] = await pool.query(
+    `UPDATE solicitudes_inventario SET estado = 'Autorizada', modificado_por = ? WHERE id IN (?)`,
+    [modificadoPor || null, listaIds]
+  );
+  return result;
+};
+
 module.exports = {
   obtenerInventario,
   actualizarUbicacion,
@@ -233,5 +266,7 @@ module.exports = {
   buscarProductosPorCodigos,
   crearSolicitudesInventario,
   listarSolicitudesInventario,
-  actualizarEstadoSolicitudInventario
+  actualizarEstadoSolicitudInventario,
+  actualizarCantidadSolicitudInventario,
+  autorizarSolicitudesInventarioLote
 };

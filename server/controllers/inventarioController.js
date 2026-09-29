@@ -10,7 +10,9 @@ const {
   buscarProductosPorCodigos,
   crearSolicitudesInventario,
   listarSolicitudesInventario,
-  actualizarEstadoSolicitudInventario
+  actualizarEstadoSolicitudInventario,
+  actualizarCantidadSolicitudInventario,
+  autorizarSolicitudesInventarioLote
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 const { plantillaCorreoStockMasivo } = require("../utils/plantillaCorreoStock");
@@ -339,6 +341,58 @@ const actualizarEstadoSolicitudInventarioController = async (req, res) => {
   }
 };
 
+// ================================================
+// PUT Cambiar la cantidad de una solicitud (Planeación
+// la ajusta, por ejemplo para cerrarla a Master/Inner,
+// antes de mandar todo el lote a autorizar).
+// ================================================
+const actualizarCantidadSolicitudInventarioController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cantidad, modificadoPor } = req.body;
+
+    if (!id) return res.status(400).json({ ok: false, message: "ID requerido" });
+    const cantidadNum = Number(cantidad);
+    if (!Number.isFinite(cantidadNum) || cantidadNum <= 0) {
+      return res.status(400).json({ ok: false, message: "Cantidad inválida" });
+    }
+    if (!modificadoPor) {
+      return res.status(400).json({ ok: false, message: "Falta modificadoPor (quién está haciendo el cambio)" });
+    }
+
+    const result = await actualizarCantidadSolicitudInventario(id, cantidadNum, modificadoPor);
+    if (result.affectedRows === 0) return res.status(404).json({ ok: false, message: "No se encontró la solicitud" });
+
+    res.json({ ok: true, message: "Cantidad actualizada correctamente" });
+  } catch (error) {
+    console.error("Error actualizando cantidad de solicitud:", error);
+    res.status(500).json({ ok: false, message: "Error en el servidor", error: error.message });
+  }
+};
+
+// ================================================
+// PUT Autorizar TODO el lote de solicitudes de un
+// solo golpe (el "pedido completo"), no uno por uno.
+// ================================================
+const autorizarSolicitudesInventarioLoteController = async (req, res) => {
+  try {
+    const { ids, modificadoPor } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ ok: false, message: "Falta la lista de ids a autorizar" });
+    }
+    if (!modificadoPor) {
+      return res.status(400).json({ ok: false, message: "Falta modificadoPor (quién está haciendo el cambio)" });
+    }
+
+    const result = await autorizarSolicitudesInventarioLote(ids, modificadoPor);
+    res.json({ ok: true, message: "Lote autorizado correctamente", autorizados: result.affectedRows });
+  } catch (error) {
+    console.error("Error autorizando lote de solicitudes:", error);
+    res.status(500).json({ ok: false, message: "Error en el servidor", error: error.message });
+  }
+};
+
 module.exports = {
   todosLosInventarios,
   solicitarProducto,
@@ -349,5 +403,7 @@ module.exports = {
   cargaMasivaLimites: cargaMasivaLimitesController,
   solicitarProductoMasivo: solicitarProductoMasivoController,
   listarSolicitudesInventario: listarSolicitudesInventarioController,
-  actualizarEstadoSolicitudInventario: actualizarEstadoSolicitudInventarioController
+  actualizarEstadoSolicitudInventario: actualizarEstadoSolicitudInventarioController,
+  actualizarCantidadSolicitudInventario: actualizarCantidadSolicitudInventarioController,
+  autorizarSolicitudesInventarioLote: autorizarSolicitudesInventarioLoteController
 };

@@ -131,6 +131,12 @@ function InventarioListado() {
     // Por ahora, poder solicitar cualquier producto (no solo los faltantes)
     // queda solo para el rol admin.
     const userRole = user?.rol;
+    // 🔒 Se valida por rol_id (estable) y no por el nombre (frágil: mayúsculas/typos).
+    // Solo admin (1) y supervisor (13) pueden ver la pestaña "Solicitar Inventario".
+    const userRolId = Number(user?.rol_id);
+    // Planeación (20) entra a esta pestaña para gestionar el flujo de estados
+    // (No Pedido -> Modificación/revisión -> Autorizada), no para pedir productos.
+    const puedeVerSolicitarInventario = userRolId === 1 || userRolId === 13 || userRolId === 20;
 
     const abrirModalSolicitud = (row) => {
         setProductoSeleccionado(row);
@@ -317,6 +323,99 @@ function InventarioListado() {
     // los 647 faltantes de inventario": ahora solo se ve lo que el usuario
     // sube.
     const [productosExcelPreview, setProductosExcelPreview] = useState([]);
+
+    // 🆕 Bandeja de Planeación: ve las solicitudes ya mandadas (guardadas en
+    // solicitudes_inventario) y las mueve en el flujo de estados
+    // No Pedido -> Modificación (a esto le llamamos "revisión" en pantalla)
+    // -> Autorizada. Solo Planeación (rol_id 20) y admin (rol_id 1) la ven.
+    const puedeGestionarSolicitudes = userRolId === 20 || userRolId === 1;
+    const [solicitudesPlaneacion, setSolicitudesPlaneacion] = useState([]);
+    const [cargandoSolicitudesPlaneacion, setCargandoSolicitudesPlaneacion] = useState(false);
+
+    const cargarSolicitudesPlaneacion = async () => {
+        setCargandoSolicitudesPlaneacion(true);
+        try {
+            const res = await axios.get('http://66.232.105.107:3001/api/inventario/solicitudes');
+            setSolicitudesPlaneacion(res.data?.data || []);
+        } catch (err) {
+            console.error('Error cargando solicitudes para Planeación:', err);
+        } finally {
+            setCargandoSolicitudesPlaneacion(false);
+        }
+    };
+
+    useEffect(() => {
+        if (puedeGestionarSolicitudes) {
+            cargarSolicitudesPlaneacion();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [puedeGestionarSolicitudes]);
+
+    // 🔒 Mismo criterio de cierre a Inner/Master que la vista previa del Excel:
+    // solo aplica si el código tiene AMBOS empaques definidos (>1). Si no,
+    // es informativo (solo PZ) y no bloquea nada.
+    const calcularCierreSolicitud = (cantidad, masterQty, innerQty) => {
+        const desglose = calcularDesglose(cantidad, masterQty, innerQty);
+        const aplicaCierre = masterQty > 1 && innerQty > 1;
+        let cierre = null;
+        if (aplicaCierre) {
+            if (cantidad % masterQty === 0) cierre = 'master';
+            else if (cantidad % innerQty === 0) cierre = 'inner';
+            else cierre = 'ninguno';
+        }
+        return { cierre, desglose };
+    };
+
+    // Cambia la cantidad solo en pantalla (mientras Planeación sigue escribiendo).
+    const editarCantidadSolicitudLocal = (id, nuevaCantidad) => {
+        setSolicitudesPlaneacion(prev => prev.map(s => s.id === id ? { ...s, cantidad: nuevaCantidad } : s));
+    };
+
+    // Al salir del campo, se guarda de verdad en la base de datos.
+    const guardarCantidadSolicitud = async (id, cantidad) => {
+        const cantidadNum = Number(cantidad);
+        if (!Number.isFinite(cantidadNum) || cantidadNum <= 0) return;
+        try {
+            await axios.put(`http://66.232.105.107:3001/api/inventario/solicitudes/${id}/cantidad`, {
+                cantidad: cantidadNum,
+                modificadoPor: user?.nombre || "Usuario desconocido",
+            });
+        } catch (err) {
+            console.error(err);
+            Swal.fire('❌ Error', 'No se pudo guardar la cantidad', 'error');
+        }
+    };
+
+    // 📨 Manda TODO el pedido a autorizar de un solo golpe (no uno por uno).
+    const autorizarLoteSolicitudes = async () => {
+        const pendientes = solicitudesPlaneacion.filter(s => s.estado !== 'Autorizada');
+        if (pendientes.length === 0) return;
+
+        const { isConfirmed } = await Swal.fire({
+            title: "¿Mandar este pedido a autorizar?",
+            html: `Se autorizarán <b>${pendientes.length}</b> producto(s) de esta solicitud.`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Sí, autorizar todo",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#3085d6",
+        });
+        if (!isConfirmed) return;
+
+        try {
+            await axios.put('http://66.232.105.107:3001/api/inventario/solicitudes/autorizar-lote', {
+                ids: pendientes.map(s => s.id),
+                modificadoPor: user?.nombre || "Usuario desconocido",
+            });
+            setSolicitudesPlaneacion(prev => prev.map(s => (
+                pendientes.some(p => p.id === s.id) ? { ...s, estado: 'Autorizada' } : s
+            )));
+            Swal.fire("✅ Pedido autorizado", `Se autorizaron ${pendientes.length} producto(s).`, "success");
+        } catch (err) {
+            console.error(err);
+            Swal.fire("❌ Error", "No se pudo autorizar el pedido", "error");
+        }
+    };
 
     const descargarPlantillaSolicitudMasiva = () => {
         const data = faltantesParaSolicitar.map(row => ({
@@ -638,11 +737,11 @@ function InventarioListado() {
                     sx={{ borderBottom: 1, borderColor: 'divider' }}
                 >
                     <Tab label="Inventario" />
-                    <Tab label="Solicitar Inventario" />
+                    {puedeVerSolicitarInventario && <Tab label="Solicitar Inventario" />}
                 </Tabs>
             </Box>
 
-            {activeTab === 1 && (
+            {activeTab === 1 && puedeVerSolicitarInventario && (
                 <Box sx={{ mt: 3, mb: 2, px: { xs: 1, sm: 3 } }}>
                     {loading ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 7 }}><CircularProgress /></Box>
@@ -672,6 +771,103 @@ function InventarioListado() {
                                         {sincronizandoFaltantes ? "Sincronizando..." : "🔄 Sincronizar Faltantes"}
                                     </Button>
                                 </Box>
+
+                                {/* 🆕 Bandeja de Planeación: revisar solicitudes ya mandadas y
+                                    moverlas de No Pedido -> Revisión (Modificación) -> Autorizada. */}
+                                {puedeGestionarSolicitudes && (
+                                    <Box sx={{ mt: 3 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                                            <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
+                                                📋 Pedido de solicitudes ({solicitudesPlaneacion.length})
+                                            </p>
+                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                                <Button variant="outlined" size="small" disabled={cargandoSolicitudesPlaneacion} onClick={cargarSolicitudesPlaneacion}>
+                                                    {cargandoSolicitudesPlaneacion ? "Cargando..." : "🔄 Actualizar"}
+                                                </Button>
+                                                <Button
+                                                    variant="contained"
+                                                    color="primary"
+                                                    size="small"
+                                                    disabled={solicitudesPlaneacion.every(s => s.estado === 'Autorizada')}
+                                                    onClick={autorizarLoteSolicitudes}
+                                                    sx={{ textTransform: 'none' }}
+                                                >
+                                                    📨 Mandar todo a autorizar
+                                                </Button>
+                                            </Box>
+                                        </Box>
+                                        {solicitudesPlaneacion.length === 0 ? (
+                                            <p style={{ fontSize: '0.85rem', color: '#888' }}>No hay solicitudes registradas.</p>
+                                        ) : (
+                                            <TableContainer sx={{ maxHeight: '45vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
+                                                <Table size="small" stickyHeader>
+                                                    <TableHead>
+                                                        <TableRow sx={{ background: "#e3f2fd" }}>
+                                                            {["SKU", "Descripción", "Cantidad", "Empaque (Inner/Master)", "Estado"].map(col => (
+                                                                <TableCell key={col} sx={{ fontWeight: "bold" }}>{col}</TableCell>
+                                                            ))}
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {solicitudesPlaneacion.map((s) => {
+                                                            const masterQty = Number(s._master) || 0;
+                                                            const innerQty = Number(s._inner) || 0;
+                                                            const { cierre, desglose } = calcularCierreSolicitud(Number(s.cantidad) || 0, masterQty, innerQty);
+                                                            const sinCerrar = cierre === 'ninguno';
+                                                            const bloqueada = s.estado === 'Autorizada';
+                                                            return (
+                                                                <TableRow key={s.id} sx={sinCerrar ? { backgroundColor: '#ffebee' } : undefined}>
+                                                                    <TableCell>{s.sku}</TableCell>
+                                                                    <TableCell>{s.descripcion || '(no está en catálogo)'}</TableCell>
+                                                                    <TableCell>
+                                                                        <TextField
+                                                                            size="small"
+                                                                            type="number"
+                                                                            value={s.cantidad}
+                                                                            disabled={bloqueada}
+                                                                            onChange={(e) => editarCantidadSolicitudLocal(s.id, e.target.value)}
+                                                                            onBlur={(e) => guardarCantidadSolicitud(s.id, e.target.value)}
+                                                                            sx={{ width: 90 }}
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {cierre === null ? (
+                                                                            <span style={{ color: '#aaa' }}>—</span>
+                                                                        ) : (
+                                                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                                                                                <span style={{ fontSize: '0.78rem' }}>
+                                                                                    {desglose?.masters > 0 && <span>📦 {desglose.masters} Master </span>}
+                                                                                    {desglose?.inners > 0 && <span>📬 {desglose.inners} Inner </span>}
+                                                                                    {desglose?.sueltas > 0 && <span>🔹 {desglose.sueltas} PZ</span>}
+                                                                                </span>
+                                                                                {sinCerrar ? (
+                                                                                    <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                                                                                        ⚠️ No cierra a Inner ({innerQty}) ni a Master ({masterQty})
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                                                                                        ✅ Cierra a {cierre === 'master' ? 'Master' : 'Inner'}
+                                                                                    </span>
+                                                                                )}
+                                                                            </Box>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <Chip
+                                                                            size="small"
+                                                                            label={s.estado === 'Modificacion' ? 'En revisión' : s.estado}
+                                                                            color={s.estado === 'Autorizada' ? 'success' : s.estado === 'Modificacion' ? 'warning' : 'default'}
+                                                                        />
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                        )}
+                                    </Box>
+                                )}
 
                                 {productosExcelPreview.length > 0 && (
                                     <Box sx={{ mt: 2 }}>
