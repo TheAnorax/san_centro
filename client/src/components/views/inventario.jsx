@@ -93,9 +93,12 @@ function InventarioListado() {
         try {
             await axios.put('http://66.232.105.107:3001/api/inventario/recalcular-inv-opt');
             const res = await axios.get('http://66.232.105.107:3001/api/inventario/Obtenerinventario');
-            setInventario(res.data || []);
+            const datos = res.data || [];
+            setInventario(datos);
+            return datos; // 👈 para poder usar los datos frescos justo después (ej. sincronizarFaltantes)
         } catch (err) {
             setError("Error al cargar el inventario");
+            return [];
         } finally {
             setLoading(false);
         }
@@ -593,22 +596,38 @@ function InventarioListado() {
                         codigo: String(row.codigo_producto || row.sku || row.SKU || row.codigo || row.Código || "").trim(),
                         cantidad: Number(row.cantidad ?? row.Cantidad ?? 0),
                     }))
-                    .filter(row => row.codigo && row.cantidad > 0);
+                    .filter(row => row.codigo);
 
                 if (productos.length === 0) {
-                    Swal.fire("⚠️ Sin datos", "No se encontraron filas válidas (código + cantidad) en el archivo", "warning");
+                    Swal.fire("⚠️ Sin datos", "No se encontraron filas válidas (código) en el archivo", "warning");
                     return;
                 }
 
-                // No se envía nada todavía: se arma una vista previa con lo que
-                // trae ESTE Excel (cruzando cada código contra el inventario ya
-                // cargado en pantalla para mostrar descripción/ubicación/stock),
-                // para que el usuario vea exactamente qué va a solicitar antes
-                // de mandarlo.
-                const preview = productos.map(p => {
-                    const match = inventario.find(i => String(i.codigo_producto).trim() === p.codigo);
-                    return construirFilaPreview(p.codigo, p.cantidad, match);
-                });
+                // El Excel solo dice QUÉ códigos solicitar — la CANTIDAD siempre
+                // se toma del faltante que ya calcula la app (inv_opt, la misma
+                // que se ve en "⚠️ Faltante" en la pestaña Inventario), no de lo
+                // que venga escrito en la columna "cantidad" del archivo. Si un
+                // código no tiene faltante calculado (inv_opt vacío/0), se usa la
+                // cantidad del Excel como respaldo.
+                const codigosSinFaltante = [];
+                const preview = productos
+                    .map(p => {
+                        const match = inventario.find(i => String(i.codigo_producto).trim() === p.codigo);
+                        const faltante = Number(match?.inv_opt) || 0;
+                        const cantidadFinal = faltante > 0 ? faltante : Number(p.cantidad) || 0;
+                        if (faltante <= 0 && cantidadFinal <= 0) codigosSinFaltante.push(p.codigo);
+                        return { codigo: p.codigo, cantidad: cantidadFinal, match };
+                    })
+                    .filter(p => p.cantidad > 0)
+                    .map(p => construirFilaPreview(p.codigo, p.cantidad, p.match));
+
+                if (codigosSinFaltante.length > 0) {
+                    Swal.fire({
+                        icon: "info",
+                        title: "Algunos códigos no tienen faltante",
+                        html: `${codigosSinFaltante.length} código(s) no tienen faltante calculado ni cantidad en el Excel, así que no se incluyen: ${codigosSinFaltante.join(", ")}`,
+                    });
+                }
 
                 setProductosExcelPreview(preview);
                 setSolicitudMasivaResultado(null);
@@ -698,11 +717,32 @@ function InventarioListado() {
     // recarga el inventario, sin mostrar ninguna tabla — solo para que los
     // datos contra los que se cruza el Excel estén al día antes de subirlo.
     const [sincronizandoFaltantes, setSincronizandoFaltantes] = useState(false);
+    // 🆕 Ya no hace falta subir Excel para ver qué solicitar: sincroniza el
+    // inventario (recalcula inv_opt) y arma la vista previa directo con los
+    // faltantes que la propia app ya calculó (mismo criterio que "⚠️ Mostrar
+    // faltantes" en la pestaña Inventario), usando inv_opt como cantidad.
     const sincronizarFaltantes = async () => {
         setSincronizandoFaltantes(true);
         try {
-            await cargarInventario();
-            Swal.fire({ icon: 'success', title: 'Faltantes sincronizados', timer: 1500, showConfirmButton: false });
+            const datos = await cargarInventario();
+
+            const faltantes = (datos || []).filter(item => {
+                const qty = Number(item.cant_stock_real) || 0;
+                const invMin = item.inv_min !== null && item.inv_min !== "" ? Number(item.inv_min) : null;
+                const invMax = item.inv_max !== null && item.inv_max !== "" ? Number(item.inv_max) : null;
+                const tieneConfig = invMin !== null && invMax !== null;
+                return tieneConfig && (qty <= 0 || (qty <= invMin && qty > 0));
+            });
+
+            const preview = faltantes
+                .map(item => ({ codigo: item.codigo_producto, cantidad: Number(item.inv_opt) || 0, match: item }))
+                .filter(p => p.cantidad > 0)
+                .map(p => construirFilaPreview(p.codigo, p.cantidad, p.match));
+
+            setProductosExcelPreview(preview);
+            setSolicitudMasivaResultado(null);
+
+            Swal.fire({ icon: 'success', title: `${preview.length} faltante(s) sincronizado(s)`, timer: 1500, showConfirmButton: false });
         } catch (err) {
             Swal.fire('❌ Error', 'No se pudo sincronizar', 'error');
         } finally {

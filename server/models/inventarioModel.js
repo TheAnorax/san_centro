@@ -1,4 +1,10 @@
 const pool = require('../db');
+const axios = require('axios');
+
+// 🔗 Para que el número de pedido de solicitudes_inventario siga la MISMA
+// numeración que ya usa CrossDock (app "sanced") en vez de tener su propio
+// contador aparte empezando en 1.
+const CROSS_DOCK_API = 'http://66.232.105.87:3007/api/cross-dock';
 
 // ================================================
 // GET Inventario
@@ -195,10 +201,24 @@ const crearSolicitudesInventario = async (items, solicitadoPor) => {
   // 🔢 Todos los renglones que se mandan juntos en una misma solicitud
   // (Excel o "Solicitar todos") comparten el mismo número de pedido —
   // así Planeación puede identificar el pedido completo, no solo SKUs sueltos.
-  const [[{ siguiente }]] = await pool.query(
+  //
+  // El número sigue la secuencia de CrossDock (app "sanced"): se toma el
+  // mayor entre lo que ya llevamos aquí y el último "NO ORDEN" de CrossDock,
+  // y se avanza desde ahí — así nunca queda un número repetido ni atrasado
+  // respecto a la otra aplicación.
+  const [[{ siguiente: siguienteLocal }]] = await pool.query(
     `SELECT COALESCE(MAX(numero_pedido), 0) + 1 AS siguiente FROM solicitudes_inventario`
   );
-  const numeroPedido = siguiente;
+
+  let ultimoCrossDock = 0;
+  try {
+    const { data } = await axios.get(`${CROSS_DOCK_API}/ultimo-no-orden`, { timeout: 5000 });
+    ultimoCrossDock = Number(data?.ultimo) || 0;
+  } catch (err) {
+    console.error('No se pudo consultar el último NO ORDEN de CrossDock (se usa el contador local):', err.message);
+  }
+
+  const numeroPedido = Math.max(siguienteLocal, ultimoCrossDock + 1);
 
   const values = filas.map(([sku, cantidad]) => [sku, cantidad, 'No Pedido', solicitadoPor || null, numeroPedido]);
   const [result] = await pool.query(
