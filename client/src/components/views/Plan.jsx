@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     Box, Button, Typography, Table, TableHead, TableBody,
     TableRow, TableCell, TableContainer, Paper, Select,
@@ -80,6 +80,16 @@ function Plan() {
     const [diaSanced, setDiaSanced] = useState('');
 
     const [modalPaqueteria, setModalPaqueteria] = useState({ open: false, pedido: null });
+
+    // #region SUBIR_EXCEL_ENTREGAS
+    // Sube el Excel/xlsb de "concentrado de entregas" (columnas PEDIDO, ENTEGA,
+    // FECHA ENTREGA) y actualiza fecha_entrega + entrega en lote, buscando por
+    // no_orden. ENTEGA = "CROSS" -> entrega "santul"; cualquier otro valor
+    // (ej. "CARRANZA") -> entrega "paqueteria". Filas "CANCELADO" o sin fecha
+    // de entrega se ignoran.
+    const [subiendoEntregas, setSubiendoEntregas] = useState(false);
+    const inputExcelEntregasRef = useRef(null);
+    // #endregion SUBIR_EXCEL_ENTREGAS
 
     const [datosPaqueteria, setDatosPaqueteria] = useState({
         monto: '', observaciones: '',
@@ -433,6 +443,100 @@ function Plan() {
             setCargandoSanced(false);
         }
     };
+
+    // #region SUBIR_EXCEL_ENTREGAS
+    const excelSerialAFecha = (valor) => {
+        if (valor instanceof Date) {
+            const y = valor.getFullYear(), m = String(valor.getMonth() + 1).padStart(2, '0'), d = String(valor.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+        const serial = Number(valor);
+        if (!serial || isNaN(serial)) return null;
+        // Excel cuenta los días desde 1899-12-30
+        const base = new Date(Date.UTC(1899, 11, 30));
+        base.setUTCDate(base.getUTCDate() + Math.round(serial));
+        const y = base.getUTCFullYear(), m = String(base.getUTCMonth() + 1).padStart(2, '0'), d = String(base.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    const handleSubirExcelEntregas = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setSubiendoEntregas(true);
+        try {
+            const buffer = await file.arrayBuffer();
+            const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+            const nombreHoja = wb.SheetNames.includes('RESUMEN') ? 'RESUMEN' : wb.SheetNames[0];
+            const hoja = wb.Sheets[nombreHoja];
+            const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: true, defval: null });
+
+            // Busca la fila de encabezados (la que trae la columna "PEDIDO")
+            const idxEncabezado = filas.findIndex(fila =>
+                Array.isArray(fila) && fila.some(c => String(c || '').trim().toUpperCase() === 'PEDIDO')
+            );
+            if (idxEncabezado === -1) {
+                throw new Error('No se encontró la columna "PEDIDO" en el archivo.');
+            }
+
+            const encabezados = filas[idxEncabezado].map(c => String(c || '').trim().toUpperCase());
+            const idxPedido = encabezados.indexOf('PEDIDO');
+            const idxFactura = encabezados.indexOf('FACTURA');
+            const idxEntega = encabezados.indexOf('ENTEGA');
+            const idxFechaEntrega = encabezados.findIndex(h => h.startsWith('FECHA ENTREGA'));
+
+            if (idxFechaEntrega === -1) {
+                throw new Error('No se encontró la columna "FECHA ENTREGA" en el archivo.');
+            }
+
+            const registros = [];
+            for (let i = idxEncabezado + 1; i < filas.length; i++) {
+                const fila = filas[i];
+                if (!fila || fila.every(c => c === null || c === '')) continue;
+
+                const pedido = fila[idxPedido];
+                const factura = fila[idxFactura];
+                const fechaEntregaRaw = fila[idxFechaEntrega];
+                const entegaTexto = String(fila[idxEntega] || '').trim().toUpperCase();
+
+                if (pedido === null || pedido === '' || String(factura).trim().toUpperCase() === 'CANCELADO') continue;
+                if (!fechaEntregaRaw) continue;
+
+                const noOrden = String(pedido).trim().replace(/\.0$/, '');
+                const fechaEntrega = excelSerialAFecha(fechaEntregaRaw);
+                if (!fechaEntrega) continue;
+
+                const entrega = entegaTexto === 'CROSS' ? 'santul' : (entegaTexto ? 'paqueteria' : null);
+
+                registros.push({ no_orden: noOrden, fecha_entrega: fechaEntrega, entrega });
+            }
+
+            if (registros.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'Sin registros válidos', text: 'No se encontraron filas con PEDIDO y FECHA ENTREGA.' });
+                return;
+            }
+
+            const { data } = await axios.put(
+                'http://66.232.105.107:3001/api/Plan/actualizar-entrega-masivo',
+                { registros }
+            );
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Entregas actualizadas',
+                html: `Actualizados: <b>${data.actualizados}</b> de ${data.total}.` +
+                    (data.noEncontrados?.length ? `<br>No encontrados (${data.noEncontrados.length}): ${data.noEncontrados.slice(0, 20).join(', ')}${data.noEncontrados.length > 20 ? '…' : ''}` : ''),
+            });
+
+            cargarPedidosSanced(mesSanced);
+        } catch (err) {
+            Swal.fire('❌ Error', err.message || 'No se pudo procesar el archivo.', 'error');
+        } finally {
+            setSubiendoEntregas(false);
+            if (inputExcelEntregasRef.current) inputExcelEntregasRef.current.value = '';
+        }
+    };
+    // #endregion SUBIR_EXCEL_ENTREGAS
 
     const guardarEntregaPaqueteria = async () => {
         if (!datosPaqueteria.monto) {
@@ -813,6 +917,21 @@ function Plan() {
                                 disabled={cargandoSanced}>
                                 🔄 Actualizar
                             </Button>
+
+                            {/* #region SUBIR_EXCEL_ENTREGAS - UI */}
+                            <input
+                                type="file"
+                                accept=".xlsx,.xlsb,.xls"
+                                ref={inputExcelEntregasRef}
+                                style={{ display: 'none' }}
+                                onChange={handleSubirExcelEntregas}
+                            />
+                            <Button variant="outlined" size="small" color="secondary"
+                                onClick={() => inputExcelEntregasRef.current?.click()}
+                                disabled={subiendoEntregas}>
+                                {subiendoEntregas ? 'Procesando…' : '📤 Subir Excel de Entregas'}
+                            </Button>
+                            {/* #endregion SUBIR_EXCEL_ENTREGAS - UI */}
 
                             <Chip
                                 label={`${pedidosSancedFiltrados.length} pedidos`}

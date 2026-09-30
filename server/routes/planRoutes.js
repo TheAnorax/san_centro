@@ -5,6 +5,7 @@ const {
     obtenerRutasPlan,
     obtenerPedidosPorFecha,    // 👈 nueva
     actualizarStatusEntrega,    // 👈 nueva
+    actualizarEntregaMasivaController,
     registrarEntregaPaqueteria,
     obtenerPedidosPorFactura,
     obtenerPedidosFinalizadosPorMes,
@@ -16,6 +17,7 @@ router.post('/insertar', insertarRutasPlan);
 router.get('/rutas', obtenerRutasPlan);
 router.get('/pedidos-por-fecha', obtenerPedidosPorFecha);       // 👈 nueva
 router.put('/actualizar-status', actualizarStatusEntrega);       // 👈 nueva
+router.put('/actualizar-entrega-masivo', actualizarEntregaMasivaController); // 👈 nueva: subida de Excel de entregas
 router.post('/registrar-paqueteria', registrarEntregaPaqueteria);
 
 router.post('/pedidos-finalizados-tipo', obtenerPedidosPorFactura);

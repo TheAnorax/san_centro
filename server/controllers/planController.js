@@ -58,6 +58,31 @@ const actualizarStatusEntrega = async (req, res) => {
     }
 };
 
+// #region ACTUALIZACION_MASIVA_ENTREGA_EXCEL
+// ✅ NUEVA - Actualizar fecha_entrega + entrega en lote (subida de Excel de
+// concentrado de entregas). Solo toca esos dos campos, no status ni costos.
+const actualizarEntregaMasivaController = async (req, res) => {
+    const { registros } = req.body;
+
+    if (!Array.isArray(registros) || registros.length === 0) {
+        return res.status(400).json({ ok: false, message: 'No se recibieron registros para actualizar.' });
+    }
+
+    try {
+        const { actualizados, noEncontrados } = await planModel.actualizarEntregaMasiva(registros);
+        res.status(200).json({
+            ok: true,
+            total: registros.length,
+            actualizados: actualizados.length,
+            noEncontrados,
+        });
+    } catch (error) {
+        console.error('❌ Error en actualizarEntregaMasivaController:', error.message);
+        res.status(500).json({ ok: false, message: 'Error al actualizar en lote.' });
+    }
+};
+// #endregion ACTUALIZACION_MASIVA_ENTREGA_EXCEL
+
 const registrarEntregaPaqueteria = async (req, res) => {
     const { no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega } = req.body;
     if (!no_orden) return res.status(400).json({ ok: false, message: 'no_orden requerido' });
@@ -146,6 +171,7 @@ module.exports = {
     obtenerRutasPlan,
     obtenerPedidosPorFecha,    // 👈 nueva
     actualizarStatusEntrega,    // 👈 nueva
+    actualizarEntregaMasivaController,
     registrarEntregaPaqueteria,
     obtenerPedidosPorFactura,
     obtenerPedidosFinalizadosPorMes,

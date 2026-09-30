@@ -211,6 +211,36 @@ const actualizarStatusEntrega = async (no_orden, status, entrega, fecha_entrega,
 };
 
 
+// #region ACTUALIZACION_MASIVA_ENTREGA_EXCEL
+// Actualiza SOLO fecha_entrega y entrega (no toca status ni costos) para una
+// lista de pedidos {no_orden, fecha_entrega, entrega}, subida desde un Excel
+// de concentrado de entregas (CROSS/CARRANZA). Se hace fila por fila para
+// poder reportar cuáles no_orden sí existían en la tabla `sanced` y cuáles no.
+const actualizarEntregaMasiva = async (registros) => {
+    const actualizados = [];
+    const noEncontrados = [];
+
+    for (const r of registros) {
+        const noOrden = String(r.no_orden || '').trim();
+        if (!noOrden) continue;
+
+        const [result] = await pool.query(`
+            UPDATE sanced
+            SET fecha_entrega = ?, entrega = ?
+            WHERE no_orden = ?
+        `, [r.fecha_entrega || null, r.entrega || null, noOrden]);
+
+        if (result.affectedRows > 0) {
+            actualizados.push(noOrden);
+        } else {
+            noEncontrados.push(noOrden);
+        }
+    }
+
+    return { actualizados, noEncontrados };
+};
+// #endregion ACTUALIZACION_MASIVA_ENTREGA_EXCEL
+
 const registrarEntregaPaqueteria = async (data) => {
     const { no_orden, nombre_cliente, monto, cantidad, observaciones, fecha_entrega } = data;
     const [result] = await pool.query(`
@@ -348,4 +378,4 @@ const obtenerHistoricoCrossDocking = async (anio) => {
 
     return rows;
 };
-module.exports = { obtenerHistoricoCrossDocking, insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes };
+module.exports = { obtenerHistoricoCrossDocking, insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, actualizarEntregaMasiva, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes };
