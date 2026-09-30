@@ -333,13 +333,16 @@ function Surtiendo() {
 
         // 🔢 Cuántas PARTIDAS (renglones/códigos) traía cada pedido original
         // antes de fusionarse — ej. "CD: 46 | VQ: 42" (no es suma de piezas,
-        // es el conteo de códigos de cada orden original, tal cual el
-        // "Total códigos" de esa orden).
+        // es el conteo de códigos de cada orden original). Un código con
+        // unido = 1 cuenta como DOS partidas de ese código (no una sola).
         let resumenTotalPorTipo = "";
         if (esFusion) {
             const conteoPartidasPorTipo = {};
             for (const orden of ordenesOriginales) {
-                conteoPartidasPorTipo[orden.tipo] = (orden.productos || []).length;
+                conteoPartidasPorTipo[orden.tipo] = (orden.productos || []).reduce(
+                    (acc, p) => acc + 1 + (Number(p.unido) === 1 ? 1 : 0),
+                    0
+                );
             }
             resumenTotalPorTipo = tiposOriginales.map((t) => `${t}: ${conteoPartidasPorTipo[t] ?? 0}`).join(" | ");
         }

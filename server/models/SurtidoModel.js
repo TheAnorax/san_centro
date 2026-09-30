@@ -760,7 +760,7 @@ const obtenerProductosPorOrdenUniversalConFusion = async (noOrden, tipo) => {
         const tipoOriginal = tipoRows[0]?.tipo || tipo;
 
         const [productosOriginales] = await pool.query(
-            `SELECT no_orden, tipo, codigo_pedido, cantidad
+            `SELECT no_orden, tipo, codigo_pedido, cantidad, unido
              FROM pedidos
              WHERE no_orden = ?
              ORDER BY codigo_pedido`,
