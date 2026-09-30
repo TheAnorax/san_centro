@@ -13,7 +13,8 @@ const {
   actualizarEstadoSolicitudInventario,
   actualizarCantidadSolicitudInventario,
   autorizarSolicitudesInventarioLote,
-  resolverLotePorToken
+  resolverLotePorToken,
+  marcarPedidoRegistradoEnCedis
 } = require('../controllers/inventarioController');
 
 router.get('/Obtenerinventario', todosLosInventarios);
@@ -29,5 +30,6 @@ router.put('/solicitudes/autorizar-lote', autorizarSolicitudesInventarioLote); /
 router.get('/solicitudes/resolver-lote', resolverLotePorToken); // 👈 nueva: link público (sin login) que clican los botones del correo
 router.put('/solicitudes/:id/estado', actualizarEstadoSolicitudInventario); // 👈 nueva
 router.put('/solicitudes/:id/cantidad', actualizarCantidadSolicitudInventario); // 👈 nueva
+router.put('/solicitudes/pedido/:numeroPedido/registrar-cedis', marcarPedidoRegistradoEnCedis); // 👈 nueva: marca TODO el pedido como ya registrado en CEDIS
 
 module.exports = router;

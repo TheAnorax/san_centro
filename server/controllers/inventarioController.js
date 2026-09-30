@@ -15,7 +15,8 @@ const {
   actualizarCantidadSolicitudInventario,
   marcarLotePendienteAutorizacion,
   obtenerLotePorToken,
-  resolverLotePorToken
+  resolverLotePorToken,
+  marcarPedidoRegistradoEnCedis
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
 const { plantillaCorreoStockMasivo, plantillaCorreoSolicitarAutorizacion } = require("../utils/plantillaCorreoStock");
@@ -442,10 +443,15 @@ const autorizarSolicitudesInventarioLoteController = async (req, res) => {
 // botones del correo (sin login). Solo resuelve lotes
 // que sigan "Pendiente Autorizacion" (evita que un link
 // viejo o un clic doble cambie algo ya resuelto).
+//
+// Antes de aplicar el cambio se pide el nombre de quién
+// autoriza/cancela (un formulario simple por GET, sin
+// necesitar login) para poder guardarlo como
+// modificado_por y avisar por correo quién fue.
 // ================================================
 const resolverLotePorTokenController = async (req, res) => {
   try {
-    const { token, accion } = req.query;
+    const { token, accion, nombre } = req.query;
 
     if (!token || !["autorizar", "cancelar"].includes(accion)) {
       return res.status(400).send("<h2>Enlace inválido.</h2>");
@@ -459,18 +465,93 @@ const resolverLotePorTokenController = async (req, res) => {
       return res.send(`<h2>Este pedido ya fue procesado (estado actual: ${lote[0].estado}).</h2>`);
     }
 
-    const nuevoEstado = accion === "autorizar" ? "Autorizada" : "Cancelada";
-    await resolverLotePorToken(token, nuevoEstado, "Dirección (correo)");
+    const esAutorizar = accion === "autorizar";
+    const colorAccion = esAutorizar ? "#2e7d32" : "#c62828";
+    const tituloAccion = esAutorizar ? "Autorizar pedido" : "Cancelar pedido";
+
+    // 1) Todavía no viene el nombre → se pide con un formulario (por GET, sin
+    // necesitar sesión ni body-parser especial) antes de aplicar el cambio.
+    if (!nombre || !nombre.trim()) {
+      return res.send(`
+        <body style="font-family:Arial, sans-serif; text-align:center; padding:40px; background:#f4f4f4;">
+          <div style="max-width:420px; margin:auto; background:#fff; padding:30px; border-radius:10px; box-shadow:0 0 10px #ccc;">
+            <h2 style="margin-top:0;">${tituloAccion}</h2>
+            <p>${lote.length} producto(s) · Antes de confirmar, dinos tu nombre:</p>
+            <form method="GET" action="/api/inventario/solicitudes/resolver-lote">
+              <input type="hidden" name="token" value="${token}" />
+              <input type="hidden" name="accion" value="${accion}" />
+              <input type="text" name="nombre" placeholder="Tu nombre" required
+                style="width:100%; padding:10px; margin:12px 0; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;" />
+              <button type="submit" style="background:${colorAccion}; color:#fff; border:none; padding:12px 28px; border-radius:6px; font-weight:bold; cursor:pointer;">
+                Confirmar ${esAutorizar ? "autorización" : "cancelación"}
+              </button>
+            </form>
+          </div>
+        </body>
+      `);
+    }
+
+    // 2) Ya viene el nombre → se aplica el cambio de verdad.
+    const nuevoEstado = esAutorizar ? "Autorizada" : "Cancelada";
+    await resolverLotePorToken(token, nuevoEstado, nombre.trim());
+
+    // 3) Correo de confirmación (el "último correo" del flujo): avisa que ya
+    // se resolvió y quién lo hizo.
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
+      });
+      await transporter.sendMail({
+        from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
+        to: DESTINATARIOS.join(", "),
+        subject: `Pedido ${esAutorizar ? "autorizado" : "cancelado"} · ${lote.length} producto(s)`,
+        html: `
+          <body style="font-family:Arial, sans-serif; padding:20px;">
+            <h2>${esAutorizar ? "✅ Pedido autorizado" : "❌ Pedido cancelado"}</h2>
+            <p><b>${nombre.trim()}</b> ${esAutorizar ? "autorizó" : "canceló"} este pedido (${lote.length} producto(s)).</p>
+          </body>
+        `,
+      });
+    } catch (mailErr) {
+      console.error("No se pudo mandar el correo de confirmación final:", mailErr.message);
+    }
 
     res.send(`
       <body style="font-family:Arial, sans-serif; text-align:center; padding:40px;">
-        <h2>${accion === "autorizar" ? "✅ Pedido autorizado" : "❌ Pedido cancelado"}</h2>
-        <p>${lote.length} producto(s) fueron marcados como "${nuevoEstado}".</p>
+        <h2>${esAutorizar ? "✅ Pedido autorizado" : "❌ Pedido cancelado"}</h2>
+        <p>${lote.length} producto(s) fueron marcados como "${nuevoEstado}" por <b>${nombre.trim()}</b>.</p>
       </body>
     `);
   } catch (error) {
     console.error("Error resolviendo lote por token:", error);
     res.status(500).send("<h2>Ocurrió un error procesando tu solicitud.</h2>");
+  }
+};
+
+// ================================================
+// PUT Marca TODO un pedido (todos los SKUs con el mismo
+// numero_pedido) como ya registrado en CEDIS — ya no hay
+// que subir ningún archivo en la otra aplicación para
+// ese pedido.
+// ================================================
+const marcarPedidoRegistradoEnCedisController = async (req, res) => {
+  try {
+    const { numeroPedido } = req.params;
+    const { modificadoPor } = req.body;
+
+    if (!numeroPedido) return res.status(400).json({ ok: false, message: "Falta el número de pedido" });
+    if (!modificadoPor) {
+      return res.status(400).json({ ok: false, message: "Falta modificadoPor (quién está haciendo el cambio)" });
+    }
+
+    const result = await marcarPedidoRegistradoEnCedis(numeroPedido, modificadoPor);
+    if (result.affectedRows === 0) return res.status(404).json({ ok: false, message: "No se encontró ese pedido" });
+
+    res.json({ ok: true, message: "Pedido marcado como registrado en CEDIS", actualizados: result.affectedRows });
+  } catch (error) {
+    console.error("Error marcando pedido como registrado en CEDIS:", error);
+    res.status(500).json({ ok: false, message: "Error en el servidor", error: error.message });
   }
 };
 
@@ -487,5 +568,6 @@ module.exports = {
   actualizarEstadoSolicitudInventario: actualizarEstadoSolicitudInventarioController,
   actualizarCantidadSolicitudInventario: actualizarCantidadSolicitudInventarioController,
   autorizarSolicitudesInventarioLote: autorizarSolicitudesInventarioLoteController,
-  resolverLotePorToken: resolverLotePorTokenController
+  resolverLotePorToken: resolverLotePorTokenController,
+  marcarPedidoRegistradoEnCedis: marcarPedidoRegistradoEnCedisController
 };

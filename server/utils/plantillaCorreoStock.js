@@ -231,14 +231,20 @@ function plantillaCorreoSolicitarAutorizacion({ cantidadProductos, total, solici
                     </tr>
                 </table>
 
-                <p style="margin-top:20px; text-align:center;">
-                    <a href="${linkAutorizar}" style="display:inline-block; background:#2e7d32; color:#fff; text-decoration:none; padding:12px 26px; border-radius:6px; font-weight:bold; margin:0 8px;">
-                        ✅ Autorizar pedido
-                    </a>
-                    <a href="${linkCancelar}" style="display:inline-block; background:#c62828; color:#fff; text-decoration:none; padding:12px 26px; border-radius:6px; font-weight:bold; margin:0 8px;">
-                        ❌ Cancelar pedido
-                    </a>
-                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px auto 0 auto;">
+                    <tr>
+                        <td style="padding:0 8px;">
+                            <a href="${linkAutorizar}" style="display:inline-block; background:#2e7d32; color:#ffffff; text-decoration:none; padding:14px 30px; border-radius:6px; font-weight:bold; font-family:Arial, sans-serif;">
+                                ✅ Autorizar pedido
+                            </a>
+                        </td>
+                        <td style="padding:0 8px;">
+                            <a href="${linkCancelar}" style="display:inline-block; background:#c62828; color:#ffffff; text-decoration:none; padding:14px 30px; border-radius:6px; font-weight:bold; font-family:Arial, sans-serif;">
+                                ❌ Cancelar pedido
+                            </a>
+                        </td>
+                    </tr>
+                </table>
 
                 <p style="font-size:12px; color:#888; margin-top:30px;">
                     Este correo fue generado automáticamente por el sistema de inventario · Santul San Cen.

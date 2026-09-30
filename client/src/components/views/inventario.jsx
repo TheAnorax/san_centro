@@ -447,6 +447,40 @@ function InventarioListado() {
             Swal.fire("❌ Error", "No se pudo mandar a pedir autorización", "error");
         }
     };
+
+    // 👀 Una vez autorizado, el pedido ya salió de esta bandeja de trabajo —
+    // no hace falta seguir viéndolo aquí (Cancelada sí se deja visible, por
+    // si hay que revisar por qué se canceló).
+    const solicitudesVisiblesPlaneacion = solicitudesPlaneacion.filter(s => s.estado !== 'Autorizada');
+
+    // 🏭 Marca TODO el pedido (todos los SKUs con ese numero_pedido) como ya
+    // registrado en CEDIS — ya no hace falta subir ningún archivo en la otra
+    // aplicación para ese pedido.
+    const marcarPedidoRegistradoCedis = async (numeroPedido) => {
+        const { isConfirmed } = await Swal.fire({
+            title: `¿Marcar el pedido #${numeroPedido} como registrado en CEDIS?`,
+            html: `Todos los productos de este pedido quedarán marcados como ya registrados.`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Sí, ya está en CEDIS",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#3085d6",
+        });
+        if (!isConfirmed) return;
+
+        try {
+            await axios.put(`http://66.232.105.107:3001/api/inventario/solicitudes/pedido/${numeroPedido}/registrar-cedis`, {
+                modificadoPor: user?.nombre || "Usuario desconocido",
+            });
+            setSolicitudesPlaneacion(prev => prev.map(s => (
+                s.numero_pedido === numeroPedido ? { ...s, registrado_cedis: 1 } : s
+            )));
+            Swal.fire("✅ Registrado", `El pedido #${numeroPedido} quedó marcado como registrado en CEDIS.`, "success");
+        } catch (err) {
+            console.error(err);
+            Swal.fire("❌ Error", "No se pudo marcar el pedido como registrado en CEDIS", "error");
+        }
+    };
     // #endregion BANDEJA_PLANEACION
 
     // #region PLANTILLA_EXCEL_Y_CIERRE_INNER_MASTER
@@ -830,7 +864,7 @@ function InventarioListado() {
                                     <Box sx={{ mt: 3 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
                                             <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
-                                                📋 Pedido de solicitudes ({solicitudesPlaneacion.length})
+                                                📋 Pedido de solicitudes ({solicitudesVisiblesPlaneacion.length})
                                             </p>
                                             <Box sx={{ display: 'flex', gap: 1 }}>
                                                 <Button variant="outlined" size="small" disabled={cargandoSolicitudesPlaneacion} onClick={cargarSolicitudesPlaneacion}>
@@ -849,7 +883,7 @@ function InventarioListado() {
                                                     variant="contained"
                                                     color="primary"
                                                     size="small"
-                                                    disabled={!solicitudesPlaneacion.some(s => s.estado === 'No Pedido' || s.estado === 'Modificacion')}
+                                                    disabled={!solicitudesVisiblesPlaneacion.some(s => s.estado === 'No Pedido' || s.estado === 'Modificacion')}
                                                     onClick={autorizarLoteSolicitudes}
                                                     sx={{ textTransform: 'none' }}
                                                 >
@@ -857,20 +891,20 @@ function InventarioListado() {
                                                 </Button>
                                             </Box>
                                         </Box>
-                                        {solicitudesPlaneacion.length === 0 ? (
-                                            <p style={{ fontSize: '0.85rem', color: '#888' }}>No hay solicitudes registradas.</p>
+                                        {solicitudesVisiblesPlaneacion.length === 0 ? (
+                                            <p style={{ fontSize: '0.85rem', color: '#888' }}>No hay solicitudes pendientes.</p>
                                         ) : (
                                             <TableContainer sx={{ maxHeight: '45vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
                                                 <Table size="small" stickyHeader>
                                                     <TableHead>
                                                         <TableRow sx={{ background: "#e3f2fd" }}>
-                                                            {["SKU", "Descripción", "Cantidad", "Empaque (Inner/Master)", "Estado"].map(col => (
+                                                            {["Pedido #", "SKU", "Descripción", "Cantidad", "Empaque (Inner/Master)", "Estado", "CEDIS"].map(col => (
                                                                 <TableCell key={col} sx={{ fontWeight: "bold" }}>{col}</TableCell>
                                                             ))}
                                                         </TableRow>
                                                     </TableHead>
                                                     <TableBody>
-                                                        {solicitudesPlaneacion.map((s) => {
+                                                        {solicitudesVisiblesPlaneacion.map((s) => {
                                                             const masterQty = Number(s._master) || 0;
                                                             const innerQty = Number(s._inner) || 0;
                                                             const { cierre, desglose } = calcularCierreSolicitud(Number(s.cantidad) || 0, masterQty, innerQty);
@@ -878,6 +912,7 @@ function InventarioListado() {
                                                             const bloqueada = s.estado === 'Autorizada' || s.estado === 'Pendiente Autorizacion' || s.estado === 'Cancelada';
                                                             return (
                                                                 <TableRow key={s.id} sx={sinCerrar ? { backgroundColor: '#ffebee' } : undefined}>
+                                                                    <TableCell>{s.numero_pedido ?? '-'}</TableCell>
                                                                     <TableCell>{s.sku}</TableCell>
                                                                     <TableCell>{s.descripcion || '(no está en catálogo)'}</TableCell>
                                                                     <TableCell>
@@ -933,6 +968,21 @@ function InventarioListado() {
                                                                                                 : 'default'
                                                                             }
                                                                         />
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {s.registrado_cedis ? (
+                                                                            <span style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '0.78rem' }}>✅ Registrado</span>
+                                                                        ) : (
+                                                                            <Button
+                                                                                size="small"
+                                                                                variant="outlined"
+                                                                                onClick={() => marcarPedidoRegistradoCedis(s.numero_pedido)}
+                                                                                disabled={!s.numero_pedido}
+                                                                                sx={{ textTransform: 'none' }}
+                                                                            >
+                                                                                Marcar en CEDIS
+                                                                            </Button>
+                                                                        )}
                                                                     </TableCell>
                                                                 </TableRow>
                                                             );

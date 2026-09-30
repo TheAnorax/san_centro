@@ -317,13 +317,6 @@ function Surtiendo() {
         doc.setFontSize(10);
         doc.setTextColor(0, 0, 0);
 
-        if (esFusion) {
-            doc.text(`Órdenes fusionadas: ${primerProd.ordenes_unidas}`, 14, 34);
-            doc.text("Detalle de productos surtidos", 14, 40);
-        } else {
-            doc.text("Detalle de productos surtidos", 14, 34);
-        }
-
         // ── Construir mapa de cantidades originales por código ──
         // { codigo: { "CD": 60, "VQ": 60 } }
         const mapaOriginal = {};
@@ -336,6 +329,32 @@ function Surtiendo() {
                 if (!mapaOriginal[cod]) mapaOriginal[cod] = {};
                 mapaOriginal[cod][tipoOrden] = prod.cantidad;
             }
+        }
+
+        // 🔢 Total de PIEZAS por tipo (sumando la cantidad de cada código, no
+        // contando cuántos códigos/líneas hay) — ej. "CD: 240 | VQ: 96".
+        let resumenTotalPorTipo = "";
+        if (esFusion) {
+            const totalesPorTipo = {};
+            tiposOriginales.forEach((t) => {
+                totalesPorTipo[t] = Object.values(mapaOriginal).reduce(
+                    (acc, cods) => acc + (Number(cods[t]) || 0),
+                    0
+                );
+            });
+            resumenTotalPorTipo = tiposOriginales.map((t) => `${t}: ${totalesPorTipo[t]}`).join(" | ");
+        }
+
+        if (esFusion) {
+            doc.text(`Órdenes fusionadas: ${primerProd.ordenes_unidas}`, 14, 34);
+            if (resumenTotalPorTipo) {
+                doc.text(`Recuento por tipo (total de piezas): ${resumenTotalPorTipo}`, 14, 40);
+                doc.text("Detalle de productos surtidos", 14, 46);
+            } else {
+                doc.text("Detalle de productos surtidos", 14, 40);
+            }
+        } else {
+            doc.text("Detalle de productos surtidos", 14, 34);
         }
 
         const productosOrdenados = [...productos].sort((a, b) => {
@@ -382,7 +401,7 @@ function Surtiendo() {
         });
 
         const tableConfig = {
-            startY: esFusion ? 44 : 38,
+            startY: esFusion ? (resumenTotalPorTipo ? 50 : 44) : 38,
             head,
             body,
             theme: "grid",

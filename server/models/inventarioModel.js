@@ -192,12 +192,20 @@ const crearSolicitudesInventario = async (items, solicitadoPor) => {
 
   if (filas.length === 0) return { insertados: 0 };
 
-  const values = filas.map(([sku, cantidad]) => [sku, cantidad, 'No Pedido', solicitadoPor || null]);
+  // 🔢 Todos los renglones que se mandan juntos en una misma solicitud
+  // (Excel o "Solicitar todos") comparten el mismo número de pedido —
+  // así Planeación puede identificar el pedido completo, no solo SKUs sueltos.
+  const [[{ siguiente }]] = await pool.query(
+    `SELECT COALESCE(MAX(numero_pedido), 0) + 1 AS siguiente FROM solicitudes_inventario`
+  );
+  const numeroPedido = siguiente;
+
+  const values = filas.map(([sku, cantidad]) => [sku, cantidad, 'No Pedido', solicitadoPor || null, numeroPedido]);
   const [result] = await pool.query(
-    `INSERT INTO solicitudes_inventario (sku, cantidad, estado, solicitado_por) VALUES ?`,
+    `INSERT INTO solicitudes_inventario (sku, cantidad, estado, solicitado_por, numero_pedido) VALUES ?`,
     [values]
   );
-  return { insertados: result.affectedRows };
+  return { insertados: result.affectedRows, numeroPedido };
 };
 
 // Se trae descripcion/_inner/_master del catálogo para que Planeación pueda
@@ -274,6 +282,20 @@ const resolverLotePorToken = async (token, nuevoEstado, modificadoPor) => {
   return result;
 };
 
+// 🏭 Una vez que el pedido completo ya se registró a mano en CEDIS (otra
+// aplicación), ya no hace falta subir ningún archivo allá — se marca TODO el
+// pedido (todos los SKUs que comparten el mismo numero_pedido) de un jalón.
+const marcarPedidoRegistradoEnCedis = async (numeroPedido, modificadoPor) => {
+  const numero = Number(numeroPedido);
+  if (!Number.isInteger(numero)) return { affectedRows: 0 };
+
+  const [result] = await pool.query(
+    `UPDATE solicitudes_inventario SET registrado_cedis = 1, modificado_por = ? WHERE numero_pedido = ?`,
+    [modificadoPor || null, numero]
+  );
+  return result;
+};
+
 module.exports = {
   obtenerInventario,
   actualizarUbicacion,
@@ -288,5 +310,6 @@ module.exports = {
   actualizarCantidadSolicitudInventario,
   marcarLotePendienteAutorizacion,
   obtenerLotePorToken,
-  resolverLotePorToken
+  resolverLotePorToken,
+  marcarPedidoRegistradoEnCedis
 };
