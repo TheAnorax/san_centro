@@ -331,24 +331,23 @@ function Surtiendo() {
             }
         }
 
-        // 🔢 Total de PIEZAS por tipo (sumando la cantidad de cada código, no
-        // contando cuántos códigos/líneas hay) — ej. "CD: 240 | VQ: 96".
+        // 🔢 Cuántas PARTIDAS (renglones/códigos) traía cada pedido original
+        // antes de fusionarse — ej. "CD: 46 | VQ: 42" (no es suma de piezas,
+        // es el conteo de códigos de cada orden original, tal cual el
+        // "Total códigos" de esa orden).
         let resumenTotalPorTipo = "";
         if (esFusion) {
-            const totalesPorTipo = {};
-            tiposOriginales.forEach((t) => {
-                totalesPorTipo[t] = Object.values(mapaOriginal).reduce(
-                    (acc, cods) => acc + (Number(cods[t]) || 0),
-                    0
-                );
-            });
-            resumenTotalPorTipo = tiposOriginales.map((t) => `${t}: ${totalesPorTipo[t]}`).join(" | ");
+            const conteoPartidasPorTipo = {};
+            for (const orden of ordenesOriginales) {
+                conteoPartidasPorTipo[orden.tipo] = (orden.productos || []).length;
+            }
+            resumenTotalPorTipo = tiposOriginales.map((t) => `${t}: ${conteoPartidasPorTipo[t] ?? 0}`).join(" | ");
         }
 
         if (esFusion) {
             doc.text(`Órdenes fusionadas: ${primerProd.ordenes_unidas}`, 14, 34);
             if (resumenTotalPorTipo) {
-                doc.text(`Recuento por tipo (total de piezas): ${resumenTotalPorTipo}`, 14, 40);
+                doc.text(`Recuento por tipo (partidas): ${resumenTotalPorTipo}`, 14, 40);
                 doc.text("Detalle de productos surtidos", 14, 46);
             } else {
                 doc.text("Detalle de productos surtidos", 14, 40);
