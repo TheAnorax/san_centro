@@ -5,9 +5,16 @@
 
 const embarquesModel = require('../../models/embarques/embarques.model');
 
+// Paquetería (rol_id 11) solo debe ver lo que tiene asignado; los demás
+// roles (admin/Surtidor/master) siguen viendo todos los pedidos en
+// embarque, igual que antes (lo necesitan para asignar paquetería a otros).
+const ROL_PAQUETERIA = 11;
+const idPaqueteriaDeFiltro = (req) =>
+    Number(req.usuario?.rol_id) === ROL_PAQUETERIA ? req.usuario.id : undefined;
+
 const listarPedidosEnEmbarque = async (req, res) => {
     try {
-        const pedidos = await embarquesModel.listarPedidosEnEmbarque();
+        const pedidos = await embarquesModel.listarPedidosEnEmbarque(idPaqueteriaDeFiltro(req));
         res.json({ ok: true, data: pedidos });
     } catch (err) {
         console.error('❌ [embarques] listarPedidosEnEmbarque:', err);
@@ -17,7 +24,7 @@ const listarPedidosEnEmbarque = async (req, res) => {
 
 const listarPedidosFinalizadosEmbarque = async (req, res) => {
     try {
-        const pedidos = await embarquesModel.listarPedidosFinalizadosEmbarque();
+        const pedidos = await embarquesModel.listarPedidosFinalizadosEmbarque(idPaqueteriaDeFiltro(req));
         res.json({ ok: true, data: pedidos });
     } catch (err) {
         console.error('❌ [embarques] listarPedidosFinalizadosEmbarque:', err);

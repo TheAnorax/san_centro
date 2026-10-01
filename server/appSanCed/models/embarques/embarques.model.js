@@ -59,7 +59,9 @@ const listarPedidosEnEmbarque = async (idUsuarioPaqueteria) => {
  * mismos datos de cliente/factura/total — para la pestaña "Finalizados".
  * Se limita a los últimos 200 para no traer todo el histórico de un jalón.
  */
-const listarPedidosFinalizadosEmbarque = async () => {
+const listarPedidosFinalizadosEmbarque = async (idUsuarioPaqueteria) => {
+    const filtro = idUsuarioPaqueteria ? `WHERE pf.id_usuario_paqueteria = ?` : '';
+    const params = idUsuarioPaqueteria ? [idUsuarioPaqueteria] : [];
     const [rows] = await pool.query(`
         SELECT
             pf.id_pedi, pf.no_orden, pf.tipo, pf.codigo_pedido, pf.clave,
@@ -80,9 +82,10 @@ const listarPedidosFinalizadosEmbarque = async () => {
         LEFT JOIN usuarios u  ON pf.id_usuario = u.id
         LEFT JOIN usuarios up ON pf.id_usuario_paqueteria = up.id
         LEFT JOIN sanced s ON s.no_orden = pf.no_orden AND UPPER(s.tpo_original) = UPPER(pf.tipo)
+        ${filtro}
         ORDER BY pf.no_orden DESC, pf.id_pedi ASC
         LIMIT 2000;
-    `);
+    `, params);
     return rows;
 };
 
