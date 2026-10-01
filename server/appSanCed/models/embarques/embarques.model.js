@@ -381,12 +381,21 @@ const registrarEscaneoEmbarque = async ({ id_pedi, unitType, caja, cantidad }) =
         return { ok: false, code: 400, message: 'Tipo de unidad inválido.' };
     }
     const delta = Number(cantidad) > 0 ? Number(cantidad) : 1;
+    // ✅ corregido — antes esta misma petición (una por cada pieza escaneada)
+    // también escribía `caja = ?` con el número de caja LOCAL de trabajo,
+    // así que la columna `caja` quedaba puesta en la BD desde el primer
+    // escaneo, antes de que el operador le diera a "Cerrar caja". A pedido
+    // explícito del negocio: `caja` (y `tipo_caja`/`cajas`) solo se deben
+    // escribir hasta que la caja se CIERRA de verdad (ver `asignarCaja`,
+    // que es la única función que ahora toca esas tres columnas). Aquí solo
+    // se suma la cantidad validada — el número de caja de trabajo se queda
+    // nada más en la memoria de la app hasta el cierre.
     const [result] = await pool.query(
         `UPDATE pedidos_embarques
-         SET ${columna} = ${columna} + ?, caja = ?,
+         SET ${columna} = ${columna} + ?,
              inicio_embarque = IF(inicio_embarque IS NULL, NOW(), inicio_embarque)
          WHERE id_pedi = ?`,
-        [delta, caja, id_pedi]
+        [delta, id_pedi]
     );
     if (result.affectedRows === 0) {
         return { ok: false, code: 404, message: 'No se encontró esa línea en embarques.' };
