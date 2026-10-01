@@ -41,6 +41,15 @@ router.put('/impresora/mac', embarquesController.conectarImpresoraPorMac);
 // PUT  /api/app/embarques/:id_pedi/caja             -> asignar/actualizar número y tipo de caja
 router.put('/:id_pedi/caja', embarquesController.asignarCaja);
 
+// PUT  /api/app/embarques/:id_pedi/escaneo          -> +1 unidad validada (escaneo en vivo, sin cerrar caja)
+router.put('/:id_pedi/escaneo', embarquesController.registrarEscaneo);
+
+// GET  /api/app/embarques/:no_orden/:tipo/siguiente-caja -> número real de la siguiente caja a cerrar
+router.get('/:no_orden/:tipo/siguiente-caja', embarquesController.obtenerSiguienteCaja);
+
+// GET  /api/app/embarques/:no_orden/:tipo/cajas-actuales -> cajas ya cerradas (para reimprimir/resumen)
+router.get('/:no_orden/:tipo/cajas-actuales', embarquesController.obtenerCajasActuales);
+
 // PUT  /api/app/embarques/:no_orden/paqueteria      -> asignar usuario de paquetería
 router.put('/:no_orden/paqueteria', embarquesController.asignarUsuarioPaqueteria);
 

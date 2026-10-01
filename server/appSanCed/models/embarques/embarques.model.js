@@ -24,6 +24,14 @@ const SELECT_EMBARQUES_BASE = `
             pe.unido, pe.fusion, pe.ordenes_unidas,
             pe.inicio_embarque, pe.fin_embarque,
             prod.descripcion,
+            -- ✅ nuevo — catálogo de producto (tabla productos): piezas por
+            -- empaque y códigos de barras de cada presentación, igual que ya
+            -- se manda en Surtido (surtido.model.js). Sin esto la app no
+            -- puede saber a qué presentación corresponde un código leído.
+            prod._pz AS factor_pz, prod._inner AS factor_inner, prod._master AS factor_master,
+            CAST(prod.barcode_pz AS CHAR) AS barcode_pz,
+            CAST(prod.barcode_inner AS CHAR) AS barcode_inner,
+            CAST(prod.barcode_master AS CHAR) AS barcode_master,
             u.nombre AS nombre_usuario,
             up.nombre AS nombre_paqueteria,
             s.nombre_cliente,
@@ -353,6 +361,87 @@ const regresarASurtido = async (no_orden, tipo) => {
     }
 };
 
+// #region ESCANEO_EN_VIVO
+// Mismo espíritu que el escaneo de Surtido: cada código leído suma UNA
+// unidad de inmediato (sin esperar a cerrar la caja), para que nada se
+// pierda si la app se cierra a media caja. `caja` aquí es el número LOCAL
+// de trabajo (todavía no confirmado por el servidor como caja real — eso
+// se decide hasta `obtenerSiguienteCaja`, al momento de cerrarla), nada
+// más para recordar en qué caja va cada pieza mientras se sigue escaneando.
+const COLUMNAS_POR_UNIDAD = { PZ: 'v_pz', PQ: 'v_pq', INNER: 'v_inner', MASTER: 'v_master' };
+
+// `cantidad` por default es 1 (un escaneo = una pieza), pero la pantalla
+// también la usa para la "Autorización de supervisor" — ahí se valida de
+// un jalón la cantidad completa que falte (por ejemplo, para presentación
+// PQ, que no tiene código de barras propio y por eso nunca se puede
+// escanear pieza por pieza).
+const registrarEscaneoEmbarque = async ({ id_pedi, unitType, caja, cantidad }) => {
+    const columna = COLUMNAS_POR_UNIDAD[String(unitType || '').toUpperCase()];
+    if (!columna) {
+        return { ok: false, code: 400, message: 'Tipo de unidad inválido.' };
+    }
+    const delta = Number(cantidad) > 0 ? Number(cantidad) : 1;
+    const [result] = await pool.query(
+        `UPDATE pedidos_embarques
+         SET ${columna} = ${columna} + ?, caja = ?,
+             inicio_embarque = IF(inicio_embarque IS NULL, NOW(), inicio_embarque)
+         WHERE id_pedi = ?`,
+        [delta, caja, id_pedi]
+    );
+    if (result.affectedRows === 0) {
+        return { ok: false, code: 404, message: 'No se encontró esa línea en embarques.' };
+    }
+    return { ok: true };
+};
+
+/**
+ * Siguiente número de caja REAL para este pedido — se calcula contando
+ * solo las cajas ya CERRADAS (con tipo_caja asignado), para que un número
+ * de trabajo local (todavía sin cerrar) no se cuente ni se repita.
+ */
+const obtenerSiguienteCaja = async (no_orden, tipo) => {
+    const [rows] = await pool.query(
+        `SELECT COALESCE(MAX(CAST(caja AS UNSIGNED)), 0) + 1 AS siguiente
+         FROM pedidos_embarques
+         WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) AND tipo_caja IS NOT NULL`,
+        [no_orden, tipo]
+    );
+    return rows[0]?.siguiente || 1;
+};
+
+/**
+ * Cajas ya cerradas de este pedido (con su detalle de productos) — para
+ * reimprimir una etiqueta o armar el resumen final antes de finalizar.
+ */
+const obtenerCajasActuales = async (no_orden, tipo) => {
+    const [rows] = await pool.query(
+        `SELECT pe.caja, pe.tipo_caja AS tipoCaja, pe.codigo_pedido AS codigoPed,
+                prod.descripcion, pe.v_pz, pe.v_pq, pe.v_inner, pe.v_master
+         FROM pedidos_embarques pe
+         LEFT JOIN productos prod ON pe.codigo_pedido = prod.codigo
+         WHERE pe.no_orden = ? AND UPPER(pe.tipo) = UPPER(?) AND pe.tipo_caja IS NOT NULL
+         ORDER BY CAST(pe.caja AS UNSIGNED)`,
+        [no_orden, tipo]
+    );
+
+    const mapa = new Map();
+    for (const r of rows) {
+        if (!mapa.has(r.caja)) {
+            mapa.set(r.caja, { caja: Number(r.caja), tipoCaja: r.tipoCaja, productos: [] });
+        }
+        mapa.get(r.caja).productos.push({
+            codigoPed: r.codigoPed,
+            descripcion: r.descripcion,
+            vPz: r.v_pz,
+            vPq: r.v_pq,
+            vInner: r.v_inner,
+            vMaster: r.v_master,
+        });
+    }
+    return Array.from(mapa.values());
+};
+// #endregion ESCANEO_EN_VIVO
+
 module.exports = {
     listarPedidosEnEmbarque,
     listarPedidosFinalizadosEmbarque,
@@ -365,4 +454,7 @@ module.exports = {
     listarImpresoras,
     asignarImpresoraAUsuario,
     conectarImpresoraPorMac,
+    registrarEscaneoEmbarque,
+    obtenerSiguienteCaja,
+    obtenerCajasActuales,
 };

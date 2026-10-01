@@ -86,6 +86,46 @@ const conectarImpresoraPorMac = async (req, res) => {
 };
 // #endregion IMPRESORA
 
+// #region ESCANEO_EN_VIVO
+const registrarEscaneo = async (req, res) => {
+    try {
+        const { id_pedi } = req.params;
+        const { unitType, caja, cantidad } = req.body;
+        if (!unitType) {
+            return res.status(400).json({ ok: false, message: 'Falta unitType.' });
+        }
+        const resultado = await embarquesModel.registrarEscaneoEmbarque({ id_pedi, unitType, caja, cantidad });
+        if (!resultado.ok) return res.status(resultado.code || 500).json(resultado);
+        res.json(resultado);
+    } catch (err) {
+        console.error('❌ [embarques] registrarEscaneo:', err);
+        res.status(500).json({ ok: false, message: 'Error al registrar el escaneo.' });
+    }
+};
+
+const obtenerSiguienteCaja = async (req, res) => {
+    try {
+        const { no_orden, tipo } = req.params;
+        const siguiente = await embarquesModel.obtenerSiguienteCaja(no_orden, tipo);
+        res.json({ ok: true, siguiente });
+    } catch (err) {
+        console.error('❌ [embarques] obtenerSiguienteCaja:', err);
+        res.status(500).json({ ok: false, message: 'Error al calcular el siguiente número de caja.' });
+    }
+};
+
+const obtenerCajasActuales = async (req, res) => {
+    try {
+        const { no_orden, tipo } = req.params;
+        const cajas = await embarquesModel.obtenerCajasActuales(no_orden, tipo);
+        res.json({ ok: true, data: cajas });
+    } catch (err) {
+        console.error('❌ [embarques] obtenerCajasActuales:', err);
+        res.status(500).json({ ok: false, message: 'Error al obtener las cajas de este pedido.' });
+    }
+};
+// #endregion ESCANEO_EN_VIVO
+
 const asignarCaja = async (req, res) => {
     try {
         const { id_pedi } = req.params;
@@ -173,4 +213,7 @@ module.exports = {
     liberarUsuarioPaqueteria,
     finalizarEmbarque,
     regresarASurtido,
+    registrarEscaneo,
+    obtenerSiguienteCaja,
+    obtenerCajasActuales,
 };
