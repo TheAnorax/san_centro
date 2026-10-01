@@ -3,7 +3,8 @@
  * Rutas del módulo de Embarques para appSanCed.
  * Se montan bajo el prefijo /api/app/embarques (ver appSanCed/app.js).
  *
- * Acceso restringido por rol_id (tabla `roles`): 1=admin, 2=Surtidor, 4=master.
+ * Acceso restringido por rol_id (tabla `roles`): 1=admin, 2=Surtidor,
+ * 4=master, 11=Paqueteria (entra directo a esta pantalla desde la app).
  */
 
 const express = require('express');
@@ -15,11 +16,24 @@ const embarquesController = require('../../controllers/embarques/embarques.contr
 const ROL_ADMIN = 1;
 const ROL_SURTIDOR = 2;
 const ROL_MASTER = 4;
-const ROLES_PERMITIDOS = [ROL_SURTIDOR, ROL_ADMIN, ROL_MASTER];
+const ROL_PAQUETERIA = 11;
+const ROLES_PERMITIDOS = [ROL_SURTIDOR, ROL_ADMIN, ROL_MASTER, ROL_PAQUETERIA];
 router.use(verifyToken, requireRole(ROLES_PERMITIDOS));
 
 // GET  /api/app/embarques                          -> lista de pedidos en embarque
 router.get('/', embarquesController.listarPedidosEnEmbarque);
+
+// GET  /api/app/embarques/finalizados               -> lista de pedidos ya finalizados
+router.get('/finalizados', embarquesController.listarPedidosFinalizadosEmbarque);
+
+// GET  /api/app/embarques/impresora                 -> impresora (tabla prints) del usuario logueado
+router.get('/impresora', embarquesController.obtenerMiImpresora);
+
+// GET  /api/app/embarques/impresoras                -> catálogo completo de impresoras registradas
+router.get('/impresoras', embarquesController.listarImpresoras);
+
+// PUT  /api/app/embarques/impresora                 -> conectar (asignar) una impresora al usuario logueado
+router.put('/impresora', embarquesController.conectarImpresora);
 
 // PUT  /api/app/embarques/:id_pedi/caja             -> asignar/actualizar número y tipo de caja
 router.put('/:id_pedi/caja', embarquesController.asignarCaja);

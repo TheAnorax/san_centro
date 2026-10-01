@@ -5,12 +5,15 @@
  */
 
 const pool = require('../../config/db.config');
+// Mismo helper que ya usa el panel web de Usuarios para impresoras
+// (tabla `prints`) — se reutiliza tal cual, sin duplicar la lógica.
+const usuarioModel = require('../../../models/usuarioModel');
 
-/**
- * Pedidos actualmente en embarque, agrupados por no_orden+tipo.
- */
-const listarPedidosEnEmbarque = async () => {
-    const [rows] = await pool.query(`
+// Campos de cliente/factura/total: viven en la tabla `sanced` (la misma que
+// usa Plan de Rutas en el sistema web), no en `pedidos_embarques`. Se juntan
+// por no_orden + tipo (tpo_original) — LEFT JOIN porque no todo no_orden
+// tiene todavía una fila ahí (pedidos CD en vivo, por ejemplo).
+const SELECT_EMBARQUES_BASE = `
         SELECT
             pe.id_pedi, pe.no_orden, pe.tipo, pe.codigo_pedido, pe.clave,
             pe.cantidad, pe.cant_surtida, pe.cant_no_enviada, pe.um,
@@ -22,15 +25,81 @@ const listarPedidosEnEmbarque = async () => {
             pe.inicio_embarque, pe.fin_embarque,
             prod.descripcion,
             u.nombre AS nombre_usuario,
-            up.nombre AS nombre_paqueteria
+            up.nombre AS nombre_paqueteria,
+            s.nombre_cliente,
+            s.no_factura,
+            s.total,
+            s.total_con_iva
         FROM pedidos_embarques pe
         LEFT JOIN productos prod ON pe.codigo_pedido = prod.codigo
         LEFT JOIN usuarios u  ON pe.id_usuario = u.id
         LEFT JOIN usuarios up ON pe.id_usuario_paqueteria = up.id
+        LEFT JOIN sanced s ON s.no_orden = pe.no_orden AND UPPER(s.tpo_original) = UPPER(pe.tipo)
+`;
+
+/**
+ * Pedidos actualmente en embarque, agrupados por no_orden+tipo.
+ */
+const listarPedidosEnEmbarque = async () => {
+    const [rows] = await pool.query(`
+        ${SELECT_EMBARQUES_BASE}
         ORDER BY pe.no_orden DESC, pe.id_pedi ASC;
     `);
     return rows;
 };
+
+/**
+ * Pedidos ya finalizados en embarque (tabla `pedido_finalizado`), con los
+ * mismos datos de cliente/factura/total — para la pestaña "Finalizados".
+ * Se limita a los últimos 200 para no traer todo el histórico de un jalón.
+ */
+const listarPedidosFinalizadosEmbarque = async () => {
+    const [rows] = await pool.query(`
+        SELECT
+            pf.id_pedi, pf.no_orden, pf.tipo, pf.codigo_pedido, pf.clave,
+            pf.cantidad, pf.cant_surtida, pf.cant_no_enviada, pf.um,
+            pf.ubi_bahia, pf.estado, pf.id_usuario, pf.id_usuario_paqueteria,
+            pf.caja, pf.cajas, pf.tipo_caja,
+            pf.unido, pf.fusion, pf.ordenes_unidas,
+            pf.inicio_embarque, pf.fin_embarque,
+            prod.descripcion,
+            u.nombre AS nombre_usuario,
+            up.nombre AS nombre_paqueteria,
+            s.nombre_cliente,
+            s.no_factura,
+            s.total,
+            s.total_con_iva
+        FROM pedido_finalizado pf
+        LEFT JOIN productos prod ON pf.codigo_pedido = prod.codigo
+        LEFT JOIN usuarios u  ON pf.id_usuario = u.id
+        LEFT JOIN usuarios up ON pf.id_usuario_paqueteria = up.id
+        LEFT JOIN sanced s ON s.no_orden = pf.no_orden AND UPPER(s.tpo_original) = UPPER(pf.tipo)
+        ORDER BY pf.no_orden DESC, pf.id_pedi ASC
+        LIMIT 2000;
+    `);
+    return rows;
+};
+
+/**
+ * Impresora (tabla `prints`) asignada al usuario de paquetería logueado —
+ * reutiliza el mismo helper que ya usa el panel web de Usuarios, así que
+ * conectar/desconectar desde ahí también se refleja aquí.
+ */
+const obtenerImpresoraDeUsuario = (idUsuario) => usuarioModel.getImpresoraByUsuario(idUsuario);
+
+/**
+ * Catálogo completo de impresoras registradas (tabla `prints`) — para que
+ * el usuario de paquetería elija cuál es la suya al "conectar".
+ */
+const listarImpresoras = () => usuarioModel.getImpresoras();
+
+/**
+ * Asigna una impresora (por id_print) al usuario logueado. Como ya hace el
+ * panel web, deja solo una impresora por usuario (libera cualquier otra que
+ * tuviera antes asignada).
+ */
+const asignarImpresoraAUsuario = (idPrint, idUsuario) =>
+    usuarioModel.asignarImpresoraPorId({ id_print: idPrint, id_usu: idUsuario });
 
 /**
  * Asigna/actualiza el número de caja y tipo de caja de una línea de embarque.
@@ -239,9 +308,13 @@ const regresarASurtido = async (no_orden, tipo) => {
 
 module.exports = {
     listarPedidosEnEmbarque,
+    listarPedidosFinalizadosEmbarque,
     asignarCaja,
     asignarUsuarioPaqueteria,
     liberarUsuarioPaqueteria,
     finalizarEmbarque,
     regresarASurtido,
+    obtenerImpresoraDeUsuario,
+    listarImpresoras,
+    asignarImpresoraAUsuario,
 };

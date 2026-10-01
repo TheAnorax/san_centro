@@ -15,6 +15,54 @@ const listarPedidosEnEmbarque = async (req, res) => {
     }
 };
 
+const listarPedidosFinalizadosEmbarque = async (req, res) => {
+    try {
+        const pedidos = await embarquesModel.listarPedidosFinalizadosEmbarque();
+        res.json({ ok: true, data: pedidos });
+    } catch (err) {
+        console.error('❌ [embarques] listarPedidosFinalizadosEmbarque:', err);
+        res.status(500).json({ ok: false, message: 'Error al obtener los pedidos finalizados.' });
+    }
+};
+
+// #region IMPRESORA
+// req.usuario lo llena verifyToken (middleware) a partir del token — mismo
+// patrón que el resto de appSanCed para saber quién está logueado.
+const obtenerMiImpresora = async (req, res) => {
+    try {
+        const impresora = await embarquesModel.obtenerImpresoraDeUsuario(req.usuario.id);
+        res.json({ ok: true, data: impresora });
+    } catch (err) {
+        console.error('❌ [embarques] obtenerMiImpresora:', err);
+        res.status(500).json({ ok: false, message: 'Error al consultar la impresora.' });
+    }
+};
+
+const listarImpresoras = async (req, res) => {
+    try {
+        const impresoras = await embarquesModel.listarImpresoras();
+        res.json({ ok: true, data: impresoras });
+    } catch (err) {
+        console.error('❌ [embarques] listarImpresoras:', err);
+        res.status(500).json({ ok: false, message: 'Error al listar las impresoras.' });
+    }
+};
+
+const conectarImpresora = async (req, res) => {
+    try {
+        const { id_print } = req.body;
+        if (!id_print) {
+            return res.status(400).json({ ok: false, message: 'Falta id_print.' });
+        }
+        await embarquesModel.asignarImpresoraAUsuario(id_print, req.usuario.id);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('❌ [embarques] conectarImpresora:', err);
+        res.status(500).json({ ok: false, message: 'Error al conectar la impresora.' });
+    }
+};
+// #endregion IMPRESORA
+
 const asignarCaja = async (req, res) => {
     try {
         const { id_pedi } = req.params;
@@ -92,6 +140,10 @@ const regresarASurtido = async (req, res) => {
 
 module.exports = {
     listarPedidosEnEmbarque,
+    listarPedidosFinalizadosEmbarque,
+    obtenerMiImpresora,
+    listarImpresoras,
+    conectarImpresora,
     asignarCaja,
     asignarUsuarioPaqueteria,
     liberarUsuarioPaqueteria,
