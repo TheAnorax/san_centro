@@ -61,6 +61,22 @@ const conectarImpresora = async (req, res) => {
         res.status(500).json({ ok: false, message: 'Error al conectar la impresora.' });
     }
 };
+
+// Conectar escribiendo la MAC directamente (pantalla "Impresora no
+// conectada" de la app) — no requiere elegir de un catálogo.
+const conectarImpresoraPorMac = async (req, res) => {
+    try {
+        const { mac } = req.body;
+        if (!mac || !mac.trim()) {
+            return res.status(400).json({ ok: false, message: 'Falta la MAC de la impresora.' });
+        }
+        await embarquesModel.conectarImpresoraPorMac(mac.trim().toUpperCase(), req.usuario.id);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('❌ [embarques] conectarImpresoraPorMac:', err);
+        res.status(500).json({ ok: false, message: 'Error al conectar la impresora.' });
+    }
+};
 // #endregion IMPRESORA
 
 const asignarCaja = async (req, res) => {
@@ -144,6 +160,7 @@ module.exports = {
     obtenerMiImpresora,
     listarImpresoras,
     conectarImpresora,
+    conectarImpresoraPorMac,
     asignarCaja,
     asignarUsuarioPaqueteria,
     liberarUsuarioPaqueteria,

@@ -39,12 +39,18 @@ const SELECT_EMBARQUES_BASE = `
 
 /**
  * Pedidos actualmente en embarque, agrupados por no_orden+tipo.
+ * Si se pasa `idUsuarioPaqueteria`, se filtra a solo los pedidos asignados
+ * a ese usuario (así cada Paquetería ve nada más lo suyo); si no se pasa
+ * (admin/Surtidor/master), se ven todos, igual que antes.
  */
-const listarPedidosEnEmbarque = async () => {
+const listarPedidosEnEmbarque = async (idUsuarioPaqueteria) => {
+    const filtro = idUsuarioPaqueteria ? `WHERE pe.id_usuario_paqueteria = ?` : '';
+    const params = idUsuarioPaqueteria ? [idUsuarioPaqueteria] : [];
     const [rows] = await pool.query(`
         ${SELECT_EMBARQUES_BASE}
+        ${filtro}
         ORDER BY pe.no_orden DESC, pe.id_pedi ASC;
-    `);
+    `, params);
     return rows;
 };
 
@@ -100,6 +106,44 @@ const listarImpresoras = () => usuarioModel.getImpresoras();
  */
 const asignarImpresoraAUsuario = (idPrint, idUsuario) =>
     usuarioModel.asignarImpresoraPorId({ id_print: idPrint, id_usu: idUsuario });
+
+/**
+ * Conecta una impresora escribiendo su MAC directamente (en vez de elegirla
+ * de un catálogo): si ya existe una fila en `prints` con esa MAC, se le
+ * asigna el usuario; si no existe, se crea una nueva. Igual que las demás
+ * formas de conectar, deja solo una impresora por usuario (libera cualquier
+ * otra que tuviera antes).
+ */
+const conectarImpresoraPorMac = async (mac, idUsuario) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        await conn.query(`UPDATE prints SET id_usu = NULL WHERE id_usu = ?`, [idUsuario]);
+
+        const [existente] = await conn.query(
+            `SELECT id_print FROM prints WHERE mac_print = ? LIMIT 1`,
+            [mac]
+        );
+
+        if (existente.length > 0) {
+            await conn.query(`UPDATE prints SET id_usu = ? WHERE id_print = ?`, [idUsuario, existente[0].id_print]);
+        } else {
+            await conn.query(
+                `INSERT INTO prints (name, mac_print, id_usu) VALUES (?, ?, ?)`,
+                [`Impresora ${mac}`, mac, idUsuario]
+            );
+        }
+
+        await conn.commit();
+        return { ok: true };
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+};
 
 /**
  * Asigna/actualiza el número de caja y tipo de caja de una línea de embarque.
@@ -317,4 +361,5 @@ module.exports = {
     obtenerImpresoraDeUsuario,
     listarImpresoras,
     asignarImpresoraAUsuario,
+    conectarImpresoraPorMac,
 };

@@ -35,6 +35,9 @@ router.get('/impresoras', embarquesController.listarImpresoras);
 // PUT  /api/app/embarques/impresora                 -> conectar (asignar) una impresora al usuario logueado
 router.put('/impresora', embarquesController.conectarImpresora);
 
+// PUT  /api/app/embarques/impresora/mac              -> conectar escribiendo la MAC directamente
+router.put('/impresora/mac', embarquesController.conectarImpresoraPorMac);
+
 // PUT  /api/app/embarques/:id_pedi/caja             -> asignar/actualizar número y tipo de caja
 router.put('/:id_pedi/caja', embarquesController.asignarCaja);
 
