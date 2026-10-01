@@ -281,12 +281,19 @@ const finalizarEmbarque = async (no_orden, tipo) => {
                     ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
                     inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
                     unido, fusion, ordenes_unidas, caja, tipo_caja, motivo, registro_fin
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, NOW())`,
                 [
                     l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
                     l.um, l._pz, l._pq, l._inner, l._master, l.v_pz, l.v_pq, l.v_inner, l.v_master,
                     l.ubi_bahia, estadoFinal, l.id_usuario, l.id_usuario_paqueteria, l.registro,
-                    l.inicio_surtido, l.fin_surtido, l.inicio_embarque, l.fin_embarque,
+                    l.inicio_surtido, l.fin_surtido, l.inicio_embarque,
+                    // ✅ corregido — `fin_embarque` nunca se escribía en ningún
+                    // lado del código (se cargaba tal cual de la fila, que
+                    // siempre venía NULL). Se pone aquí, con NOW(), justo en
+                    // el momento real en que el pedido se finaliza — el "cierre
+                    // de tiempos" que pediste: inicio_embarque ya se marca con
+                    // el primer escaneo (ver registrarEscaneoEmbarque), y
+                    // fin_embarque se marca aquí, al finalizar.
                     l.unido, l.fusion, l.ordenes_unidas, l.caja, l.tipo_caja, l.motivo,
                 ]
             );
