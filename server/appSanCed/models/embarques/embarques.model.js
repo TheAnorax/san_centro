@@ -68,8 +68,17 @@ const listarPedidosEnEmbarque = async (idUsuarioPaqueteria) => {
  * Se limita a los últimos 200 para no traer todo el histórico de un jalón.
  */
 const listarPedidosFinalizadosEmbarque = async (idUsuarioPaqueteria) => {
-    const filtro = idUsuarioPaqueteria ? `WHERE pf.id_usuario_paqueteria = ?` : '';
-    const params = idUsuarioPaqueteria ? [idUsuarioPaqueteria] : [];
+    // ✅ nuevo — a pedido explícito del negocio: "Finalizados" solo debe
+    // mostrar lo terminado HOY, no todo el histórico (antes se mostraban
+    // hasta 2000 registros de cualquier fecha). Se filtra por `registro_fin`
+    // (la hora real en que se finalizó cada línea, ver `finalizarEmbarque`).
+    const condiciones = ['DATE(pf.registro_fin) = CURDATE()'];
+    const params = [];
+    if (idUsuarioPaqueteria) {
+        condiciones.push('pf.id_usuario_paqueteria = ?');
+        params.push(idUsuarioPaqueteria);
+    }
+    const filtro = `WHERE ${condiciones.join(' AND ')}`;
     const [rows] = await pool.query(`
         SELECT
             pf.id_pedi, pf.no_orden, pf.tipo, pf.codigo_pedido, pf.clave,
@@ -77,7 +86,7 @@ const listarPedidosFinalizadosEmbarque = async (idUsuarioPaqueteria) => {
             pf.ubi_bahia, pf.estado, pf.id_usuario, pf.id_usuario_paqueteria,
             pf.caja, pf.cajas, pf.tipo_caja,
             pf.unido, pf.fusion, pf.ordenes_unidas,
-            pf.inicio_embarque, pf.fin_embarque,
+            pf.inicio_embarque, pf.fin_embarque, pf.registro_fin,
             prod.descripcion,
             u.nombre AS nombre_usuario,
             up.nombre AS nombre_paqueteria,
@@ -174,10 +183,15 @@ const asignarCaja = async ({ id_pedi, caja, tipoCaja, scannedPz, scannedPq, scan
             return { ok: false, code: 404, message: 'No se encontró esa línea en embarques.' };
         }
 
+        // ✅ corregido — además de quitar vacíos, se descarta cualquier
+        // "0" que haya quedado de antes (dato contaminado por el bug ya
+        // corregido de registrarEscaneoEmbarque) — así, la próxima vez que
+        // esta línea se cierre en una caja, el acumulado se autolimpia en
+        // vez de arrastrar ese 0 para siempre.
         const cajasActuales = String(rows[0].cajas || '')
             .split(',')
             .map((c) => c.trim())
-            .filter(Boolean);
+            .filter((c) => c && c !== '0');
 
         const cajaStr = String(caja);
         const yaExiste = cajasActuales.includes(cajaStr);
@@ -419,7 +433,8 @@ const obtenerSiguienteCaja = async (no_orden, tipo) => {
     const [rows] = await pool.query(
         `SELECT COALESCE(MAX(CAST(caja AS UNSIGNED)), 0) + 1 AS siguiente
          FROM pedidos_embarques
-         WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) AND tipo_caja IS NOT NULL`,
+         WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) AND tipo_caja IS NOT NULL
+               AND CAST(caja AS UNSIGNED) > 0`,
         [no_orden, tipo]
     );
     return rows[0]?.siguiente || 1;
@@ -430,15 +445,35 @@ const obtenerSiguienteCaja = async (no_orden, tipo) => {
  * reimprimir una etiqueta o armar el resumen final antes de finalizar.
  */
 const obtenerCajasActuales = async (no_orden, tipo) => {
-    const [rows] = await pool.query(
+    let [rows] = await pool.query(
         `SELECT pe.caja, pe.tipo_caja AS tipoCaja, pe.codigo_pedido AS codigoPed,
                 prod.descripcion, pe.v_pz, pe.v_pq, pe.v_inner, pe.v_master
          FROM pedidos_embarques pe
          LEFT JOIN productos prod ON pe.codigo_pedido = prod.codigo
          WHERE pe.no_orden = ? AND UPPER(pe.tipo) = UPPER(?) AND pe.tipo_caja IS NOT NULL
+               AND CAST(pe.caja AS UNSIGNED) > 0
          ORDER BY CAST(pe.caja AS UNSIGNED)`,
         [no_orden, tipo]
     );
+
+    // ✅ nuevo — un pedido ya FINALIZADO se mueve de `pedidos_embarques` a
+    // `pedido_finalizado` (y se borra de la primera), así que si no se
+    // encontró nada arriba, se busca en la tabla de finalizados — para
+    // poder reimprimir etiquetas/resumen de un pedido ya terminado, no
+    // solo de uno todavía activo.
+    if (rows.length === 0) {
+        const [finalRows] = await pool.query(
+            `SELECT pf.caja, pf.tipo_caja AS tipoCaja, pf.codigo_pedido AS codigoPed,
+                    prod.descripcion, pf.v_pz, pf.v_pq, pf.v_inner, pf.v_master
+             FROM pedido_finalizado pf
+             LEFT JOIN productos prod ON pf.codigo_pedido = prod.codigo
+             WHERE pf.no_orden = ? AND UPPER(pf.tipo) = UPPER(?) AND pf.tipo_caja IS NOT NULL
+                   AND CAST(pf.caja AS UNSIGNED) > 0
+             ORDER BY CAST(pf.caja AS UNSIGNED)`,
+            [no_orden, tipo]
+        );
+        rows = finalRows;
+    }
 
     const mapa = new Map();
     for (const r of rows) {
