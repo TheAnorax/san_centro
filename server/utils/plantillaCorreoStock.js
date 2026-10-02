@@ -6,15 +6,11 @@ const formatCurrency = (valor) => {
 };
 
 function plantillaCorreoStock({ codigo, descripcion, ubicacion, stock, cantidadSolicitada, solicitante, um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta }) {
-  // La cantidad siempre se maneja en PIEZAS (así viene de inv_opt/lo capturado
-  // en pantalla) — se muestra como tal, y aparte se avisa si no alcanza para
-  // completar un empaque cerrado (mínimo de venta), sin redondear nada.
-  const avisoEmpaque = minimoVenta && !minimoVenta.completo
-    ? `<p style="font-size:12px; color:#e65100; background:#fff8e1; border:1px solid #ffb300; border-radius:6px; padding:10px; margin-top:12px;">
-        ⚠️ Esta cantidad NO completa un empaque cerrado (${minimoVenta.unidadEmpaque} de ${minimoVenta.piezasPorEmpaque} PZ).
-        Faltan ${minimoVenta.faltantePiezas} PZ para completar el siguiente empaque.
-      </p>`
-    : "";
+  // 🆕 La cantidad que llega aquí (cantidadAjustada) ya viene SIEMPRE en un
+  // múltiplo completo del empaque mínimo de venta (o se rechazó el envío
+  // antes de llegar aquí si no alcanzaba ni para 1) — ya no hace falta
+  // avisar de "no completa empaque", porque nunca se manda incompleto.
+  const avisoEmpaque = "";
 
   return `
     <body style="background-color:#f4f4f4; padding:20px; font-family:Arial, sans-serif;">
@@ -65,7 +61,7 @@ function plantillaCorreoStock({ codigo, descripcion, ubicacion, stock, cantidadS
                     ${minimoVenta ? `
                     <tr>
                         <td style="border:1px solid #ccc; padding:8px;"><b>Empaque mínimo de venta:</b></td>
-                        <td style="border:1px solid #ccc; padding:8px;">${minimoVenta.unidadEmpaque} de ${minimoVenta.piezasPorEmpaque} PZ${minimoVenta.completo ? " (se completa)" : ""}</td>
+                        <td style="border:1px solid #ccc; padding:8px;">${minimoVenta.unidadEmpaque} de ${minimoVenta.piezasPorEmpaque} PZ</td>
                     </tr>` : ""}
 
                     <tr>
@@ -111,12 +107,12 @@ function plantillaCorreoStock({ codigo, descripcion, ubicacion, stock, cantidadS
 // (sin IVA) resueltos contra el catálogo de ventas
 // (misma API que usa Muestras.jsx).
 // ================================================
-function plantillaCorreoStockMasivo({ productos, solicitante }) {
+function plantillaCorreoStockMasivo({ productos, solicitante, excluidos }) {
     const lista = productos || [];
+    const excluidosLista = excluidos || [];
 
     const granTotal = lista.reduce((acc, p) => acc + (Number(p.costoTotalSinIva) || 0), 0);
     const hayNoResueltos = lista.some((p) => p.precioUnitarioSinIva === null || p.precioUnitarioSinIva === undefined);
-    const hayEmpaquesIncompletos = lista.some((p) => p.minimoVenta && !p.minimoVenta.completo);
 
     return `
     <body style="background-color:#f4f4f4; padding:20px; font-family:Arial, sans-serif;">
@@ -160,9 +156,9 @@ function plantillaCorreoStockMasivo({ productos, solicitante }) {
                     ⚠️ Algunos códigos no se encontraron en el catálogo de ventas, así que no se les pudo calcular costo.
                 </p>` : ""}
 
-                ${hayEmpaquesIncompletos ? `
-                <p style="font-size:12px; color:#e65100; margin-top:10px;">
-                    ⚠️ Algunos productos no completan un empaque cerrado (mínimo de venta) — se solicitan tal cual, sin redondear.
+                ${excluidosLista.length > 0 ? `
+                <p style="font-size:12px; color:#c62828; margin-top:10px;">
+                    ⚠️ ${excluidosLista.length} código(s) NO se incluyeron porque la cantidad no alcanza para completar ni 1 empaque mínimo de venta: ${excluidosLista.map((e) => `${e.codigo} (pedía ${e.cantidadSolicitada}, mínimo ${e.piezasPorEmpaque})`).join(", ")}.
                 </p>` : ""}
 
                 <p style="margin-top:20px;">

@@ -54,7 +54,18 @@ async function solicitarProducto(req, res) {
     // 💲 Se consulta la unidad de medida y el costo real (mismo catálogo de
     // ventas que usa Muestras.jsx) para que el correo no muestre solo la
     // cantidad "pelona", sino en qué unidad y a qué costo se está pidiendo.
-    const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta } = await resolverUnidadYCosto(codigo, cantidadSolicitada);
+    // 🆕 Ya no se manda "tal cual, sin redondear": si no completa el empaque
+    // mínimo de venta se ajusta hacia abajo (cantidadAjustada), y si ni para
+    // 1 empaque completo alcanza, se rechaza el envío.
+    const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta, cantidadAjustada, excluidoPorEmpaqueIncompleto } =
+      await resolverUnidadYCosto(codigo, cantidadSolicitada);
+
+    if (excluidoPorEmpaqueIncompleto) {
+      return res.status(400).json({
+        success: false,
+        message: `La cantidad (${cantidadSolicitada}) no alcanza para completar ni 1 empaque mínimo de venta (${minimoVenta.unidadEmpaque} de ${minimoVenta.piezasPorEmpaque} PZ). No se envió la solicitud.`,
+      });
+    }
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -63,7 +74,7 @@ async function solicitarProducto(req, res) {
 
     const html = plantillaCorreoStock({
       codigo, descripcion, ubicacion, stock,
-      cantidadSolicitada, solicitante,
+      cantidadSolicitada: cantidadAjustada, solicitante,
       masters, inners, sueltas,  // 🆕
       um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta
     });
@@ -82,7 +93,7 @@ async function solicitarProducto(req, res) {
     // solicitud, pero todavía falta que el siguiente departamento la
     // revise/ajuste (Modificación) y Dirección la apruebe (Autorizada).
     // `solicitante` (quien la mandó) queda guardado como solicitado_por.
-    await crearSolicitudesInventario([{ sku: codigo, cantidad: cantidadSolicitada }], solicitante);
+    await crearSolicitudesInventario([{ sku: codigo, cantidad: cantidadAjustada }], solicitante);
 
     return res.json({ success: true, message: "Solicitud enviada correctamente" });
 
@@ -245,15 +256,28 @@ const solicitarProductoMasivoController = async (req, res) => {
     // 💲 Para cada código encontrado se consulta su UM real y su costo
     // (mismo catálogo de ventas que Muestras.jsx), en paralelo para no hacer
     // la solicitud masiva lenta si son muchos códigos.
-    const agregados = await Promise.all(encontrados.map(async (row) => {
+    // 🆕 Ya no se manda nada "tal cual, sin redondear": si un producto no
+    // completa su empaque mínimo de venta (cant_sec), se redondea hacia
+    // abajo al múltiplo completo más cercano (cantidadAjustada), y si ni
+    // siquiera alcanza para 1 empaque completo, se excluye por completo
+    // (no se manda, no se cotiza, no se registra). Los productos sin
+    // empaque mínimo (puro PZ) no se tocan.
+    const resultados = await Promise.all(encontrados.map(async (row) => {
       const cantidadSolicitada = mapaCantidades[String(row.codigo_producto).trim()] ?? "";
-      const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta } = await resolverUnidadYCosto(row.codigo_producto, cantidadSolicitada);
+      const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta, cantidadAjustada, excluidoPorEmpaqueIncompleto } =
+        await resolverUnidadYCosto(row.codigo_producto, cantidadSolicitada);
+
+      if (excluidoPorEmpaqueIncompleto) {
+        return { excluido: true, codigo: row.codigo_producto, minimoVenta, cantidadSolicitada };
+      }
+
       return {
+        excluido: false,
         codigo: row.codigo_producto,
         descripcion: row.descripcion,
         ubicacion: row.ubicacion,
         stock: row.cant_stock_real,
-        cantidadSolicitada,
+        cantidadSolicitada: cantidadAjustada,
         um,
         precioUnitarioSinIva,
         costoTotalSinIva,
@@ -261,13 +285,23 @@ const solicitarProductoMasivoController = async (req, res) => {
       };
     }));
 
+    const agregados = resultados.filter((r) => !r.excluido);
+    const excluidosPorEmpaque = resultados
+      .filter((r) => r.excluido)
+      .map((r) => ({
+        codigo: r.codigo,
+        cantidadSolicitada: r.cantidadSolicitada,
+        piezasPorEmpaque: r.minimoVenta?.piezasPorEmpaque ?? null,
+        unidadEmpaque: r.minimoVenta?.unidadEmpaque ?? null,
+      }));
+
     if (agregados.length > 0) {
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
       });
 
-      const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante });
+      const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante, excluidos: excluidosPorEmpaque });
 
       await transporter.sendMail({
         from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
@@ -286,19 +320,10 @@ const solicitarProductoMasivoController = async (req, res) => {
       );
     }
 
-    // Productos que sí se agregaron pero no completan su empaque mínimo de
-    // venta (cant_sec) — se avisa en pantalla además del correo, sin
-    // bloquear ni redondear nada.
-    const advertenciasEmpaque = agregados
-      .filter((a) => a.minimoVenta && !a.minimoVenta.completo)
-      .map((a) => ({
-        codigo: a.codigo,
-        cantidadSolicitada: a.cantidadSolicitada,
-        piezasPorEmpaque: a.minimoVenta.piezasPorEmpaque,
-        unidadEmpaque: a.minimoVenta.unidadEmpaque,
-        faltantePiezas: a.minimoVenta.faltantePiezas,
-      }));
-
+    // 🆕 Ya no hay "advertencias de empaque incompleto" (antes se mandaban
+    // tal cual sin redondear): lo que sí se agregó ya viene siempre en un
+    // múltiplo completo de su empaque mínimo, así que aquí solo se informan
+    // los códigos que se excluyeron por no alcanzar ni para 1 empaque.
     return res.json({
       ok: true,
       // Detalle completo (código, descripción, cantidad, UM, costo, empaque
@@ -306,7 +331,7 @@ const solicitarProductoMasivoController = async (req, res) => {
       // no solo la lista de códigos.
       agregados,
       faltan: noEncontrados,
-      advertenciasEmpaque,
+      excluidosPorEmpaque,
     });
 
   } catch (error) {

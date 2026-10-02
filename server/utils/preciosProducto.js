@@ -100,7 +100,7 @@ const obtenerMinimoVenta = (prod) => {
  */
 const resolverUnidadYCosto = async (codigo, cantidad) => {
     const prod = await obtenerDetalleProducto(codigo);
-    const cant = Number(cantidad) || 0;
+    const cantOriginal = Number(cantidad) || 0;
 
     if (!prod) {
         return {
@@ -109,6 +109,8 @@ const resolverUnidadYCosto = async (codigo, cantidad) => {
             costoTotalSinIva: null,
             conCatalogo: false,
             minimoVenta: null,
+            cantidadAjustada: cantOriginal,
+            excluidoPorEmpaqueIncompleto: false,
         };
     }
 
@@ -117,22 +119,42 @@ const resolverUnidadYCosto = async (codigo, cantidad) => {
     const minimo = obtenerMinimoVenta(prod);
 
     let minimoVenta = null;
+    let cantidadAjustada = cantOriginal;
+    let excluidoPorEmpaqueIncompleto = false;
+
     if (minimo > 0) {
-        const completo = cant > 0 && cant % minimo === 0;
+        const completo = cantOriginal > 0 && cantOriginal % minimo === 0;
         minimoVenta = {
             piezasPorEmpaque: minimo,
             unidadEmpaque: getUM(uniPrin),
             completo,
-            faltantePiezas: completo ? 0 : minimo - (cant % minimo),
+            faltantePiezas: completo ? 0 : minimo - (cantOriginal % minimo),
         };
+
+        // 🆕 Ya no se manda "tal cual, sin redondear": si no completa el
+        // empaque mínimo de venta, se redondea hacia ABAJO al múltiplo
+        // completo más cercano (se descartan las piezas sueltas que no
+        // alcanzan a formar otro empaque completo). Si ni siquiera alcanza
+        // para 1 empaque completo, el producto se excluye por completo de
+        // la solicitud — nunca se manda con cantidad 0. Los productos
+        // exentos (tipo_uni === 1, pieza suelta → minimo === 0) no entran
+        // aquí y se piden tal cual, sin tocar nada.
+        if (!completo) {
+            cantidadAjustada = Math.floor(cantOriginal / minimo) * minimo;
+            if (cantidadAjustada <= 0) {
+                excluidoPorEmpaqueIncompleto = true;
+            }
+        }
     }
 
     return {
         um: 'Pieza',
         precioUnitarioSinIva: precioPiezaSinIva,
-        costoTotalSinIva: parseFloat((precioPiezaSinIva * cant).toFixed(2)),
+        costoTotalSinIva: parseFloat((precioPiezaSinIva * cantidadAjustada).toFixed(2)),
         conCatalogo: true,
         minimoVenta,
+        cantidadAjustada,
+        excluidoPorEmpaqueIncompleto,
     };
 };
 

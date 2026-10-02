@@ -171,19 +171,26 @@ function InventarioListado() {
             productoSeleccionado?._inner
         );
 
-        await axios.post("http://66.232.105.107:3001/api/inventario/solicitar-producto", {
-            codigo: productoSeleccionado.codigo_producto,
-            descripcion: productoSeleccionado.descripcion,
-            ubicacion: productoSeleccionado.ubicacion,
-            stock: productoSeleccionado.cant_stock_real,
-            cantidadSolicitada,
-            solicitante: user?.nombre || "Usuario desconocido",
-            masters: emp?.masters ?? 0,
-            inners: emp?.inners ?? 0,
-            sueltas: emp?.sueltas ?? 0,
-        });
-        Swal.fire("Solicitud enviada", "Tu solicitud fue enviada correctamente", "success");
-        setOpenModal(false);
+        try {
+            await axios.post("http://66.232.105.107:3001/api/inventario/solicitar-producto", {
+                codigo: productoSeleccionado.codigo_producto,
+                descripcion: productoSeleccionado.descripcion,
+                ubicacion: productoSeleccionado.ubicacion,
+                stock: productoSeleccionado.cant_stock_real,
+                cantidadSolicitada,
+                solicitante: user?.nombre || "Usuario desconocido",
+                masters: emp?.masters ?? 0,
+                inners: emp?.inners ?? 0,
+                sueltas: emp?.sueltas ?? 0,
+            });
+            Swal.fire("Solicitud enviada", "Tu solicitud fue enviada correctamente", "success");
+            setOpenModal(false);
+        } catch (err) {
+            // 🆕 El backend rechaza el envío si la cantidad no alcanza ni
+            // para 1 empaque mínimo de venta (ya no se manda "tal cual").
+            const msg = err.response?.data?.message || "No se pudo enviar la solicitud";
+            Swal.fire("⚠️ No se envió", msg, "warning");
+        }
     };
     // #endregion MODAL_SOLICITAR_INDIVIDUAL
 
@@ -523,24 +530,41 @@ function InventarioListado() {
 
     // 🆕 Cierre automático a Inner/Master: ya no se pregunta nada ni hay que
     // elegir manualmente — la cantidad SIEMPRE se redondea hacia ARRIBA al
-    // siguiente Master o Inner completo (nunca quedan piezas sueltas, nunca
-    // se pide menos de lo que hace falta). Primero se sacan los Master
-    // completos que quepan, y lo que sobra siempre se redondea hacia arriba
-    // al Inner completo más cercano (si sobra aunque sea 1 pieza, ya cuenta
-    // como un Inner completo).
+    // siguiente Master o Inner completo, nunca quedan piezas sueltas. Se
+    // aplica en cuanto el código tenga Master O Inner definido (no hace
+    // falta que tenga los DOS) — solo los códigos que de plano no manejan
+    // ningún empaque (puro PZ) se dejan tal cual, sin redondear nada.
     const cerrarAutomaticoInnerMaster = (cantidad, masterQty, innerQty) => {
-        let restante = Number(cantidad) || 0;
-        const masters = masterQty > 1 ? Math.floor(restante / masterQty) : 0;
+        const cant = Number(cantidad) || 0;
+        const tieneMaster = masterQty > 1;
+        const tieneInner = innerQty > 1;
+
+        if (tieneMaster && !tieneInner) {
+            // Solo maneja Master: redondea directo hacia arriba al Master completo.
+            const masters = Math.ceil(cant / masterQty);
+            return { cantidadFinal: masters * masterQty, cierre: 'master', desglose: { masters, inners: 0, sueltas: 0 } };
+        }
+
+        if (!tieneMaster && tieneInner) {
+            // Solo maneja Inner: redondea directo hacia arriba al Inner completo.
+            const inners = Math.ceil(cant / innerQty);
+            return { cantidadFinal: inners * innerQty, cierre: 'inner', desglose: { masters: 0, inners, sueltas: 0 } };
+        }
+
+        // Maneja ambos: saca los Master completos que quepan, y lo que
+        // sobra (aunque sea 1 pieza) siempre se redondea hacia arriba al
+        // Inner completo más cercano.
+        let restante = cant;
+        const masters = Math.floor(restante / masterQty);
         restante -= masters * masterQty;
 
         let inners = 0;
-        if (restante > 0 && innerQty > 1) {
+        if (restante > 0) {
             inners = Math.ceil(restante / innerQty); // 👈 siempre hacia arriba
-            restante = 0;
         }
 
         const cantidadFinal = masters * masterQty + inners * innerQty;
-        const cierre = inners > 0 ? 'inner' : (masters > 0 ? 'master' : null);
+        const cierre = inners > 0 ? 'inner' : 'master';
         return { cantidadFinal, cierre, desglose: { masters, inners, sueltas: 0 } };
     };
 
@@ -552,7 +576,11 @@ function InventarioListado() {
         // ">0" cualquier cantidad entera "cerraba" trivialmente contra ese 1
         // (cantidad % 1 siempre es 0), marcando como cerrado algo que en
         // realidad se maneja solo por pieza (como el 9507: Inner 0, Master 0).
-        const aplicaCierre = masterQty > 1 && innerQty > 1;
+        // 🆕 Basta con que tenga Master O Inner (no hace falta que tenga los
+        // dos) para que se le aplique el cierre automático — solo los
+        // códigos que de plano no manejan ningún empaque (puro PZ) quedan
+        // sin redondear.
+        const aplicaCierre = masterQty > 1 || innerQty > 1;
 
         let cierre = null; // null = no aplica (solo PZ o no encontrado)
         let cantidadFinal = cantidad;
@@ -621,14 +649,14 @@ function InventarioListado() {
             setSolicitudMasivaResultado({
                 agregados: res.data?.agregados || [],
                 faltan: res.data?.faltan || [],
-                advertenciasEmpaque: res.data?.advertenciasEmpaque || [],
+                excluidosPorEmpaque: res.data?.excluidosPorEmpaque || [],
             });
             setCodigosSolicitados(prev => new Set([...prev, ...(res.data?.agregados || []).map(a => a.codigo)]));
             setProductosExcelPreview([]);
 
             Swal.fire(
                 "✅ Solicitud enviada",
-                `Se agregaron ${res.data?.agregados?.length || 0} producto(s). ${res.data?.faltan?.length ? `${res.data.faltan.length} no se encontraron.` : ""}`,
+                `Se agregaron ${res.data?.agregados?.length || 0} producto(s). ${res.data?.faltan?.length ? `${res.data.faltan.length} no se encontraron.` : ""}${res.data?.excluidosPorEmpaque?.length ? ` ${res.data.excluidosPorEmpaque.length} no alcanzaron ni 1 empaque mínimo.` : ""}`,
                 "success"
             );
         } catch (err) {
@@ -723,7 +751,7 @@ function InventarioListado() {
             setSolicitudMasivaResultado({
                 agregados: res.data?.agregados || [],
                 faltan: res.data?.faltan || [],
-                advertenciasEmpaque: res.data?.advertenciasEmpaque || [],
+                excluidosPorEmpaque: res.data?.excluidosPorEmpaque || [],
             });
             setCodigosSolicitados(prev => new Set([...prev, ...(res.data?.agregados || []).map(a => a.codigo)]));
 
@@ -1039,6 +1067,7 @@ function InventarioListado() {
                                     <Box sx={{ mt: 2 }}>
                                         <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#333" }}>
                                             Resultado de la solicitud: {solicitudMasivaResultado.agregados.length} agregado(s), {solicitudMasivaResultado.faltan.length} no encontrado(s)
+                                            {solicitudMasivaResultado.excluidosPorEmpaque?.length > 0 ? `, ${solicitudMasivaResultado.excluidosPorEmpaque.length} excluido(s) por empaque incompleto` : ""}
                                         </p>
 
                                         <TableContainer sx={{ maxHeight: '35vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2, mb: 2 }}>
@@ -1051,31 +1080,38 @@ function InventarioListado() {
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
-                                                    {solicitudMasivaResultado.agregados.length === 0 && solicitudMasivaResultado.faltan.length === 0 ? (
+                                                    {solicitudMasivaResultado.agregados.length === 0 && solicitudMasivaResultado.faltan.length === 0 && !solicitudMasivaResultado.excluidosPorEmpaque?.length ? (
                                                         <TableRow><TableCell colSpan={5} align="center">Sin resultados</TableCell></TableRow>
                                                     ) : (
                                                         <>
-                                                            {solicitudMasivaResultado.agregados.map((a) => {
-                                                                const incompleto = a.minimoVenta && !a.minimoVenta.completo;
-                                                                return (
-                                                                    <TableRow key={a.codigo} sx={incompleto ? { backgroundColor: '#fff8e1' } : undefined}>
-                                                                        <TableCell>{a.codigo}</TableCell>
-                                                                        <TableCell>{a.descripcion || '-'}</TableCell>
-                                                                        <TableCell>{a.cantidadSolicitada} PZ</TableCell>
-                                                                        <TableCell>{a.costoTotalSinIva != null ? `$${Number(a.costoTotalSinIva).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
-                                                                        <TableCell>
-                                                                            {incompleto
-                                                                                ? <span style={{ color: '#e65100', fontWeight: 'bold' }}>⚠️ No completa empaque ({a.minimoVenta.unidadEmpaque} de {a.minimoVenta.piezasPorEmpaque} PZ)</span>
-                                                                                : <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Agregado</span>}
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                );
-                                                            })}
+                                                            {solicitudMasivaResultado.agregados.map((a) => (
+                                                                <TableRow key={a.codigo}>
+                                                                    <TableCell>{a.codigo}</TableCell>
+                                                                    <TableCell>{a.descripcion || '-'}</TableCell>
+                                                                    <TableCell>{a.cantidadSolicitada} PZ</TableCell>
+                                                                    <TableCell>{a.costoTotalSinIva != null ? `$${Number(a.costoTotalSinIva).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
+                                                                    <TableCell>
+                                                                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Agregado</span>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
                                                             {solicitudMasivaResultado.faltan.map((codigo) => (
                                                                 <TableRow key={codigo}>
                                                                     <TableCell>{codigo}</TableCell>
                                                                     <TableCell colSpan={3} sx={{ color: '#888' }}>No se encontró en inventario</TableCell>
                                                                     <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>❌ No encontrado</span></TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                            {/* 🆕 Ya no se manda "tal cual, sin redondear": estos códigos
+                                                                no alcanzaban ni para 1 empaque mínimo de venta, así que se
+                                                                excluyeron por completo (no se mandaron, no se cotizaron). */}
+                                                            {(solicitudMasivaResultado.excluidosPorEmpaque || []).map((e) => (
+                                                                <TableRow key={`excluido-${e.codigo}`} sx={{ backgroundColor: '#ffebee' }}>
+                                                                    <TableCell>{e.codigo}</TableCell>
+                                                                    <TableCell colSpan={3} sx={{ color: '#888' }}>
+                                                                        Pedía {e.cantidadSolicitada} PZ, pero el empaque mínimo es {e.unidadEmpaque} de {e.piezasPorEmpaque} PZ
+                                                                    </TableCell>
+                                                                    <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>⚠️ Excluido</span></TableCell>
                                                                 </TableRow>
                                                             ))}
                                                         </>
