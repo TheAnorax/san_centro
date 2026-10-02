@@ -7,6 +7,75 @@ const axios = require('axios');
 const CROSS_DOCK_API = 'http://66.232.105.87:3007/api/cross-dock';
 
 // ================================================
+// 🆕 Sincronizar cant_stock_real contra la API de Santul (existencia física
+// real del almacén). Se corre siempre ANTES de recalcular inv_opt, para que
+// el faltante nunca se calcule con un stock desactualizado. Si la API de
+// Santul falla, no se rompe el flujo: se registra el error y se sigue con
+// los valores de cant_stock_real que ya había en la base.
+// ================================================
+const SANTUL_INVENTARIO_API = 'http://santul.verpedidos.com:9010/Santul/Inventarios';
+const ALMACEN_SANTUL = process.env.ALMACEN || '7240';
+
+const sincronizarStockRealSantul = async (almacen = ALMACEN_SANTUL) => {
+  const resumen = { actualizados: 0, omitidos: 0, noEncontrados: [], error: null };
+
+  let productos;
+  try {
+    const { data } = await axios({
+      method: 'get',
+      url: SANTUL_INVENTARIO_API,
+      data: { Almacen: almacen },
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+    productos = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('❌ No se pudo consultar la API de Santul para sincronizar stock real:', err.message);
+    resumen.error = err.message;
+    return resumen;
+  }
+
+  for (const producto of productos) {
+    const codigo = producto.Clave;
+    const existenciaFisica = producto.Existencia_Fisica;
+    if (codigo === undefined || existenciaFisica === undefined) continue;
+
+    try {
+      const [rows] = await pool.query(
+        `SELECT cant_stock_real FROM inventario WHERE codigo_producto = ? AND almacen = ? LIMIT 1`,
+        [codigo, almacen]
+      );
+
+      if (rows.length === 0) {
+        resumen.noEncontrados.push(codigo);
+        continue;
+      }
+
+      const valorActual = Number(rows[0].cant_stock_real);
+      const valorNuevo = Number(existenciaFisica);
+
+      if (valorActual === valorNuevo) {
+        resumen.omitidos++;
+        continue;
+      }
+
+      await pool.query(
+        `UPDATE inventario SET cant_stock_real = ? WHERE codigo_producto = ? AND almacen = ?`,
+        [existenciaFisica, codigo, almacen]
+      );
+      resumen.actualizados++;
+    } catch (err) {
+      console.error(`❌ Error sincronizando stock real del código ${codigo}:`, err.message);
+    }
+  }
+
+  console.log(
+    `🔄 Stock real sincronizado con Santul: ${resumen.actualizados} actualizado(s), ${resumen.omitidos} sin cambio, ${resumen.noEncontrados.length} no encontrado(s)`
+  );
+  return resumen;
+};
+
+// ================================================
 // GET Inventario
 // ================================================
 const obtenerInventario = async () => {
@@ -321,6 +390,7 @@ module.exports = {
   actualizarUbicacion,
   actualizarInvOpt,
   limpiarInvOpt,
+  sincronizarStockRealSantul,
   actualizarLimites,
   cargaMasivaLimites,
   buscarProductosPorCodigos,

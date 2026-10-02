@@ -7,6 +7,7 @@ const {
   actualizarLimites,
   actualizarInvOpt,
   limpiarInvOpt,
+  sincronizarStockRealSantul,
   cargaMasivaLimites,
   buscarProductosPorCodigos,
   crearSolicitudesInventario,
@@ -154,11 +155,23 @@ const actualizarLimitesController = async (req, res) => {
 // ================================================
 async function recalcularInvOpt(req, res) {
   try {
+    // 🆕 Antes de recalcular el faltante, SIEMPRE se sincroniza primero
+    // cant_stock_real contra la existencia física real de Santul — así el
+    // inventario de la app nunca queda desfasado del almacén real. Si
+    // Santul no responde, se sigue con el stock que ya había (no se rompe
+    // el flujo), solo se deja constancia en el log.
+    console.log("🔄 Sincronizando stock real con Santul...");
+    const sync = await sincronizarStockRealSantul();
+
     console.log("🔄 Recalculando inv_opt...");
     await limpiarInvOpt();
     const result = await actualizarInvOpt();
     console.log(`✅ inv_opt actualizado en ${result.affectedRows} productos`);
-    res.json({ success: true, message: `inv_opt actualizado en ${result.affectedRows} productos` });
+    res.json({
+      success: true,
+      message: `inv_opt actualizado en ${result.affectedRows} productos`,
+      stockReal: sync,
+    });
   } catch (error) {
     console.error("❌ Error recalculando inv_opt:", error);
     res.status(500).json({ success: false, message: error.message });

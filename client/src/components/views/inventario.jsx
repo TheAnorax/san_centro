@@ -382,6 +382,17 @@ function InventarioListado() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [puedeGestionarSolicitudes]);
 
+    // 🆕 Ya no se descarga/sube Excel manualmente: cada vez que se entra a la
+    // pestaña "Solicitar Inventario" se sincroniza solo y se arma la vista
+    // previa de faltantes automáticamente (mismo criterio que el botón
+    // "Sincronizar Faltantes" de antes, ahora automático).
+    useEffect(() => {
+        if (activeTab === 1 && puedeVerSolicitarInventario) {
+            sincronizarFaltantes();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, puedeVerSolicitarInventario]);
+
     // 🔒 Mismo criterio de cierre a Inner/Master que la vista previa del Excel:
     // solo aplica si el código tiene AMBOS empaques definidos (>1). Si no,
     // es informativo (solo PZ) y no bloquea nada.
@@ -487,18 +498,6 @@ function InventarioListado() {
     // #endregion BANDEJA_PLANEACION
 
     // #region PLANTILLA_EXCEL_Y_CIERRE_INNER_MASTER
-    const descargarPlantillaSolicitudMasiva = () => {
-        const data = faltantesParaSolicitar.map(row => ({
-            codigo_producto: row.codigo_producto,
-            cantidad: row.inv_opt ?? "",
-        }));
-        const ws = XLSX.utils.json_to_sheet(data.length > 0 ? data : [{ codigo_producto: "", cantidad: "" }]);
-        ws["!cols"] = [{ wch: 20 }, { wch: 12 }];
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
-        XLSX.writeFile(wb, "plantilla_solicitar_inventario.xlsx");
-    };
-
     // 🔒 Cierre a Inner/Master: solo aplica a códigos que en el catálogo
     // tienen definidos AMBOS empaques (_inner y _master, ambos > 0). Si la
     // cantidad solicitada no es múltiplo exacto de inner NI de master, ese
@@ -522,6 +521,29 @@ function InventarioListado() {
         return { masters, inners, sueltas: restante };
     };
 
+    // 🆕 Cierre automático a Inner/Master: ya no se pregunta nada ni hay que
+    // elegir manualmente — la cantidad SIEMPRE se redondea hacia ARRIBA al
+    // siguiente Master o Inner completo (nunca quedan piezas sueltas, nunca
+    // se pide menos de lo que hace falta). Primero se sacan los Master
+    // completos que quepan, y lo que sobra siempre se redondea hacia arriba
+    // al Inner completo más cercano (si sobra aunque sea 1 pieza, ya cuenta
+    // como un Inner completo).
+    const cerrarAutomaticoInnerMaster = (cantidad, masterQty, innerQty) => {
+        let restante = Number(cantidad) || 0;
+        const masters = masterQty > 1 ? Math.floor(restante / masterQty) : 0;
+        restante -= masters * masterQty;
+
+        let inners = 0;
+        if (restante > 0 && innerQty > 1) {
+            inners = Math.ceil(restante / innerQty); // 👈 siempre hacia arriba
+            restante = 0;
+        }
+
+        const cantidadFinal = masters * masterQty + inners * innerQty;
+        const cierre = inners > 0 ? 'inner' : (masters > 0 ? 'master' : null);
+        return { cantidadFinal, cierre, desglose: { masters, inners, sueltas: 0 } };
+    };
+
     const construirFilaPreview = (codigo, cantidad, match) => {
         const masterQty = Number(match?._master) || 0;
         const innerQty = Number(match?._inner) || 0;
@@ -533,15 +555,19 @@ function InventarioListado() {
         const aplicaCierre = masterQty > 1 && innerQty > 1;
 
         let cierre = null; // null = no aplica (solo PZ o no encontrado)
+        let cantidadFinal = cantidad;
+        let desglose = calcularDesglose(cantidad, masterQty, innerQty);
+
         if (aplicaCierre) {
-            if (cantidad % masterQty === 0) cierre = 'master';
-            else if (cantidad % innerQty === 0) cierre = 'inner';
-            else cierre = 'ninguno';
+            const resultado = cerrarAutomaticoInnerMaster(cantidad, masterQty, innerQty);
+            cierre = resultado.cierre;
+            cantidadFinal = resultado.cantidadFinal;
+            desglose = resultado.desglose;
         }
 
         return {
             codigo,
-            cantidad,
+            cantidad: cantidadFinal,
             descripcion: match?.descripcion || '(no está en inventario)',
             ubicacion: match?.ubicacion || '-',
             stock: match?.cant_stock_real ?? '-',
@@ -549,98 +575,14 @@ function InventarioListado() {
             masterQty,
             innerQty,
             cierre,
-            desglose: calcularDesglose(cantidad, masterQty, innerQty),
+            desglose,
         };
-    };
-
-    // Redondea hacia arriba al múltiplo cerrado de inner o de master elegido,
-    // y recalcula el estado (y el desglose) de esa fila — debe quedar
-    // resuelta, ya no en rojo.
-    const cerrarFilaPreviewA = (codigo, tipo) => {
-        setProductosExcelPreview(prev => prev.map(row => {
-            if (row.codigo !== codigo) return row;
-            const factor = tipo === 'master' ? row.masterQty : row.innerQty;
-            if (!factor) return row;
-            const cantidadCerrada = Math.ceil(row.cantidad / factor) * factor;
-            return {
-                ...row,
-                cantidad: cantidadCerrada,
-                cierre: tipo,
-                desglose: calcularDesglose(cantidadCerrada, row.masterQty, row.innerQty),
-            };
-        }));
     };
     // #endregion PLANTILLA_EXCEL_Y_CIERRE_INNER_MASTER
 
     // #region SUBIR_EXCEL_SOLICITUD
-    const handleSolicitudMasivaExcel = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            try {
-                const bstr = evt.target.result;
-                const workbook = XLSX.read(bstr, { type: "binary" });
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-                const primeraFila = jsonData[0];
-                if (!primeraFila?.codigo_producto && !primeraFila?.sku && !primeraFila?.SKU && !primeraFila?.codigo && !primeraFila?.Código) {
-                    Swal.fire("❌ Error", "El archivo debe tener una columna 'codigo_producto' (o 'sku') y una columna 'cantidad'", "error");
-                    return;
-                }
-
-                const productos = jsonData
-                    .map(row => ({
-                        codigo: String(row.codigo_producto || row.sku || row.SKU || row.codigo || row.Código || "").trim(),
-                        cantidad: Number(row.cantidad ?? row.Cantidad ?? 0),
-                    }))
-                    .filter(row => row.codigo);
-
-                if (productos.length === 0) {
-                    Swal.fire("⚠️ Sin datos", "No se encontraron filas válidas (código) en el archivo", "warning");
-                    return;
-                }
-
-                // El Excel solo dice QUÉ códigos solicitar — la CANTIDAD siempre
-                // se toma del faltante que ya calcula la app (inv_opt, la misma
-                // que se ve en "⚠️ Faltante" en la pestaña Inventario), no de lo
-                // que venga escrito en la columna "cantidad" del archivo. Si un
-                // código no tiene faltante calculado (inv_opt vacío/0), se usa la
-                // cantidad del Excel como respaldo.
-                const codigosSinFaltante = [];
-                const preview = productos
-                    .map(p => {
-                        const match = inventario.find(i => String(i.codigo_producto).trim() === p.codigo);
-                        const faltante = Number(match?.inv_opt) || 0;
-                        const cantidadFinal = faltante > 0 ? faltante : Number(p.cantidad) || 0;
-                        if (faltante <= 0 && cantidadFinal <= 0) codigosSinFaltante.push(p.codigo);
-                        return { codigo: p.codigo, cantidad: cantidadFinal, match };
-                    })
-                    .filter(p => p.cantidad > 0)
-                    .map(p => construirFilaPreview(p.codigo, p.cantidad, p.match));
-
-                if (codigosSinFaltante.length > 0) {
-                    Swal.fire({
-                        icon: "info",
-                        title: "Algunos códigos no tienen faltante",
-                        html: `${codigosSinFaltante.length} código(s) no tienen faltante calculado ni cantidad en el Excel, así que no se incluyen: ${codigosSinFaltante.join(", ")}`,
-                    });
-                }
-
-                setProductosExcelPreview(preview);
-                setSolicitudMasivaResultado(null);
-
-            } catch (err) {
-                console.error(err);
-                Swal.fire("❌ Error", "No se pudo leer el archivo", "error");
-            }
-        };
-
-        reader.readAsBinaryString(file);
-        e.target.value = "";
-    };
+    // 🆕 Ya no existe carga manual de Excel: la vista previa de faltantes se
+    // arma sola (ver sincronizarFaltantes + useEffect de activeTab === 1).
     // #endregion SUBIR_EXCEL_SOLICITUD
 
     // #region ENVIAR_SOLICITUD_EXCEL_PREVIEW
@@ -650,24 +592,10 @@ function InventarioListado() {
     const enviarSolicitudExcelPreview = async () => {
         if (productosExcelPreview.length === 0) return;
 
-        // 🔒 La validación de cierre a Inner/Master es solo para admin (es quien
-        // ve y resuelve esos botones). Otros roles (ej. supervisor) solo piden
-        // lo que les falta, así que no les debe salir esta advertencia.
-        const sinCerrar = userRole === 'admin'
-            ? productosExcelPreview.filter(p => p.cierre === 'ninguno')
-            : [];
-        if (sinCerrar.length > 0) {
-            const { isConfirmed: continuarSinCerrar } = await Swal.fire({
-                title: "Hay códigos sin cerrar a Inner ni Master",
-                html: `<b>${sinCerrar.length}</b> código(s) no cierran ni a Inner ni a Master: ${sinCerrar.map(p => p.codigo).join(", ")}.<br/><br/>Elige "Cerrar a Master" o "Cerrar a Inner" en esa fila antes de enviar, o continúa de todas formas.`,
-                icon: "warning",
-                showCancelButton: true,
-                confirmButtonText: "Enviar de todas formas",
-                cancelButtonText: "Volver a revisar",
-                confirmButtonColor: "#e65100",
-            });
-            if (!continuarSinCerrar) return;
-        }
+        // 🆕 Ya no existe el estado "sin cerrar": el cierre a Inner/Master
+        // ahora siempre se redondea automático (hacia arriba) al armar la
+        // vista previa (ver cerrarAutomaticoInnerMaster), así que aquí ya
+        // no hace falta advertir ni pedir que se elija nada manualmente.
 
         const { isConfirmed } = await Swal.fire({
             title: "¿Enviar esta solicitud?",
@@ -872,29 +800,16 @@ function InventarioListado() {
                         <Paper elevation={3} sx={{ borderRadius: 4, boxShadow: "0 4px 24px rgba(200,70,50,.08)", overflow: "hidden", p: 2 }}>
 
                             {/* #region UI_SUBIR_EXCEL_SOLICITUD */}
-                            {/* Sección: carga por Excel (sku + cantidad). Por ahora NO se
-                                carga automáticamente la lista de faltantes de inventario —
-                                solo se trabaja con lo que el usuario sube. */}
-                            <Box sx={{ p: 2, backgroundColor: "#f9f9f9", borderRadius: 2, border: "1px solid #ddd" }}>
-                                <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
-                                    📊 Solicitar varios productos por Excel
-                                </p>
-                                <p style={{ margin: "6px 0", fontSize: "0.85rem", color: "#555" }}>
-                                    Sube un Excel con las columnas <b>codigo_producto</b> (o <b>sku</b>) y <b>cantidad</b>.
-                                    Se buscará cada código en inventario y se enviará un correo con los que sí existan.
-                                </p>
-                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                                    <Button variant="outlined" color="primary" size="small" onClick={descargarPlantillaSolicitudMasiva}>
-                                        ⬇️ Descargar Plantilla Excel
-                                    </Button>
-                                    <Button variant="contained" color="success" component="label" size="small" disabled={solicitudMasivaProcesando}>
-                                        📂 Subir Excel (código + cantidad)
-                                        <input hidden type="file" accept=".xlsx,.xls" onChange={handleSolicitudMasivaExcel} />
-                                    </Button>
-                                    <Button variant="outlined" color="secondary" size="small" disabled={sincronizandoFaltantes} onClick={sincronizarFaltantes}>
-                                        {sincronizandoFaltantes ? "Sincronizando..." : "🔄 Sincronizar Faltantes"}
-                                    </Button>
+                            {/* 🆕 Ya no hay botones de descargar/subir Excel ni de
+                                sincronizar manualmente: al entrar a esta pestaña se
+                                sincroniza solo (ver useEffect de activeTab === 1) y
+                                la vista previa de faltantes aparece directo abajo. */}
+                            {sincronizandoFaltantes && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, color: '#777' }}>
+                                    <CircularProgress size={16} />
+                                    <span style={{ fontSize: '0.85rem' }}>Sincronizando faltantes...</span>
                                 </Box>
+                            )}
                             {/* #endregion UI_SUBIR_EXCEL_SOLICITUD */}
 
                                 {/* #region UI_BANDEJA_PLANEACION */}
@@ -1098,21 +1013,10 @@ function InventarioListado() {
                                                                         <TableCell>
                                                                             {row.cierre === null ? (
                                                                                 <span style={{ color: '#aaa' }}>—</span>
-                                                                            ) : row.cierre === 'ninguno' ? (
-                                                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                                                                    <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.78rem' }}>
-                                                                                        ⚠️ No cierra a Inner ({row.innerQty}) ni a Master ({row.masterQty})
-                                                                                    </span>
-                                                                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                                                        <Button size="small" variant="outlined" onClick={() => cerrarFilaPreviewA(row.codigo, 'master')}>
-                                                                                            Cerrar a Master
-                                                                                        </Button>
-                                                                                        <Button size="small" variant="outlined" onClick={() => cerrarFilaPreviewA(row.codigo, 'inner')}>
-                                                                                            Cerrar a Inner
-                                                                                        </Button>
-                                                                                    </Box>
-                                                                                </Box>
                                                                             ) : (
+                                                                                // 🆕 Ya no hay botones ni estado "no cierra": la cantidad
+                                                                                // siempre se redondeó hacia arriba automáticamente al
+                                                                                // armar la vista previa, así que aquí siempre cierra.
                                                                                 <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
                                                                                     ✅ Cierra a {row.cierre === 'master' ? 'Master' : 'Inner'}
                                                                                 </span>
@@ -1182,7 +1086,6 @@ function InventarioListado() {
                                     </Box>
                                 )}
                                 {/* #endregion UI_RESULTADO_ENVIO_SOLICITUD */}
-                            </Box>
                         </Paper>
                     )}
                 </Box>
