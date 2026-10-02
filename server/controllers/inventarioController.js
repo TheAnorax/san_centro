@@ -104,6 +104,37 @@ async function solicitarProducto(req, res) {
 }
 
 // ================================================
+// 🆕 GET Disponibilidad en vivo de un almacén (Santul), SOLO para mostrar en
+// pantalla — NO actualiza cant_stock_real ni toca la base para nada. Se usa
+// para la columna "Disponible en 7050" de la tabla de Solicitar Inventario:
+// la sincronización que sí se guarda en la base sigue siendo la del 7240.
+// ================================================
+async function obtenerDisponibilidadSantul(req, res) {
+  try {
+    const almacen = req.query.almacen || "7050";
+    const { data } = await axios({
+      method: "get",
+      url: "http://santul.verpedidos.com:9010/Santul/Inventarios",
+      headers: { "Content-Type": "application/json" },
+      data: { Almacen: almacen },
+      timeout: 15000,
+    });
+    const productos = Array.isArray(data) ? data : [];
+    const disponibilidad = {};
+    productos.forEach((p) => {
+      if (p.Clave === undefined) return;
+      const comprometido = Number(p.Comprometido) || 0;
+      const fisica = Number(p.Existencia_Fisica) || 0;
+      disponibilidad[String(p.Clave).trim()] = fisica - comprometido;
+    });
+    res.json({ success: true, almacen, disponibilidad });
+  } catch (error) {
+    console.error("❌ Error consultando disponibilidad Santul:", error.response?.data || error.message);
+    res.status(500).json({ success: false, message: "Error consultando disponibilidad", error: error.message });
+  }
+}
+
+// ================================================
 // GET Inventario JDE
 // ================================================
 async function obtenerInventarioJDE(req, res) {
@@ -597,6 +628,7 @@ module.exports = {
   todosLosInventarios,
   solicitarProducto,
   obtenerInventarioJDE,
+  obtenerDisponibilidadSantul,
   actualizarUbicacion: actualizarUbicacionController,
   actualizarLimites: actualizarLimitesController,
   recalcularInvOpt,

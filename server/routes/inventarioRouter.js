@@ -4,6 +4,7 @@ const {
   todosLosInventarios,
   solicitarProducto,
   obtenerInventarioJDE,
+  obtenerDisponibilidadSantul,
   actualizarUbicacion,
   actualizarLimites,
   recalcularInvOpt,
@@ -21,6 +22,7 @@ router.get('/Obtenerinventario', todosLosInventarios);
 router.post("/solicitar-producto", solicitarProducto);
 router.post("/solicitar-producto-masivo", solicitarProductoMasivo);
 router.get("/inventario-jde", obtenerInventarioJDE);
+router.get("/disponibilidad-santul", obtenerDisponibilidadSantul); // 👈 nueva: disponible en vivo (Existencia_Fisica - Comprometido) de un almacén, solo para mostrar — no toca la base
 router.put("/actualizar-ubicacion", actualizarUbicacion);
 router.put("/actualizar-limites", actualizarLimites);
 router.put("/recalcular-inv-opt", recalcularInvOpt);

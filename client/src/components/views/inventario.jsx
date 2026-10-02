@@ -210,6 +210,27 @@ function InventarioListado() {
     }, []);
     // #endregion STOCK_JDE
 
+    // #region DISPONIBLE_7050
+    // 🆕 Disponibilidad en vivo del almacén 7050 (Existencia_Fisica -
+    // Comprometido), SOLO para mostrar en la tabla de "Solicitar Inventario"
+    // — nunca se guarda en la base. La sincronización que sí se guarda
+    // (cant_stock_real) sigue siendo la del almacén 7240.
+    const [disponible7050, setDisponible7050] = useState({});
+    const [cargandoDisponible7050, setCargandoDisponible7050] = useState(false);
+
+    const cargarDisponible7050 = async () => {
+        setCargandoDisponible7050(true);
+        try {
+            const res = await axios.get("http://66.232.105.107:3001/api/inventario/disponibilidad-santul", { params: { almacen: "7050" } });
+            setDisponible7050(res.data?.disponibilidad || {});
+        } catch (error) {
+            console.error("Error cargando disponibilidad 7050:", error);
+        } finally {
+            setCargandoDisponible7050(false);
+        }
+    };
+    // #endregion DISPONIBLE_7050
+
     // #region EXPORTAR_EXCEL_INVENTARIO
     const exportarExcel = () => {
         const data = filtered.map(row => {
@@ -396,6 +417,7 @@ function InventarioListado() {
     useEffect(() => {
         if (activeTab === 1 && puedeVerSolicitarInventario) {
             sincronizarFaltantes();
+            cargarDisponible7050();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, puedeVerSolicitarInventario]);
@@ -1002,6 +1024,9 @@ function InventarioListado() {
                                                     <TableRow sx={{ background: "#ffe7e1" }}>
                                                         {[
                                                             "Código", "Descripción", "Stock", "Cantidad a solicitar",
+                                                            // 🆕 Disponible en vivo del almacén 7050 (Existencia_Fisica -
+                                                            // Comprometido) — solo informativo, no se guarda en la base.
+                                                            "Disponible (7050)",
                                                             // 🔒 El desglose Master/Inner y la validación de cierre de
                                                             // empaque son cosas que solo el admin necesita ver/resolver;
                                                             // otros roles (ej. supervisor) solo ven qué están pidiendo
@@ -1024,6 +1049,11 @@ function InventarioListado() {
                                                                 <TableCell>{row.descripcion}</TableCell>
                                                                 <TableCell>{row.stock}</TableCell>
                                                                 <TableCell>{row.cantidad} PZ</TableCell>
+                                                                <TableCell>
+                                                                    {cargandoDisponible7050
+                                                                        ? <span style={{ color: '#aaa' }}>...</span>
+                                                                        : (disponible7050[String(row.codigo).trim()] ?? <span style={{ color: '#aaa' }}>—</span>)}
+                                                                </TableCell>
                                                                 {userRole === 'admin' && (
                                                                     <>
                                                                         <TableCell>
