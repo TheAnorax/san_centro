@@ -11,12 +11,61 @@ import {
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
+import DeleteIcon from "@mui/icons-material/DeleteOutline";
 import SearchIcon from "@mui/icons-material/Search";   // ✅ agregado
 import ClearIcon from "@mui/icons-material/Clear";     // ✅ agregado
 import JsBarcode from "jsbarcode";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import Inventory2Icon from "@mui/icons-material/Inventory2Outlined";
+import BlockIcon from "@mui/icons-material/BlockOutlined";
+import HistoryIcon from "@mui/icons-material/HistoryOutlined";
+import RefreshIcon from "@mui/icons-material/RefreshOutlined";
+import PersonIcon from "@mui/icons-material/PersonOutline";
+import ViewInArIcon from "@mui/icons-material/ViewInArOutlined";
+import ViewModuleIcon from "@mui/icons-material/ViewModuleOutlined";
+import ArchiveIcon from "@mui/icons-material/ArchiveOutlined";
+import WidgetsIcon from "@mui/icons-material/WidgetsOutlined";
+import CloseIcon from "@mui/icons-material/CloseOutlined";
+import EditIcon from "@mui/icons-material/EditOutlined";
+import VisibilityIcon from "@mui/icons-material/VisibilityOutlined";
 
+
+const estiloTabla = {
+  minWidth: 800, border: 'none', fontSize: '0.95rem', color: '#4b5563',
+  '& .MuiDataGrid-columnHeaders': { backgroundColor: '#fff', borderBottom: '1px solid #e0e4ea' },
+  '& .MuiDataGrid-columnHeader': { backgroundColor: '#fff' },
+  '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 600, color: '#1f2937', fontSize: '0.95rem' },
+  '& .MuiDataGrid-columnSeparator': { display: 'none' },
+  '& .MuiDataGrid-cell': { fontSize: '0.95rem', color: '#4b5563', borderBottom: '1px solid #eceff3', display: 'flex', alignItems: 'center', outline: 'none' },
+  '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': { outline: 'none' },
+  '& .MuiDataGrid-row:nth-of-type(even)': { backgroundColor: 'rgba(15, 23, 42, 0.03)' },
+  '& .MuiDataGrid-row:hover': { backgroundColor: '#eef4ff' },
+  '& .MuiDataGrid-footerContainer': { borderTop: '1px solid #eceff3' },
+};
+
+const URL_IMG = "http://66.232.105.83:9101/images/";
+const valido = (v) => v && v !== "NULL";
+
+// Zona de imagen de cada presentación (muestra la imagen o un recuadro punteado para subirla)
+const ImagenCaja = ({ src, nombre, icono: Icono, etiqueta }) => {
+  const [error, setError] = useState(false);
+  useEffect(() => { setError(false); }, [src]);
+  if (src && !error) {
+    return (
+      <Box sx={{ bgcolor: "#f4f6f9", height: 144, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
+        <img src={src} alt={etiqueta} onError={() => setError(true)} style={{ maxHeight: 100, maxWidth: "80%", objectFit: "contain" }} />
+        {nombre && <Typography sx={{ fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{nombre}</Typography>}
+      </Box>
+    );
+  }
+  return (
+    <Box sx={{ bgcolor: "#f4f6f9", height: 144, p: 1.5, boxSizing: "border-box" }}>
+      <Box sx={{ height: "100%", border: "1px dashed #c7ccd4", borderRadius: 2, bgcolor: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, color: "#9aa1ab" }}>
+        <Icono sx={{ fontSize: 44 }} />
+        <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>Subir imagen del {etiqueta}</Typography>
+      </Box>
+    </Box>
+  );
+};
 
 const Productos = ({ isSwitching }) => {
   const navigate = useNavigate();
@@ -123,6 +172,7 @@ const Productos = ({ isSwitching }) => {
       });
       setProductoId(null);
       setEditando(false);
+      setModoEdicion(true);
     }
     setOpenDialog(true);
   };
@@ -194,13 +244,13 @@ const Productos = ({ isSwitching }) => {
       field: "acciones", headerName: "Acciones", width: 160,
       renderCell: (params) => (
         <>
-          <Button size="small" color="primary" onClick={() => abrirDialog(params.row)}>
-            <VisibilityIcon fontSize="small" />
-          </Button>
+          <IconButton size="small" sx={{ color: "#2f6fed" }} onClick={() => abrirDialog(params.row)}>
+            <VisibilityIcon />
+          </IconButton>
           {userRole === "admin" && (
-            <Button size="small" color="error" onClick={() => eliminarProducto(params.row.id)}>
-              <DeleteIcon fontSize="small" />
-            </Button>
+            <IconButton size="small" sx={{ color: "#e53935" }} onClick={() => eliminarProducto(params.row.id)}>
+              <DeleteIcon />
+            </IconButton>
           )}
         </>
       ),
@@ -253,7 +303,7 @@ const Productos = ({ isSwitching }) => {
       const valor = productoActual[campo];
       if (valor && document.getElementById(`${campo}-barcode`)) {
         JsBarcode(`#${campo}-barcode`, valor, {
-          format: "CODE128", displayValue: true, fontSize: 14, height: 40,
+          format: "CODE128", displayValue: false, height: 40, width: 1.6, margin: 0,
         });
       }
     });
@@ -263,7 +313,7 @@ const Productos = ({ isSwitching }) => {
     if (openDialog) {
       setTimeout(() => { generarCodigosBarras(); }, 100);
     }
-  }, [openDialog, generarCodigosBarras]);
+  }, [openDialog, modoEdicion, generarCodigosBarras]);
 
   const negadosFiltrados = negados
     .filter(n =>
@@ -305,9 +355,9 @@ const Productos = ({ isSwitching }) => {
               if (v === 1) cargarNegados();
               if (v === 2) cargarHistorial();
             }}>
-              <Tab label="📦 Productos" />
-              <Tab label="🚫 Códigos Negados" />
-              <Tab label="🕐 Historial" />  {/* ✅ tab index 2 */}
+              <Tab icon={<Inventory2Icon />} iconPosition="start" label="Productos" />
+              <Tab icon={<BlockIcon />} iconPosition="start" label="Códigos Negados" />
+              <Tab icon={<HistoryIcon />} iconPosition="start" label="Historial" />  {/* ✅ tab index 2 */}
             </Tabs>
           </Box>
         )}
@@ -320,29 +370,26 @@ const Productos = ({ isSwitching }) => {
             </Box>
           ) : (
             <Paper elevation={4} sx={{ borderRadius: 3, p: 2 }}>
-              <Box display="flex" justifyContent="space-between" mb={2}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6" fontWeight="bold">Lista de productos</Typography>
-                {userRole === "admin" && (
-                  <Button variant="contained" startIcon={<AddIcon />}
-                    color="primary" onClick={() => abrirDialog()}>
-                    Nuevo producto
-                  </Button>
-                )}
+                <Box display="flex" alignItems="center" gap={2}>
+                  <TextField label="Buscar" variant="outlined" size="small"
+                    value={search} onChange={handleSearchChange} sx={{ width: 300 }} />
+                  {userRole === "admin" && (
+                    <Button variant="contained" startIcon={<AddIcon />}
+                      color="primary" onClick={() => abrirDialog()}>
+                      Nuevo producto
+                    </Button>
+                  )}
+                </Box>
               </Box>
               <Divider sx={{ mb: 2 }} />
-              <TextField label="Buscar" variant="outlined" size="small"
-                value={search} onChange={handleSearchChange} sx={{ mb: 2, width: 300 }} />
               <Box sx={{ width: "auto", overflowX: "auto" }}>
                 <DataGrid
                   rows={filteredProductos} columns={columnas}
                   autoHeight pageSize={1} rowsPerPageOptions={[10, 20, 50]}
                   disableSelectionOnClick
-                  sx={{
-                    minWidth: 800, borderRadius: 2,
-                    "& .MuiDataGrid-columnHeaders": { backgroundColor: "#f44336", color: "#000", fontWeight: "bold" },
-                    "& .MuiDataGrid-cell": { fontSize: "14px" },
-                    "& .MuiDataGrid-row:hover": { backgroundColor: "#f5f5f5" },
-                  }}
+                  rowHeight={66} columnHeaderHeight={56} sx={estiloTabla}
                 />
               </Box>
             </Paper>
@@ -353,14 +400,14 @@ const Productos = ({ isSwitching }) => {
         {tabIndex === 1 && (userRole === 'admin' || userRole === 'master') && (
           <Paper elevation={4} sx={{ borderRadius: 3, p: 2 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6" fontWeight="bold">🚫 Códigos Negados</Typography>
+              <Typography variant="h6" fontWeight="bold">Códigos Negados</Typography>
               <Box display="flex" gap={2} alignItems="center">
                 <TextField
                   label="Buscar código / descripción / motivo" variant="outlined" size="small"
                   value={filtroNegados} onChange={e => setFiltroNegados(e.target.value)} sx={{ width: 320 }}
                 />
-                <Button variant="outlined" size="small" onClick={cargarNegados} disabled={loadingNegados}>
-                  🔄 Actualizar
+                <Button variant="outlined" size="small" startIcon={<RefreshIcon />} onClick={cargarNegados} disabled={loadingNegados}>
+                  Actualizar
                 </Button>
               </Box>
             </Box>
@@ -373,12 +420,7 @@ const Productos = ({ isSwitching }) => {
                   rows={negadosFiltrados} columns={columnasNegados}
                   autoHeight pageSize={10} rowsPerPageOptions={[10, 25, 50]}
                   disableSelectionOnClick
-                  sx={{
-                    minWidth: 800, borderRadius: 2,
-                    "& .MuiDataGrid-columnHeaders": { backgroundColor: "#f44336", color: "#000", fontWeight: "bold" },
-                    "& .MuiDataGrid-cell": { fontSize: "14px" },
-                    "& .MuiDataGrid-row:hover": { backgroundColor: "#fff3e0" },
-                  }}
+                  rowHeight={66} columnHeaderHeight={56} sx={estiloTabla}
                 />
               </Box>
             )}
@@ -388,7 +430,7 @@ const Productos = ({ isSwitching }) => {
         {/* TAB 2: HISTORIAL ✅ */}
         {tabIndex === 2 && (userRole === 'admin' || userRole === 'master' || userRole === 'supervisor') && (
           <Box p={2}>
-            <Typography variant="h6" gutterBottom>🕐 Historial de modificaciones</Typography>
+            <Typography variant="h6" gutterBottom>Historial de modificaciones</Typography>
 
             <Box display="flex" alignItems="center" gap={2} mb={2}>
               <TextField
@@ -412,8 +454,8 @@ const Productos = ({ isSwitching }) => {
                   ) : null,
                 }}
               />
-              <Button size="small" variant="outlined" onClick={cargarHistorial}>
-                🔄 Actualizar
+              <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={cargarHistorial}>
+                Actualizar
               </Button>
               <Typography variant="body2" color="textSecondary">
                 Total: {historialFiltrado.length} registros
@@ -446,7 +488,7 @@ const Productos = ({ isSwitching }) => {
                     }}
                   >
                     <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>
-                      👤 {persona}
+                      <PersonIcon fontSize="small" sx={{ mr: 0.5, verticalAlign: "middle" }} />{persona}
                     </Typography>
                     <Chip
                       label={`${registros.length} cambios`}
@@ -460,11 +502,11 @@ const Productos = ({ isSwitching }) => {
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Fecha</TableCell>
-                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Código</TableCell>
-                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Campo modificado</TableCell>
-                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Valor anterior</TableCell>
-                          <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5' }}>Valor nuevo</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Fecha</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Código</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Campo modificado</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Valor anterior</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Valor nuevo</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -526,94 +568,112 @@ const Productos = ({ isSwitching }) => {
       </div>
 
       {/* DIALOG */}
-      <Dialog open={openDialog} onClose={cerrarDialog} fullWidth maxWidth={false} scroll="body"
-        sx={{ '& .MuiDialog-paper': { width: '90vw', maxHeight: '90vh', borderRadius: 2 } }}>
-        <DialogTitle>{editando ? "Editar Producto" : "Nuevo Producto"}</DialogTitle>
-
-        {productoActual.codigo && (
-          <Box display="flex" justifyContent="center" mt={1}>
-            <img
-              src={`http://66.232.105.83:9101/images/${productoActual.codigo}.jpg`}
-              alt={`Imagen de producto ${productoActual.codigo}`}
-              style={{ width: "150px", height: "150px", objectFit: "contain", borderRadius: "8px", border: "1px solid #ccc", backgroundColor: "#f9f9f9" }}
-              onError={(e) => { e.target.style.display = "none"; }}
-            />
-          </Box>
-        )}
-
-        <DialogContent sx={{ overflow: 'unset', p: 2 }}>
-          {!modoEdicion && (
-            <Box display="flex" justifyContent="flex-end" mt={2}>
-              <Button variant="outlined" color="warning" onClick={() => setModoEdicion(true)}>
+      <Dialog open={openDialog} onClose={cerrarDialog} fullWidth maxWidth="md" scroll="paper"
+        PaperProps={{ sx: { borderRadius: 3 } }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 3, py: 2, borderBottom: "1px solid #eceff3" }}>
+          <Typography sx={{ fontSize: 20, fontWeight: 700, color: "#1f2937" }}>
+            {editando ? "Editar producto" : "Nuevo producto"}
+          </Typography>
+          <Box display="flex" alignItems="center" gap={1}>
+            {!modoEdicion && editando && (
+              <Button variant="outlined" color="warning" startIcon={<EditIcon />} onClick={() => setModoEdicion(true)}>
                 Habilitar edición
               </Button>
+            )}
+            <IconButton onClick={cerrarDialog} sx={{ color: "#4b5563" }}><CloseIcon /></IconButton>
+          </Box>
+        </Box>
+
+        <DialogContent sx={{ p: 3 }}>
+          {/* Encabezado: descripción + chips */}
+          {modoEdicion ? (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
+              <TextField label="Descripción" fullWidth size="small" value={productoActual.descripcion || ""}
+                onChange={(e) => setProductoActual({ ...productoActual, descripcion: e.target.value })} />
+              <Box sx={{ display: "flex", gap: 2 }}>
+                <TextField label="Código" fullWidth size="small" value={productoActual.codigo || ""}
+                  onChange={(e) => setProductoActual({ ...productoActual, codigo: e.target.value })} />
+                <TextField label="Clave" fullWidth size="small" value={productoActual.clave || ""}
+                  onChange={(e) => setProductoActual({ ...productoActual, clave: e.target.value })} />
+                <TextField label="UM" fullWidth size="small" value={productoActual.um || ""}
+                  onChange={(e) => setProductoActual({ ...productoActual, um: e.target.value })} />
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ mb: 3 }}>
+              <Typography sx={{ fontSize: 20, fontWeight: 700, color: "#1f2937", mb: 1 }}>
+                {productoActual.descripcion}
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                {[productoActual.codigo && `Código ${productoActual.codigo}`, productoActual.clave, productoActual.um].filter(Boolean).map((t) => (
+                  <Chip key={t} label={t} size="small" sx={{ bgcolor: "#f1f3f6", borderRadius: 1.5, fontFamily: "monospace", fontSize: 13, color: "#374151" }} />
+                ))}
+              </Box>
             </Box>
           )}
 
-          <Divider sx={{ mt: 1, mb: 1 }}>General</Divider>
+          {/* Tarjetas por presentación */}
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2.5 }}>
+            {(() => {
+              const pz = Number(productoActual._pz) || 0;
+              const inner = Number(productoActual._inner) || 0;
+              const master = Number(productoActual._master) || 0;
+              const palet = Number(productoActual._palet) || 0;
+              const fmt = (n) => n.toLocaleString("es-MX");
+              const cards = [
+                { tipo: "pz", titulo: "Pieza", icono: ViewInArIcon, etiqueta: "pieza", cant: pz, sub: "Unidad base",
+                  src: productoActual.codigo ? `${URL_IMG}${productoActual.codigo}.jpg` : null, nombre: valido(productoActual.img_pz) ? productoActual.img_pz : (productoActual.codigo ? `${productoActual.codigo}.jpg` : "") },
+                { tipo: "inner", titulo: "Inner", icono: ViewModuleIcon, etiqueta: "inner", cant: inner, sub: `${fmt(inner)} piezas por inner`,
+                  src: valido(productoActual.img_inner) ? `${URL_IMG}${productoActual.img_inner}` : null, nombre: productoActual.img_inner },
+                { tipo: "master", titulo: "Master", icono: ArchiveIcon, etiqueta: "master", cant: master, sub: `${inner ? fmt(Math.round(master / inner)) : "—"} inners por master`,
+                  src: valido(productoActual.img_master) ? `${URL_IMG}${productoActual.img_master}` : null, nombre: productoActual.img_master },
+                { tipo: "palet", titulo: "Palet", icono: WidgetsIcon, etiqueta: "palet", cant: palet, sub: `${master ? fmt(Math.round(palet / master)) : "—"} masters por palet`,
+                  src: null, nombre: "" },
+              ];
+              return cards.map((c) => {
+                const bc = productoActual[`barcode_${c.tipo}`];
+                return (
+                  <Box key={c.tipo} sx={{ border: "1px solid #e5e8ee", borderRadius: 3, overflow: "hidden", bgcolor: "#fff" }}>
+                    <ImagenCaja src={c.src} nombre={c.nombre} icono={c.icono} etiqueta={c.etiqueta} />
+                    <Box sx={{ p: 2 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#1f2937" }}>{c.titulo}</Typography>
+                        <Typography component="span" sx={{ fontSize: 18, fontWeight: 700, color: "#1f2937" }}>
+                          {fmt(c.cant)} <Typography component="span" sx={{ fontSize: 12, color: "#9aa1ab", fontWeight: 400 }}>pz</Typography>
+                        </Typography>
+                      </Box>
+                      <Typography sx={{ fontSize: 13, color: "#6b7280", mt: 0.5, mb: 1.5 }}>{c.sub}</Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField label="Descripción" fullWidth margin="dense"
-              disabled={!modoEdicion} value={productoActual.descripcion || ""}
-              onChange={(e) => setProductoActual({ ...productoActual, descripcion: e.target.value })} />
-            <Box sx={{ display: 'flex', gap: 3 }}>
-              <TextField label="Código" fullWidth margin="dense"
-                disabled={!modoEdicion} value={productoActual.codigo || ""}
-                onChange={(e) => setProductoActual({ ...productoActual, codigo: e.target.value })} />
-              <TextField label="Clave" fullWidth margin="dense"
-                disabled={!modoEdicion} value={productoActual.clave || ""}
-                onChange={(e) => setProductoActual({ ...productoActual, clave: e.target.value })} />
-              <TextField label="UM" fullWidth margin="dense"
-                disabled={!modoEdicion} value={productoActual.um || ""}
-                onChange={(e) => setProductoActual({ ...productoActual, um: e.target.value })} />
-            </Box>
-          </Box>
-
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2 }}>
-            {["pz", "inner", "master", "palet"].map((tipo) => {
-              const campos = tipo === "palet"
-                ? [`barcode_${tipo}`, `_${tipo}`]
-                : [`barcode_${tipo}`, `_${tipo === "pz" ? "pz" : tipo}`, `img_${tipo}`];
-              return (
-                <Box key={tipo} sx={{ flex: 1, minWidth: '250px' }}>
-                  <Divider sx={{ mb: 1 }}>{tipo.charAt(0).toUpperCase() + tipo.slice(1)}</Divider>
-                  {campos.map((key) => (
-                    <React.Fragment key={key}>
-                      <TextField label={key} fullWidth margin="dense"
-                        disabled={!modoEdicion} value={productoActual[key] || ""}
-                        onChange={(e) => {
-                          const newValue = e.target.value;
-                          setProductoActual((prev) => {
-                            const updated = { ...prev, [key]: newValue };
-                            if (key.includes("barcode") && newValue && newValue !== "NULL") {
-                              setTimeout(() => {
-                                if (document.getElementById(`${key}-barcode`)) {
-                                  JsBarcode(`#${key}-barcode`, newValue, { format: "CODE128", displayValue: true, fontSize: 14, height: 40 });
-                                }
-                              }, 50);
-                            }
-                            return updated;
-                          });
-                        }} />
-                      {key.includes("barcode") && productoActual[key] && productoActual[key] !== "NULL" && (
-                        <Box display="flex" justifyContent="center" mt={1}>
-                          <svg id={`${key}-barcode`} style={{ height: 40, backgroundColor: "#fff" }} />
+                      {modoEdicion ? (
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                          {[`barcode_${c.tipo}`, `_${c.tipo}`, ...(c.tipo !== "palet" ? [`img_${c.tipo}`] : [])].map((key) => (
+                            <TextField key={key} label={key} fullWidth size="small" value={productoActual[key] || ""}
+                              onChange={(e) => setProductoActual((prev) => ({ ...prev, [key]: e.target.value }))} />
+                          ))}
+                          {valido(bc) && <svg id={`barcode_${c.tipo}-barcode`} style={{ height: 40, maxWidth: "100%" }} />}
                         </Box>
+                      ) : (
+                        valido(bc) && (
+                          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                            <svg id={`barcode_${c.tipo}-barcode`} style={{ height: 36, maxWidth: "100%", display: "block" }} />
+                            <Typography sx={{ fontFamily: "monospace", fontSize: 12, color: "#4b5563", mt: 0.5, textAlign: "center" }}>{bc}</Typography>
+                          </Box>
+                        )
                       )}
-                    </React.Fragment>
-                  ))}
-                </Box>
-              );
-            })}
+                    </Box>
+                  </Box>
+                );
+              });
+            })()}
           </Box>
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={cerrarDialog}>Cerrar</Button>
-          {modoEdicion && (
+        {(modoEdicion || !editando) && (
+          <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #eceff3" }}>
+            <Button variant="outlined" color="secondary" onClick={cerrarDialog}>Cerrar</Button>
             <Button onClick={guardarProducto} variant="contained" color="primary">Guardar</Button>
-          )}
-        </DialogActions>
+          </DialogActions>
+        )}
       </Dialog>
 
       <Snackbar open={alerta.open} autoHideDuration={4000}

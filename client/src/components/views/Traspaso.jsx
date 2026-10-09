@@ -1,14 +1,16 @@
 // src/components/views/TraspasoListado.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { FaTimes } from 'react-icons/fa';
+import { BsFileEarmarkExcel, BsFileEarmarkPdf } from "react-icons/bs";
 import {
   Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, CircularProgress, Alert, Typography, Button, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Grid, Stack
+  DialogContent, DialogActions, TextField, Grid, Stack, IconButton
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import TablePagination from '@mui/material/TablePagination';
+import Pagination from '@mui/material/Pagination';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { generarPalletTraspaso } from "../../utils/generarPalletTraspaso";
@@ -62,6 +64,33 @@ function SmartImage({ code, size = 56 }) {
   );
 }
 
+// Une pendientes + recibidos. Los recibidos que ya NO vienen en /pendientes
+// (el backend los saca de esa lista al recibirse) también se muestran, si no
+// "Ver recibidos" salía vacío.
+const fusionarTraspasos = (listaPendientes, listaRecibidos) => {
+  const keyOf = (r) => `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
+  const recibidosMap = new Map(listaRecibidos.map(r => [keyOf(r), r]));
+  const usados = new Set();
+
+  const resultado = listaPendientes.map(r => {
+    const key = keyOf(r);
+    if (recibidosMap.has(key)) {
+      const rec = recibidosMap.get(key);
+      usados.add(key);
+      return { ...r, estado: 'F', created_at: rec.created_at || null, ubicacion: rec.ubicacion || '' };
+    }
+    return { ...r, created_at: null, ubicacion: '' };
+  });
+
+  listaRecibidos.forEach(rec => {
+    if (!usados.has(keyOf(rec))) {
+      resultado.push({ ...rec, estado: 'F', created_at: rec.created_at || null, ubicacion: rec.ubicacion || '' });
+    }
+  });
+
+  return resultado;
+};
+
 /* =========================
    Traspaso (agrupado por No_Orden)
    ========================= */
@@ -104,38 +133,7 @@ function Traspaso() {
       const listaPendientes = resPendientes.data || [];
       const listaRecibidos = resRecibidos.data || [];
 
-      // clave incluye No_Orden para no mezclar órdenes distintas
-      const keyRec = (r) => `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
-      const setRecibidosKey = new Set(listaRecibidos.map(keyRec));
-
-      const recibidosMap = new Map(
-        listaRecibidos.map(r => [
-          `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`,
-          r
-        ])
-      );
-
-      const fusionado = listaPendientes.map(r => {
-        const key = `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
-
-        if (recibidosMap.has(key)) {
-          const rec = recibidosMap.get(key);
-
-          return {
-            ...r,
-            estado: 'F',
-            created_at: rec.created_at || null,
-            ubicacion: rec.ubicacion || ''
-          };
-        }
-
-        return {
-          ...r,
-          created_at: null,
-          ubicacion: ''
-        };
-      });
-
+      const fusionado = fusionarTraspasos(listaPendientes, listaRecibidos);
       setRegistros(fusionado);
     } catch (err) {
       console.error('Error al obtener traspasos:', err);
@@ -243,13 +241,7 @@ function Traspaso() {
       const listaPend = resPend.data || [];
       const listaRec = resRec.data || [];
 
-      const setRecibidosKey = new Set(
-        listaRec.map(r => `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`)
-      );
-      const fusionado = listaPend.map(r => {
-        const key = `${r.No_Orden}|${r.Codigo}|${r.Cantidad}`;
-        return setRecibidosKey.has(key) ? { ...r, estado: 'F' } : r;
-      });
+      const fusionado = fusionarTraspasos(listaPend, listaRec);
       setRegistros(fusionado);
     } catch (err) {
       console.error('Error al recargar traspasos:', err);
@@ -300,24 +292,28 @@ function Traspaso() {
   const gruposRecibidos = grupos.map(([noOrden, items]) => [
     noOrden,
     items.filter(r => (r.estado || '').toUpperCase() === 'F')
-  ]).filter(([_, items]) => items.length > 0);
+  ]).filter(([_, items]) => items.length > 0).reverse(); // más recientes primero
 
+  const [pagina, setPagina] = useState(1);
+  useEffect(() => { setPagina(1); }, [verRecibidos]);
 
-  const gruposVisibles = useMemo(() => {
+  // Paginación: cada página junta órdenes completas hasta ~CHUNK_SIZE filas
+  const paginas = (() => {
     const source = verRecibidos ? gruposRecibidos : gruposPendientes;
-
+    const out = [];
+    let actual = [];
     let count = 0;
-    const resultado = [];
-
-    for (const [noOrden, items] of source) {
-      if (count >= visibleCount) break;
-
-      resultado.push([noOrden, items]);
-      count += items.length;
+    for (const g of source) {
+      actual.push(g);
+      count += g[1].length;
+      if (count >= CHUNK_SIZE) { out.push(actual); actual = []; count = 0; }
     }
-
-    return resultado;
-  }, [verRecibidos, gruposPendientes, gruposRecibidos, visibleCount]);
+    if (actual.length) out.push(actual);
+    return out;
+  })();
+  const totalPaginas = paginas.length;
+  const paginaSegura = Math.min(pagina, Math.max(totalPaginas, 1));
+  const gruposVisibles = paginas[paginaSegura - 1] || [];
 
 
   const exportarExcel = () => {
@@ -412,7 +408,7 @@ function Traspaso() {
                 color="success"
                 onClick={exportarExcel}
               >
-                Exportar Excel
+                <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Exportar Excel
               </Button>
             </Stack>
 
@@ -483,10 +479,10 @@ function Traspaso() {
                                   {yaRecibido ? "Ya Recibido" : "Guardar Traspaso"}
                                 </Button>
 
-                                <Button
-                                  variant="contained"
-                                  color="success"
-                                  size="small"
+                                <IconButton
+                                  title="Generar pallet (PDF)"
+                                  aria-label="Generar pallet (PDF)"
+                                  sx={{ color: '#e53935', '&:hover': { backgroundColor: '#fff5f4' } }}
                                   onClick={() =>
                                     generarPalletTraspaso({
                                       Codigo: r.Codigo,
@@ -502,8 +498,8 @@ function Traspaso() {
                                     })
                                   }
                                 >
-                                  Pallet
-                                </Button>
+                                  <BsFileEarmarkPdf style={{ fontSize: "1.5rem" }} />
+                                </IconButton>
                               </Stack>
 
 
@@ -526,134 +522,132 @@ function Traspaso() {
               </Table>
             </TableContainer>
 
+            {totalPaginas > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <Pagination
+                  count={totalPaginas}
+                  page={paginaSegura}
+                  onChange={(_, p) => setPagina(p)}
+                  showFirstButton
+                  showLastButton
+                  siblingCount={1}
+                  boundaryCount={1}
+                  sx={{
+                    '& .MuiPaginationItem-root': {
+                      width: 44, height: 44, minWidth: 44, borderRadius: '50%',
+                      margin: '0 4px', border: 'none', backgroundColor: 'transparent',
+                      color: '#5b6478', fontSize: '1rem', fontWeight: 400,
+                      '&:hover': { backgroundColor: '#f3f4f8' },
+                    },
+                    '& .MuiPaginationItem-previousNext, & .MuiPaginationItem-firstLast': {
+                      color: '#6b7280',
+                    },
+                    '& .MuiPaginationItem-root.Mui-selected': {
+                      backgroundColor: '#eceffd', color: '#3b4cca', fontWeight: 500,
+                      '&:hover': { backgroundColor: '#e2e7fb' },
+                    },
+                    '& .MuiPaginationItem-root.Mui-disabled': { opacity: 0.45 },
+                  }}
+                />
+              </Box>
+            )}
 
           </>
         )}
       </Box>
 
 
-      {/* Modal Guardar Traspaso */}
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Guardar Traspaso</DialogTitle>
+      {/* Modal Guardar Traspaso (dos columnas) */}
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}>
+        <Box sx={{ px: 3, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eceff3' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#1f2937' }}>Guardar traspaso</Typography>
+          <Box onClick={handleCloseDialog} sx={{ cursor: 'pointer', color: '#6b7280', display: 'flex' }}><FaTimes /></Box>
+        </Box>
 
-        <DialogContent dividers>
-          {errorSave && (
-            <Box sx={{ mb: 2 }}>
-              <Alert severity="error">{errorSave}</Alert>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+          {/* Columna izquierda: datos del producto */}
+          <Box sx={{ width: { xs: '100%', md: 280 }, flexShrink: 0, p: 2.5, backgroundColor: '#f7f9fc', borderRight: { md: '1px solid #eceff3' }, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {registroActual.Codigo && (
+              <Box sx={{ height: 150, backgroundColor: '#fff', borderRadius: 2, border: '1px solid #eceff3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <SmartImage code={registroActual.Codigo} size={130} />
+              </Box>
+            )}
+
+            {[
+              ['Código', registroActual.Codigo],
+              ['Descripción', registroActual.Descripcion],
+              ['Clave', registroActual.Clave],
+              ['Pedimento', registroActual.lote_serie],
+              ['Almacén envío', registroActual.almacen_envio],
+              ['Día de envío', registroActual.dia_envio ? new Date(registroActual.dia_envio).toLocaleString() : ''],
+              ['Llegada estimada', registroActual.tiempo_llegada_estimado ? new Date(registroActual.tiempo_llegada_estimado).toLocaleString() : ''],
+            ].filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => (
+              <Box key={k}>
+                <Typography sx={{ fontSize: '0.7rem', color: '#9ca3af' }}>{k}</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', color: '#1f2937', wordBreak: 'break-word' }}>{v}</Typography>
+              </Box>
+            ))}
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontSize: '0.7rem', color: '#9ca3af' }}>UM</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', color: '#1f2937' }}>{registroActual.um || '—'}</Typography>
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontSize: '0.7rem', color: '#9ca3af' }}>_pz</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', color: '#1f2937' }}>{registroActual._pz != null ? registroActual._pz : '—'}</Typography>
+              </Box>
             </Box>
-          )}
 
-          {registroActual.Codigo && (
-            <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-              <SmartImage code={registroActual.Codigo} size={140} />
-              <Typography variant="subtitle1">
-                Código: <b>{registroActual.Codigo}</b>
-              </Typography>
-            </Box>
-          )}
-
-          <Typography variant="subtitle1" sx={{ mb: 2 }}>
-            Datos del registro seleccionado:
-          </Typography>
-
-          <Grid container spacing={1}>
-            <Grid item xs={6} md={3}>
-              <TextField label="Código" fullWidth value={registroActual.Codigo || ''} InputProps={{ readOnly: true }} size="small" />
-            </Grid>
-
-            <Grid item xs={6} md={5}>
-              <TextField label="Descripción" fullWidth value={registroActual.Descripcion || ''} InputProps={{ readOnly: true }} size="small" />
-            </Grid>
-
-            <Grid item xs={6} md={2}>
-              <TextField label="Clave" fullWidth value={registroActual.Clave || ''} InputProps={{ readOnly: true }} size="small" />
-            </Grid>
-
-            <Grid item xs={6} md={2}>
-              <TextField label="Pedimento" fullWidth value={registroActual.lote_serie || ''} InputProps={{ readOnly: true }} size="small" />
-            </Grid>
-
-            <Grid item xs={6} md={2}>
-              <TextField label="UM" fullWidth value={registroActual.um || ''} InputProps={{ readOnly: true }} size="small" />
-            </Grid>
-
-            <Grid item xs={6} md={2}>
-              <TextField label="_pz" fullWidth value={registroActual._pz != null ? registroActual._pz : ''} InputProps={{ readOnly: true }} size="small" />
-            </Grid>
-
-            <Grid item xs={6} md={2}>
-              <TextField
-                label="Cantidad"
-                fullWidth
-                value={modificarCantidad ? cantidadModificada : registroActual.Cantidad || ''}
-                InputProps={{ readOnly: !modificarCantidad }}
-                onChange={(e) => setCantidadModificada(e.target.value.replace(/[^0-9]/g, ''))}
-                size="small"
-              />
-            </Grid>
-
-            <Grid item xs={6} md={4}>
-              <TextField
-                label="Día de Envío"
-                fullWidth
-                value={registroActual.dia_envio ? new Date(registroActual.dia_envio).toLocaleString() : ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
-            </Grid>
-
-            <Grid item xs={6} md={4}>
-              <TextField label="Almacén Envío" fullWidth value={registroActual.almacen_envio || ''} InputProps={{ readOnly: true }} size="small" />
-            </Grid>
-
-            <Grid item xs={6} md={4}>
-              <TextField
-                label="Llegada Estimada"
-                fullWidth
-                value={registroActual.tiempo_llegada_estimado ? new Date(registroActual.tiempo_llegada_estimado).toLocaleString() : ''}
-                InputProps={{ readOnly: true }}
-                size="small"
-              />
-            </Grid>
-          </Grid>
-
-          {/* =======================
-        MODO UBICACIÓN
-    ======================= */}
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
-              ¿Cómo deseas guardar este producto?
-            </Typography>
-
-            <Stack direction="row" spacing={2}>
-              <Button
-                variant={modoUbicacion === 'SUMAR' ? 'contained' : 'outlined'}
-                color="primary"
-                onClick={() => setModoUbicacion('SUMAR')}
-              >
-                Sumar en misma ubicación
-              </Button>
-
-              <Button
-                variant={modoUbicacion === 'NUEVA' ? 'contained' : 'outlined'}
-                color="secondary"
-                onClick={() => {
-                  setModoUbicacion('NUEVA');
-                  setUbicacionInput('');
-                }}
-              >
-                Guardar en nueva ubicación
-              </Button>
-            </Stack>
+            <TextField
+              label="Cantidad"
+              size="small"
+              fullWidth
+              value={modificarCantidad ? cantidadModificada : registroActual.Cantidad || ''}
+              InputProps={{ readOnly: !modificarCantidad }}
+              onChange={(e) => setCantidadModificada(e.target.value.replace(/[^0-9]/g, ''))}
+              sx={{ backgroundColor: '#fff' }}
+            />
           </Box>
 
-          {/* =======================
-        UBICACIÓN
-    ======================= */}
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              Ubicación:
-            </Typography>
+          {/* Columna derecha: cómo guardar */}
+          <Box sx={{ flex: 1, p: 3 }}>
+            {errorSave && (
+              <Box sx={{ mb: 2 }}>
+                <Alert severity="error">{errorSave}</Alert>
+              </Box>
+            )}
+
+            <Typography sx={{ fontWeight: 600, color: '#1f2937', mb: 1.5 }}>¿Cómo deseas guardarlo?</Typography>
+
+            {[
+              ['SUMAR', 'Sumar en misma ubicación', 'Se suma a la ubicación existente'],
+              ['NUEVA', 'Guardar en nueva ubicación', 'Captura una ubicación distinta'],
+            ].map(([valor, titulo, sub]) => {
+              const activo = modoUbicacion === valor;
+              return (
+                <Box
+                  key={valor}
+                  onClick={() => {
+                    setModoUbicacion(valor);
+                    if (valor === 'NUEVA') setUbicacionInput('');
+                  }}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, mb: 1.5, borderRadius: 2.5, cursor: 'pointer',
+                    border: activo ? '1.5px solid #2f6fed' : '1px solid #d1d5db',
+                    backgroundColor: activo ? '#eef4ff' : '#fff',
+                  }}
+                >
+                  {activo
+                    ? <CheckCircleIcon sx={{ color: '#2f6fed' }} />
+                    : <RadioButtonUncheckedIcon sx={{ color: '#9ca3af' }} />}
+                  <Box>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', color: '#1f2937' }}>{titulo}</Typography>
+                    <Typography sx={{ fontSize: '0.78rem', color: '#6b7280' }}>{sub}</Typography>
+                  </Box>
+                </Box>
+              );
+            })}
 
             <TextField
               label="Ubicación"
@@ -661,43 +655,27 @@ function Traspaso() {
               value={ubicacionInput}
               onChange={(e) => setUbicacionInput(e.target.value)}
               disabled={saving || modoUbicacion === 'SUMAR'}
-              helperText={
-                modoUbicacion === 'SUMAR'
-                  ? 'Se usará la ubicación existente'
-                  : 'Ingresa la nueva ubicación'
-              }
+              helperText={modoUbicacion === 'SUMAR' ? 'Se usará la ubicación existente' : 'Ingresa la nueva ubicación'}
+              sx={{ mt: 1 }}
             />
-          </Box>
-
-          {/* =======================
-        OC
-    ======================= */}
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              Orden de Compra (OC):
-            </Typography>
 
             <TextField
-              label="OC"
+              label="Orden de compra (OC)"
               fullWidth
               value={ocInput}
               onChange={(e) => setOcInput(e.target.value)}
               disabled={saving}
               placeholder="Ej. 3321"
+              sx={{ mt: 2 }}
             />
           </Box>
+        </Box>
 
-        </DialogContent>
-
-        <DialogActions sx={{ pr: 2, pb: 2 }}>
-          <Button onClick={handleCloseDialog} disabled={saving}>
-            Cancelar
-          </Button>
-
+        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #eceff3' }}>
+          <Button onClick={handleCloseDialog} disabled={saving}>Cancelar</Button>
           <Button
             onClick={handleGuardarUbicacion}
             variant="contained"
-            color="primary"
             disabled={saving || !ubicacionInput.trim()}
           >
             {saving ? 'Guardando...' : 'Guardar'}

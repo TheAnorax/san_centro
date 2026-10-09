@@ -116,11 +116,14 @@ async function handleObtenerRecibidos(req, res) {
     const [rows] = await pool.query(`
       SELECT 
         rt.No_Orden, rt.tipo_orden,
-        rt.Codigo, rt.Cantidad, rt.estado, rt.ubicacion,
+        rt.Codigo, rt.Descripcion, rt.Clave, rt.um, rt._pz, rt.Cantidad,
+        rt.dia_envio, rt.almacen_envio, rt.tiempo_llegada_estimado,
+        rt.estado, rt.ubicacion,
         rt.usuario_id, u.nombre AS nombre_usuario,
         rt.created_at
       FROM recibir_traspasos rt
       LEFT JOIN usuarios u ON rt.usuario_id = u.id
+      ORDER BY rt.created_at DESC
     `);
     return res.status(200).json(rows);
   } catch (err) {

@@ -17,21 +17,48 @@ html {
 
 /* -- Encabezado del menu -- */
 .menu-header {
-  /* Colores */
-  background: linear-gradient(90deg, #e53935, #ff5f43); /* Gradiente moderno */
-  color: white;
+  /* Colores: encabezado blanco (ya sin el degradado rojo) */
+  background: #ffffff;
+  color: #222;
 
   /* Estilo */
-  padding: 5px 15px; /* Reducimos el espaciado interno */
+  padding: 6px 16px;
   text-align: left;
-  font-size: 0.9em; /* Tamaño de fuente ligeramente más pequeño */
-  font-weight: bold;
-  letter-spacing: 1px; /* Espaciado entre letras */
+  font-size: 0.9em;
   display: flex; /* Usamos flexbox */
   align-items: center; /* Centramos verticalmente */
+  gap: 14px;
 
   /* Efecto */
-  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1); /* Sombra más sutil */
+  border-bottom: 1px solid #dcdcdc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* -- Encabezado oculto mientras el panel lateral está abierto (conserva su alto para que nada se mueva) -- */
+.menu-header.menu-header-oculto {
+  visibility: hidden;
+  background: transparent;
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+
+/* -- Botón hamburguesa (abre/cierra el menú lateral) -- */
+.menu-hamburger {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: #eeeeee;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.menu-hamburger:hover {
+  background: #e0e0e0;
 }
 
 /* -- Contenedor del logo y título -- */
@@ -45,7 +72,7 @@ html {
 /* -- Estilo del logo -- */
 .header-logo {
   /* Estilo */
-  height: 50px; /* Reducimos el tamaño del logo */
+  height: 46px; /* Tamaño del logo */
   width: auto; /* Mantén la proporción de la imagen */
   object-fit: contain; /* Asegura que el logo no se deforme */
 }
@@ -69,21 +96,16 @@ html {
   align-items: center; /* Centrar verticalmente */
   gap: 8px; /* Reducimos el espaciado entre la imagen y el nombre */
   margin-left: auto; /* Mueve el perfil al extremo derecho */
-  cursor: pointer; /* Indica que es interactivo */
-  position: relative; /* Necesario para la línea animada */
-}
-
-/* -- Efecto hover para la foto de perfil -- */
-.user-profile:hover .profile-circle {
-  /* Animación */
-  transform: scale(1.1); /* Agranda el círculo */
-  transition: transform 0.3s ease; /* Animación suave */
+  cursor: default; /* Solo informativo: sin funcionalidad */
+  user-select: none;
+  position: relative;
 }
 
 /* -- Círculo de fondo para la imagen de perfil -- */
 .profile-circle {
   /* Color */
-  background-color: white; /* Fondo blanco */
+  background-color: #111; /* Círculo oscuro con la inicial del usuario */
+  color: #fff;
 
   /* Estilo */
   height: 40px; /* Reducimos el tamaño del círculo */
@@ -107,6 +129,33 @@ html {
   width: 35px; /* Tamaño cuadrado */
   border-radius: 50%; /* Forma circular */
   object-fit: cover; /* Ajustar la imagen dentro del contenedor */
+}
+
+/* -- Inicial del usuario dentro del círculo -- */
+.profile-initial {
+  font-size: 1.1rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* -- Nombre y rol del usuario -- */
+.user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.user-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.user-role {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: #666;
 }
 
 /* == Barra de opciones debajo del header == */
@@ -259,26 +308,113 @@ html {
 }
 
 /* -- Estilo del Dashboard -- */
+/* Panel lateral: se abre ENCIMA del contenido (fixed) y el resto queda en gris */
 .menu-sidebar {
   /* Colores */
-  background-color: #f7f7f7e3;
+  background-color: #ffffff;
   color: black;
 
-  /* Estilo */
-  width: 170px;
-  padding: 15px; /* Ajustamos el padding para mantener proporciones */
+  /* Posición: panel flotante a la izquierda */
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 320px;
+  max-width: 85vw;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 14px 20px 10px 20px;
 
   /* Efectos */
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-  transition: width 0.3s ease; /* Animación para abrir/cerrar */
-  overflow: hidden; /* Oculta el contenido cuando está cerrado */
-  position: relative; /* Necesario para posicionar el botón de alternar */
+  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.25);
+  transition: transform 0.3s ease; /* Animación para abrir/cerrar */
 }
 
-/* -- Menú cerrado -- */
+/* -- Menú cerrado: se esconde fuera de la pantalla -- */
 .menu-sidebar.closed {
-  width: 60px; /* Ancho reducido */
-  overflow: hidden; /* Asegura que no haya desbordamientos */
+  transform: translateX(-105%);
+  box-shadow: none;
+}
+
+/* -- Fondo gris que cubre toda la pantalla mientras el menú está abierto -- */
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1200;
+  animation: fadeInBackdrop 0.25s ease forwards;
+}
+
+@keyframes fadeInBackdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* -- Encabezado del panel: logo + botón cerrar -- */
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.drawer-logo {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+}
+
+.drawer-close {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid #c9ccf5;
+  background: #fff;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.drawer-close:hover {
+  background: #f3f3fb;
+}
+
+/* -- Pie del panel: usuario + cerrar sesión -- */
+.drawer-footer {
+  border-top: 1px solid #e3e3e3;
+  padding-top: 14px;
+}
+
+.drawer-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 6px 10px 6px;
+}
+
+.drawer-logout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: #e53935;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 12px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.drawer-logout:hover {
+  background: #fdeceb;
+  border-radius: 6px;
 }
 
 /* Ajustes globales para evitar scroll innecesario */
@@ -346,16 +482,21 @@ html {
 .menu-sidebar ul {
   list-style: none;
   padding: 0;
-  margin: 50px 0 0 0; /* Ajustamos el margen superior */
+  margin: 0;
+  flex: 1; /* Ocupa el espacio entre el logo y el pie */
+  overflow-y: auto; /* Scroll si hay muchas opciones */
 }
 
 /* -- Opciones de la lista -- */
 .menu-sidebar .menu-link {
   text-decoration: none; /* Quitar subrayado predeterminado de los enlaces */
-  color: #4a4a4a; /* Color de texto predeterminado */
+  color: #4a5568; /* Color de texto predeterminado */
+  text-transform: uppercase;
+  font-size: 1rem;
+  letter-spacing: 0.3px;
   display: flex; /* Alinear íconos y texto en línea */
   align-items: center; /* Centrar íconos verticalmente */
-  padding: 10px 15px; /* Espaciado interno */
+  padding: 12px 15px; /* Espaciado interno */
   border-radius: 5px; /* Bordes redondeados */
   transition: background-color 0.3s ease, color 0.3s ease; /* Transiciones suaves */
   margin-bottom: 10px; /* Más espacio entre las opciones */
@@ -363,32 +504,20 @@ html {
 
 /* -- Cambiar color al pasar el ratón -- */
 .menu-sidebar .menu-link:hover {
-  background-color: #f34336; /* Fondo rojo al pasar el ratón */
-  color: white; /* Texto blanco al pasar el ratón */
+  background-color: #ececec; /* Gris suave al pasar el ratón (ya sin rojo) */
+  color: #111;
 }
 
 /* -- Estilo activo para el enlace seleccionado -- */
 .menu-sidebar .menu-link.active {
-  background-color: #f34336; /* Fondo rojo para el enlace activo */
-  color: white; /* Texto blanco para el enlace activo */
+  background-color: #e3e3e3;
+  color: #111;
 }
 
 /* -- Estilo de los íconos en los enlaces -- */
 .menu-sidebar .menu-icon {
   font-size: 1.3em; /* Tamaño del ícono */
   margin-right: 10px; /* Espaciado entre el ícono y el texto */
-}
-
-/* -- Ocultar texto cuando el menú está cerrado -- */
-.menu-sidebar.closed .menu-link span {
-  opacity: 0; /* Hacer el texto transparente */
-  visibility: hidden; /* Ocultar completamente el texto */
-  transition: opacity 0.6s ease, visibility 0.6s ease; /* Transición suave */
-}
-
-/* -- Centrar íconos cuando el menú está cerrado -- */
-.menu-sidebar.closed .menu-link {
-  justify-content: center; /* Centrar íconos */
 }
 
 /* -- Alinear íconos y texto a la izquierda cuando el menú está abierto -- */

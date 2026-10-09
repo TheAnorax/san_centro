@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes } from 'react-icons/fa';
+import { BsFileEarmarkExcel } from "react-icons/bs";
 import {
     Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
     CircularProgress, Alert, TablePagination, TextField, InputAdornment, Button, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -1182,7 +1183,7 @@ function InventarioListado() {
                             </Button>
                             <Button variant="contained" color="success" onClick={exportarExcel}
                                 sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}>
-                                Exportar Excel
+                                <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Exportar Excel
                             </Button>
                             {/* Agregar después del botón "Exportar Excel" */}
 
@@ -1455,14 +1456,14 @@ function InventarioListado() {
                                             XLSX.writeFile(wb, "plantilla_inv_min_max.xlsx");
                                         }}
                                     >
-                                        ⬇️ Descargar Plantilla Excel
+                                        <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Descargar Plantilla Excel
                                     </Button>
                                 </Box>
 
                                 {/* PASO 2 - Subir archivo */}
                                 <Box sx={{ p: 2, backgroundColor: "#f9f9f9", borderRadius: 2, border: "1px solid #ddd" }}>
                                     <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
-                                        📤 Paso 2 — Sube el archivo actualizado
+                                        Paso 2 — Sube el archivo actualizado
                                     </p>
                                     <p style={{ margin: "6px 0", fontSize: "0.85rem", color: "#555" }}>
                                         Una vez que hayas llenado los valores, sube el archivo aquí para actualizar masivamente.
@@ -1473,7 +1474,7 @@ function InventarioListado() {
                                         component="label"
                                         size="small"
                                     >
-                                        📂 Seleccionar Archivo
+                                        <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Seleccionar Archivo
                                         <input
                                             hidden
                                             type="file"

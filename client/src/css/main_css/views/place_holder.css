@@ -21,28 +21,39 @@
 
 /* -- Barra superior de la ventana place_holder -- */
 .place_holder-header {
-  background-color: #f44336; /* Rojo similar al diseño */
-  color: white; /* Texto blanco */
-  padding: 2px 15px; /* Espaciado interno */
+  background-color: #ffffff; /* Barra blanca (ya sin el fondo rojo) */
+  color: #333;
+  padding: 0 15px; /* Espaciado interno */
   display: flex;
   justify-content: space-between; /* Espaciado entre título y botón */
-  align-items: center; /* Centrado vertical */
+  align-items: stretch; /* El título ocupa todo el alto para subrayarse */
   font-size: 16px; /* Tamaño del texto */
   font-weight: bold; /* Negrita */
   height: 50px; /* Altura fija de la barra */
-  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1); /* Sombra para dar efecto */
+  min-height: 50px; /* No dejar que se encoja dentro del contenedor flex */
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-bottom: 1px solid #dcdcdc;
+  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.06);
 }
 
-/* -- Título de la ventana place_holder -- */
+/* -- Título de la ventana place_holder: texto rojo con subrayado, como la referencia -- */
 .place_holder-title {
   margin: 0;
+  display: flex;
+  align-items: center;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 3px solid #2f6fed;
+  padding: 0 6px;
 }
 
 /* -- Botón de cierre de la ventana place_holder -- */
 .place_holder-close {
   background: none; /* Sin fondo */
   border: none; /* Sin bordes */
-  color: white; /* Color del ícono */
+  color: #666; /* Color del ícono */
   font-size: 20px; /* Tamaño del ícono */
   cursor: pointer; /* Cambiar cursor al pasar */
   display: flex;

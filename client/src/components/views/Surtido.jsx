@@ -1,15 +1,21 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-    Card, CardContent, Typography, Box, Button,
+    Card, Typography, Box, Button,
     Table, TableBody, TableCell, TableHead, TableRow,
-    LinearProgress, Grid, Paper, Tabs, Tab, TextField, InputAdornment, IconButton
+    LinearProgress, CircularProgress, Grid, Paper, Tabs, Tab, TextField, InputAdornment, IconButton,
+    Select, MenuItem
 } from '@mui/material';
 import { FaTimes } from "react-icons/fa";
+import { BsFileEarmarkPdf } from "react-icons/bs";
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import Pagination from '@mui/material/Pagination';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
+import DirectionsCarOutlinedIcon from '@mui/icons-material/DirectionsCarOutlined';
 import Swal from "sweetalert2";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -74,6 +80,9 @@ function Surtiendo() {
     /* ---------- Surtido ---------- */
     const [pedidos, setPedidos] = useState([]);
     const [expanded, setExpanded] = useState({});
+    const [usuarioEmbarqueSel, setUsuarioEmbarqueSel] = useState({});
+    const nombreBonito = (n) => (n || '').toString().trim().toLowerCase()
+        .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
     const [usuariosResumen, setUsuariosResumen] = useState([]);
 
     const [pedidosPendientes, setPedidosPendientes] = useState([]);
@@ -199,6 +208,7 @@ function Surtiendo() {
 
 
     // ✅ NUEVO — fusionar una VQ pendiente sobre la CD que ya está en embarques
+    // eslint-disable-next-line no-unused-vars
     const fusionarVqEnEmbarque = async (pedidoCD) => {
         // Si no hay pendientes, avisar
         if (!pedidosPendientes.length) {
@@ -638,7 +648,7 @@ function Surtiendo() {
     useEffect(() => { cargarMesesDisponibles(); }, []);
     useEffect(() => { cargarPedidosFinalizados(mesFin); }, [mesFin]);
 
-    const PAGE_SIZE_FIN = 5;
+    const PAGE_SIZE_FIN = 4;
     const [pageFin, setPageFin] = useState(1);
 
     const finalizadosFiltrados = (Array.isArray(pedidosFinalizados) ? pedidosFinalizados : []).filter(p => {
@@ -980,13 +990,13 @@ function Surtiendo() {
     };
 
     return (
-        <div className="place_holder-container fade-in" style={{ height: '95vh', overflowY: 'auto' }}>
-            <Box sx={{ width: '100%' }}>
+        <div className="place_holder-container fade-in" style={{ height: '95vh' }}>
+            <Box sx={{ width: '100%', flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
-                <div className="place_holder-header" style={{ background: '#e74c3c', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 2500 }}>
+                <div className="place_holder-header" style={{ position: 'sticky', top: 0, zIndex: 2500 }}>
                     <span className="place_holder-title">Progreso de Pedidos</span>
-                    <button style={{ background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={() => (window.location.href = '/menu')}>
-                        <FaTimes color="#fff" size={18} />
+                    <button className="place_holder-close" onClick={() => (window.location.href = '/menu')}>
+                        <FaTimes />
                     </button>
                 </div>
 
@@ -1005,16 +1015,14 @@ function Surtiendo() {
                                 {pedidos.length === 0 ? (
                                     <Typography color="textSecondary" align="center" mt={4}>No hay pedidos en surtido.</Typography>
                                 ) : (
-                                    <Paper variant="outlined">
+                                    <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', borderColor: '#e6e9ef', boxShadow: '0 2px 10px rgba(16,24,40,0.05)' }}>
                                         <Table size="small">
                                             <TableHead>
-                                                <TableRow sx={{ background: '#f5f5f5' }}>
-                                                    <TableCell>Tipo</TableCell>
-                                                    <TableCell>No. Orden</TableCell>
-                                                    <TableCell>Bahía</TableCell>
-                                                    <TableCell>Surtido por</TableCell>
-                                                    <TableCell>Progreso</TableCell>
-                                                    <TableCell align="right">Acción</TableCell>
+                                                <TableRow sx={{ background: '#f7f9fc' }}>
+                                                    {['Tipo', 'No. orden', 'Bahía', 'Surtido por', 'Avance'].map(h => (
+                                                        <TableCell key={h} sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#8b93a7', py: 1.2 }}>{h}</TableCell>
+                                                    ))}
+                                                    <TableCell align="right" sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#8b93a7', py: 1.2 }}>Acción</TableCell>
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
@@ -1022,33 +1030,41 @@ function Surtiendo() {
                                                     const progreso = calcularProgreso(pedido.productos);
                                                     const rowKey = pedido.key || (pedido.no_orden + pedido.tipo);
                                                     const esFusionado = !!pedido.ordenes_unidas;
+                                                    const colorAvance = progreso === 100 ? '#16a34a' : progreso >= 40 ? '#4ade80' : progreso > 0 ? '#f59e0b' : '#d1d5db';
 
                                                     return (
-                                                        <TableRow key={rowKey} hover>
-                                                            <TableCell>{pedido.tipo}</TableCell>
-                                                            <TableCell>
-                                                                {pedido.no_orden}
+                                                        <TableRow key={rowKey} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                                                            <TableCell sx={{ py: 1 }}>
+                                                                <Box component="span" sx={{ px: 1.2, py: 0.3, borderRadius: 99, fontSize: '0.75rem', fontWeight: 700, background: '#eef2ff', color: '#3b4cca' }}>
+                                                                    {pedido.tipo}
+                                                                </Box>
+                                                            </TableCell>
+                                                            <TableCell sx={{ py: 1 }}>
+                                                                <Typography sx={{ fontWeight: 700, color: '#111827' }}>{pedido.no_orden}</Typography>
                                                                 {esFusionado && (
                                                                     <Typography variant="caption" display="block" sx={{ color: '#7b1fa2', fontWeight: 600 }}>
                                                                         🔗 {pedido.ordenes_unidas}
                                                                     </Typography>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell>{pedido.bahia}</TableCell>
-                                                            <TableCell>{pedido.nombre_usuario || "?"}</TableCell>
-                                                            <TableCell>
-                                                                <Box display="flex" alignItems="center" gap={1}>
-                                                                    <LinearProgress variant="determinate" value={progreso}
-                                                                        sx={{
-                                                                            width: 80, height: 8, borderRadius: 8, background: "#d6eaff",
-                                                                            '& .MuiLinearProgress-bar': { background: progreso === 100 ? '#2ecc40' : progreso > 0 ? '#82f263' : '#c4e0fc' }
-                                                                        }}
-                                                                    />
-                                                                    <Typography variant="body2">{progreso}%</Typography>
+                                                            <TableCell sx={{ py: 1 }}>
+                                                                <Box component="span" sx={{ px: 1.2, py: 0.3, borderRadius: 99, fontSize: '0.8rem', background: '#f1f3f7', color: '#374151', fontWeight: 600 }}>
+                                                                    {pedido.bahia}
                                                                 </Box>
                                                             </TableCell>
-                                                            <TableCell align="right">
+                                                            <TableCell sx={{ py: 1 }}>{pedido.nombre_usuario || "?"}</TableCell>
+                                                            <TableCell sx={{ py: 1 }}>
+                                                                <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                                                                    <CircularProgress variant="determinate" value={100} size={42} thickness={4} sx={{ color: '#eceff3', position: 'absolute' }} />
+                                                                    <CircularProgress variant="determinate" value={progreso} size={42} thickness={4} sx={{ color: colorAvance }} />
+                                                                    <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#374151' }}>{progreso}%</Typography>
+                                                                    </Box>
+                                                                </Box>
+                                                            </TableCell>
+                                                            <TableCell align="right" sx={{ py: 1 }}>
                                                                 <Button size="small" variant="contained"
+                                                                    startIcon={<VisibilityOutlinedIcon fontSize="small" />}
                                                                     onClick={() => { setModalSurtido({ open: true, pedido, error: null, loading: false }); setEdicionesSurtido({}); setModoEdicionSurtido(false); }}>
                                                                     Ver / Liberar
                                                                 </Button>
@@ -1067,17 +1083,28 @@ function Surtiendo() {
                     {/* ==================== TAB EMBARQUES ==================== */}
                     {tabActual === 1 && (
                         <Box sx={{ height: 'calc(100vh - 150px)', overflowY: 'auto', paddingRight: 1 }}>
-                            <Box display="flex" alignItems="center" gap={2} mb={2} sx={{ backgroundColor: '#f5f5f5', p: 2, borderRadius: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5, flexWrap: 'wrap' }}>
                                 <TextField
-                                    label="Buscar por No. Orden" variant="outlined" size="small"
-                                    value={busqueda || ""} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ej. 17839"
-                                    InputProps={{
-                                        startAdornment: (<InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>),
-                                        endAdornment: busqueda && (<InputAdornment position="end"><IconButton onClick={() => setBusqueda("")}><ClearIcon /></IconButton></InputAdornment>),
+                                    size="small" variant="outlined" placeholder="Buscar por No. Orden"
+                                    value={busqueda || ""} onChange={(e) => setBusqueda(e.target.value)}
+                                    sx={{
+                                        width: 320,
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: 99, background: '#fff', height: 42,
+                                            boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
+                                            '& fieldset': { borderColor: '#d9dde6' },
+                                            '&:hover fieldset': { borderColor: '#b6bdcc' },
+                                            '&.Mui-focused fieldset': { borderColor: '#2f6fed', borderWidth: 1 },
+                                        },
                                     }}
-                                    sx={{ width: 300 }}
+                                    InputProps={{
+                                        startAdornment: (<InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#9aa3b2' }} /></InputAdornment>),
+                                        endAdornment: busqueda ? (<InputAdornment position="end"><IconButton size="small" onClick={() => setBusqueda("")}><ClearIcon fontSize="small" /></IconButton></InputAdornment>) : null,
+                                    }}
                                 />
-                                <Typography variant="body2" color="textSecondary">Resultados: {embarquesFiltrados.length}</Typography>
+                                <Box component="span" sx={{ px: 1.6, py: 0.6, borderRadius: 99, fontSize: '0.8rem', fontWeight: 600, background: '#f1f3f7', color: '#4b5563' }}>
+                                    {embarquesFiltrados.length} {embarquesFiltrados.length === 1 ? 'resultado' : 'resultados'}
+                                </Box>
                             </Box>
 
                             {embarquesFiltrados.length === 0 ? (
@@ -1093,102 +1120,145 @@ function Surtiendo() {
                                     const liberarHabilitado = puedeLiberarPedido(pedido);
 
                                     return (
-                                        <Card key={rowKey} sx={{ mb: 4 }}>
-                                            <CardContent>
-                                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                                                    <Box>
-                                                        <Typography variant="h6" fontWeight={600}>{pedido.tipo} : {pedido.no_orden} : {pedido.bahia}</Typography>
-                                                        <Typography fontWeight={600}>Surtido por: <b>{pedido.nombre_usuario || '?'}</b></Typography>
-                                                    </Box>
-                                                    <Box display="flex" flexDirection="column" gap={1} alignItems="flex-end">
-                                                        <Box display="flex" gap={1}>
-                                                            <Button size="small" variant="outlined"
-                                                                onClick={() => setExpanded(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}>
-                                                                {expanded[rowKey] ? 'Ocultar' : 'Ver productos'}
-                                                            </Button>
-                                                            <Button size="small" variant="outlined" color="secondary"
-                                                                onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
-                                                                📄 Vista previa PDF
-                                                            </Button>
+                                        <Card key={rowKey} sx={{
+                                            mb: 2.5, borderRadius: '16px', overflow: 'hidden',
+                                            border: '1px solid #e6e9ef', boxShadow: '0 2px 10px rgba(16,24,40,0.06)',
+                                            transition: 'box-shadow .2s ease', '&:hover': { boxShadow: '0 8px 24px rgba(16,24,40,0.10)' },
+                                        }}>
+                                            {/* ── Encabezado ── */}
+                                            <Box sx={{ px: 2.5, py: 1.8, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                                <Box component="span" sx={{ px: 1.4, py: 0.4, borderRadius: 99, fontSize: '0.78rem', fontWeight: 700, background: '#eef2ff', color: '#3b4cca' }}>
+                                                    {pedido.tipo}
+                                                </Box>
+                                                <Box>
+                                                    <Typography sx={{ fontSize: '1.2rem', fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>
+                                                        {pedido.no_orden}
+                                                    </Typography>
+                                                    <Typography sx={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                                                        Surtido por <b style={{ color: '#374151' }}>{pedido.nombre_usuario || '?'}</b>
+                                                    </Typography>
+                                                </Box>
+                                                <Box component="span" sx={{ px: 1.2, py: 0.3, borderRadius: 99, fontSize: '0.8rem', background: '#f1f3f7', color: '#374151', fontWeight: 600 }}>
+                                                    Bahía {pedido.bahia}
+                                                </Box>
 
-                                                            {/* ✅ NUEVO — botón fusionar */}
-                                                            <Button size="small" variant="outlined"
-                                                                sx={{ color: '#7b1fa2', borderColor: '#7b1fa2' }}
-                                                                onClick={() => fusionarVqEnEmbarque(pedido)}>
-                                                                🔗 Fusionar orden
-                                                            </Button>
-                                                        </Box>
+                                                <Box sx={{ flex: 1 }} />
 
-                                                        {!yaAsignado ? (
-                                                            <Box>
-                                                                <Typography variant="body2">Asignar usuario:</Typography>
-                                                                <Box display="flex" gap={1} alignItems="center">
-                                                                    <select id={`select-${rowKey}`} defaultValue="">
-                                                                        <option value="">-- Selecciona --</option>
-                                                                        {usuariosPaqueteria.map((u, i) => {
-                                                                            const id = getUserId(u);
-                                                                            const nombre = getUserName(u) || `Usuario ${i + 1}`;
-                                                                            return <option key={id || i} value={id}>{nombre}</option>;
-                                                                        })}
-                                                                    </select>
-                                                                    <Button size="small" variant="contained" color="primary"
-                                                                        onClick={() => {
-                                                                            const select = document.getElementById(`select-${rowKey}`);
-                                                                            const selectedId = Number(select?.value);
-                                                                            if (!selectedId) { Swal.fire("⚠️ Selecciona un usuario", "", "warning"); return; }
-                                                                            asignarUsuarioPaqueteria(pedido.no_orden, selectedId);
-                                                                        }}>
-                                                                        Asignar
-                                                                    </Button>
+                                                {(() => {
+                                                    const totalProd = pedido.productos.length;
+                                                    const validados = pedido.productos.filter(p => {
+                                                        const esp = Number(p._pz || 0) + Number(p._pq || 0) + Number(p._inner || 0) + Number(p._master || 0);
+                                                        const val = Number(p.v_pz || 0) + Number(p.v_pq || 0) + Number(p.v_inner || 0) + Number(p.v_master || 0);
+                                                        return esp > 0 && val >= esp;
+                                                    }).length;
+                                                    const colorAnillo = progreso === 100 ? '#16a34a' : progreso >= 40 ? '#3b82f6' : progreso > 0 ? '#f59e0b' : '#d1d5db';
+                                                    const estado = progreso === 100
+                                                        ? { txt: 'Completo', bg: '#e8f5e9', fg: '#2e7d32' }
+                                                        : progreso > 0
+                                                            ? { txt: 'En proceso', bg: '#fff8e1', fg: '#a16207' }
+                                                            : { txt: 'Sin iniciar', bg: '#f1f3f7', fg: '#6b7280' };
+                                                    return (
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 'auto' }}>
+                                                            <Box sx={{ textAlign: 'right' }}>
+                                                                <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>Validación de surtido</Typography>
+                                                                <Typography sx={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                                                                    {validados} de {totalProd} productos validados{totalProd - validados > 0 ? ` · faltan ${totalProd - validados}` : ''}
+                                                                </Typography>
+                                                            </Box>
+                                                            <Box component="span" sx={{ px: 1.5, py: 0.5, borderRadius: 99, fontSize: '0.78rem', fontWeight: 700, background: estado.bg, color: estado.fg }}>
+                                                                {estado.txt}
+                                                            </Box>
+                                                            {progreso === 100 && (
+                                                                <Button size="small" variant="contained" color="success"
+                                                                    onClick={() => finalizarDesdeEmbarque(pedido.no_orden, pedido.tipo)}>
+                                                                    Finalizar pedido
+                                                                </Button>
+                                                            )}
+                                                            <Box sx={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                                                                <CircularProgress variant="determinate" value={100} size={60} thickness={4} sx={{ color: '#eceff3', position: 'absolute' }} />
+                                                                <CircularProgress variant="determinate" value={progreso} size={60} thickness={4} sx={{ color: colorAnillo }} />
+                                                                <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>{progreso}%</Typography>
                                                                 </Box>
                                                             </Box>
-                                                        ) : (
-                                                            <Box display="flex" alignItems="center" gap={1}>
-                                                                <Typography variant="body2">Usuario asignado: <b>{nombreAsignado}</b></Typography>
-                                                                <Button size="small" color="warning" variant="outlined"
-                                                                    onClick={() => liberarUsuarioPaqueteria(pedido.no_orden)}
-                                                                    disabled={!liberarHabilitado}
-                                                                    title={liberarHabilitado ? '' : 'No se puede liberar: hay validaciones en v_pz/v_pq/v_inner/v_master'}>
-                                                                    Liberar pedido
-                                                                </Button>
-                                                            </Box>
-                                                        )}
+                                                        </Box>
+                                                    );
+                                                })()}
+                                            </Box>
 
-                                                        {progreso === 100 && (
-                                                            <Button size="small" variant="contained" color="success"
-                                                                onClick={() => finalizarDesdeEmbarque(pedido.no_orden, pedido.tipo)}>
-                                                                Finalizar Pedido
-                                                            </Button>
-                                                        )}
-                                                    </Box>
-                                                </Box>
+                                            {/* ── Pie de acciones ── */}
+                                            <Box sx={{
+                                                px: 2.5, py: 1.3, display: 'flex', alignItems: 'center', gap: 1.2, flexWrap: 'wrap',
+                                                background: '#f7f9fc', borderTop: '1px solid #eceff3',
+                                            }}>
+                                                <Button size="small" variant="outlined" color="error"
+                                                    onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
+                                                    <BsFileEarmarkPdf style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Vista previa PDF
+                                                </Button>
 
-                                                <Box mt={1} mb={2}>
-                                                    <Typography variant="body2" mb={0.5}>Progreso (Validación de Surtido)</Typography>
-                                                    <Box display="flex" alignItems="center">
-                                                        <LinearProgress variant="determinate" value={progreso}
-                                                            sx={{ flex: 1, height: 8, borderRadius: 8, mr: 2, background: '#f1f1f1', '& .MuiLinearProgress-bar': { background: '#3498db' } }}
-                                                        />
-                                                        <Typography width={40} fontWeight={600} textAlign="right">{progreso}%</Typography>
-                                                    </Box>
-                                                </Box>
+                                                <Box sx={{ flex: 1 }} />
 
-                                                {expanded[rowKey] && (
-                                                    <Table size="small" sx={{ mt: 2 }}>
+                                                {!yaAsignado ? (
+                                                    <>
+                                                        <Select
+                                                            size="small"
+                                                            displayEmpty
+                                                            value={usuarioEmbarqueSel[rowKey] || ''}
+                                                            onChange={(e) => setUsuarioEmbarqueSel(prev => ({ ...prev, [rowKey]: e.target.value }))}
+                                                            MenuProps={{ PaperProps: { sx: { borderRadius: '12px', mt: 0.5, maxHeight: 320, boxShadow: '0 8px 24px rgba(16,24,40,0.15)' } } }}
+                                                            renderValue={(v) => v === ''
+                                                                ? <span style={{ color: '#9ca3af' }}>Asignar usuario</span>
+                                                                : nombreBonito(getUserName(usuariosPaqueteria.find(u => getUserId(u) === v)))}
+                                                            sx={{ background: '#fff', borderRadius: '10px', fontSize: '0.85rem', minWidth: 200, '& .MuiSelect-select': { py: 0.7 } }}
+                                                        >
+                                                            <MenuItem disabled value=""><em>Asignar usuario</em></MenuItem>
+                                                            {[...usuariosPaqueteria]
+                                                                .sort((a, b) => nombreBonito(getUserName(a)).localeCompare(nombreBonito(getUserName(b)), 'es'))
+                                                                .map((u, i) => (
+                                                                    <MenuItem key={getUserId(u) || i} value={getUserId(u)}
+                                                                        sx={{ fontSize: '0.88rem', mx: 0.5, borderRadius: '8px', '&.Mui-selected': { backgroundColor: '#eaf1ff', color: '#1d4ed8', fontWeight: 600 } }}>
+                                                                        {nombreBonito(getUserName(u)) || `Usuario ${i + 1}`}
+                                                                    </MenuItem>
+                                                                ))}
+                                                        </Select>
+                                                        <Button size="small" variant="contained" color="primary"
+                                                            onClick={() => {
+                                                                const selectedId = Number(usuarioEmbarqueSel[rowKey]);
+                                                                if (!selectedId) { Swal.fire("⚠️ Selecciona un usuario", "", "warning"); return; }
+                                                                asignarUsuarioPaqueteria(pedido.no_orden, selectedId);
+                                                            }}>
+                                                            Asignar
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Box component="span" sx={{ px: 1.4, py: 0.5, borderRadius: 99, fontSize: '0.82rem', background: '#e8f5e9', color: '#2e7d32', fontWeight: 700 }}>
+                                                            Asignado: {nombreBonito(nombreAsignado)}
+                                                        </Box>
+                                                        <Button size="small" color="warning" variant="outlined"
+                                                            onClick={() => liberarUsuarioPaqueteria(pedido.no_orden)}
+                                                            disabled={!liberarHabilitado}
+                                                            title={liberarHabilitado ? '' : 'No se puede liberar: hay validaciones en v_pz/v_pq/v_inner/v_master'}>
+                                                            Liberar pedido
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </Box>
+
+                                            {expanded[rowKey] && (
+                                                <Box sx={{ px: 1.5, pb: 1.5, overflowX: 'auto' }}>
+                                                    <Table size="small" sx={{ mt: 1 }}>
                                                         <TableHead>
                                                             <TableRow>
-                                                                <TableCell>Código</TableCell><TableCell>Cantidad</TableCell>
-                                                                <TableCell>Cantidad Surtida</TableCell><TableCell>Cantidad No Surtida</TableCell>
-                                                                <TableCell>PZ</TableCell><TableCell>PQ</TableCell>
-                                                                <TableCell>INNER</TableCell><TableCell>MASTER</TableCell>
-                                                                <TableCell>V_PZ</TableCell><TableCell>V_PQ</TableCell>
-                                                                <TableCell>V_INNER</TableCell><TableCell>V_MASTER</TableCell>
+                                                                {['Código', 'Cantidad', 'Cant. surtida', 'Cant. no surtida', 'PZ', 'PQ', 'INNER', 'MASTER', 'V_PZ', 'V_PQ', 'V_INNER', 'V_MASTER'].map(h => (
+                                                                    <TableCell key={h} sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#8b93a7' }}>{h}</TableCell>
+                                                                ))}
                                                             </TableRow>
                                                         </TableHead>
                                                         <TableBody>
                                                             {pedido.productos.map((prod, idx) => (
-                                                                <TableRow key={prod.codigo_pedido + idx}>
-                                                                    <TableCell>{prod.codigo_pedido}</TableCell><TableCell>{prod.cantidad}</TableCell>
+                                                                <TableRow key={prod.codigo_pedido + idx} hover>
+                                                                    <TableCell sx={{ fontWeight: 700 }}>{prod.codigo_pedido}</TableCell><TableCell>{prod.cantidad}</TableCell>
                                                                     <TableCell>{prod.cant_surtida}</TableCell><TableCell>{prod.cant_no_enviada}</TableCell>
                                                                     <TableCell>{prod._pz}</TableCell><TableCell>{prod._pq}</TableCell>
                                                                     <TableCell>{prod._inner}</TableCell><TableCell>{prod._master}</TableCell>
@@ -1198,8 +1268,8 @@ function Surtiendo() {
                                                             ))}
                                                         </TableBody>
                                                     </Table>
-                                                )}
-                                            </CardContent>
+                                                </Box>
+                                            )}
                                         </Card>
                                     );
                                 })
@@ -1223,15 +1293,7 @@ function Surtiendo() {
                             return tieneFactura && tieneTotal;
                         };
 
-                        const card = { background: '#fff', border: '1px solid #e8e8e8', borderRadius: 12, marginBottom: 10, overflow: 'hidden' };
                         const badge = (tipo) => ({ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, flexShrink: 0, background: tipo === 'VW' ? '#EAF3DE' : tipo === 'VQ' ? '#E6F1FB' : '#EEEDFE', color: tipo === 'VW' ? '#27500A' : tipo === 'VQ' ? '#0C447C' : '#3C3489' });
-                        const chip = { fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#f3f3f3', color: '#555', border: '1px solid #e0e0e0' };
-                        const chipRed = { fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#FCEBEB', color: '#A32D2D', border: '1px solid #F7C1C1', fontWeight: 600 };
-                        const chipGrn = { fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#EAF3DE', color: '#3B6D11', border: '1px solid #C0DD97' };
-                        const btnGhost = { fontSize: 12, padding: '6px 14px', border: '1px solid #ddd', background: 'transparent', borderRadius: 8, cursor: 'pointer', color: '#333', display: 'flex', alignItems: 'center', gap: 6 };
-                        const btnBlue = { fontSize: 12, padding: '6px 14px', border: 'none', background: '#185FA5', color: '#fff', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 };
-                        const btnBlueOff = { ...btnBlue, opacity: 0.35, cursor: 'not-allowed' };
-                        const btnTeal = { fontSize: 12, padding: '6px 14px', border: '1px solid #0F6E56', background: 'transparent', color: '#0F6E56', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 };
                         const th = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#888', fontSize: 11, borderBottom: '1px solid #f0f0f0', background: '#fafafa', whiteSpace: 'nowrap' };
                         const td = { padding: '7px 10px', color: '#333', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap' };
                         const tdAlert = { padding: '7px 10px', borderBottom: '1px solid #f5f5f5', whiteSpace: 'nowrap', background: '#FCEBEB', color: '#791F1F' };
@@ -1240,40 +1302,59 @@ function Surtiendo() {
 
                         return (
                             <Box p={2}>
-                                <Box display="flex" alignItems="center" gap={2} mb={2} flexWrap="wrap">
-                                    <TextField size="small" placeholder="Buscar por No. orden, tipo o código..." value={qFin}
-                                        onChange={(e) => { setQFin(e.target.value); setPageFin(1); }} sx={{ minWidth: 280 }}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5, flexWrap: 'wrap' }}>
+                                    <TextField size="small" placeholder="Buscar por No. orden, tipo o código" value={qFin}
+                                        onChange={(e) => { setQFin(e.target.value); setPageFin(1); }}
+                                        sx={{
+                                            width: 340,
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: 99, background: '#fff', height: 42,
+                                                boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
+                                                '& fieldset': { borderColor: '#d9dde6' },
+                                                '&:hover fieldset': { borderColor: '#b6bdcc' },
+                                                '&.Mui-focused fieldset': { borderColor: '#2f6fed', borderWidth: 1 },
+                                            },
+                                        }}
                                         InputProps={{
-                                            startAdornment: (<InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#aaa' }} /></InputAdornment>),
+                                            startAdornment: (<InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#9aa3b2' }} /></InputAdornment>),
                                             endAdornment: qFin ? (<InputAdornment position="end"><IconButton size="small" onClick={() => { setQFin(''); setPageFin(1); }}><ClearIcon fontSize="small" /></IconButton></InputAdornment>) : null,
                                         }}
                                     />
 
                                     {/* ✅ Filtro por mes — se llena con los meses que realmente tienen pedidos finalizados */}
-                                    <select
+                                    <Select
+                                        size="small"
+                                        displayEmpty
                                         value={mesFin}
                                         onChange={(e) => setMesFin(e.target.value)}
-                                        style={{ height: 38, borderRadius: 8, border: '1px solid #ddd', fontSize: 13, padding: '0 10px', background: '#fff', minWidth: 170 }}
+                                        MenuProps={{ PaperProps: { sx: { borderRadius: '12px', mt: 0.5, maxHeight: 320, boxShadow: '0 8px 24px rgba(16,24,40,0.15)' } } }}
+                                        renderValue={(v) => {
+                                            if (!v) return 'Todos los meses';
+                                            const [anio, mes] = String(v).split('-');
+                                            return `${NOMBRES_MES[Number(mes)]} ${anio}`;
+                                        }}
+                                        sx={{ minWidth: 190, height: 42, borderRadius: 99, background: '#fff', fontSize: '0.9rem', boxShadow: '0 1px 3px rgba(16,24,40,0.06)', '& fieldset': { borderColor: '#d9dde6' } }}
                                     >
-                                        <option value="">Todos los meses</option>
+                                        <MenuItem value="" sx={{ fontSize: '0.88rem', mx: 0.5, borderRadius: '8px' }}>Todos los meses</MenuItem>
                                         {mesesDisponibles.map(m => {
                                             const value = `${m.anio}-${String(m.mes).padStart(2, '0')}`;
                                             return (
-                                                <option key={value} value={value}>
+                                                <MenuItem key={value} value={value}
+                                                    sx={{ fontSize: '0.88rem', mx: 0.5, borderRadius: '8px', '&.Mui-selected': { backgroundColor: '#eaf1ff', color: '#1d4ed8', fontWeight: 600 } }}>
                                                     {NOMBRES_MES[Number(m.mes)]} {m.anio}
-                                                </option>
+                                                </MenuItem>
                                             );
                                         })}
-                                    </select>
+                                    </Select>
 
-                                    <span style={{ fontSize: 12, color: '#888', background: '#f3f3f3', padding: '4px 12px', borderRadius: 20, border: '1px solid #e0e0e0' }}>{finalizadosFiltrados.length} pedidos</span>
-                                    <Box ml="auto">
-                                        <Pagination count={totalPagesFin} page={pageFin} onChange={(_, p) => setPageFin(p)} size="small" color="primary" showFirstButton showLastButton />
+                                    <Box component="span" sx={{ px: 1.6, py: 0.6, borderRadius: 99, fontSize: '0.8rem', fontWeight: 600, background: '#f1f3f7', color: '#4b5563' }}>
+                                        {finalizadosFiltrados.length} {finalizadosFiltrados.length === 1 ? 'pedido' : 'pedidos'}
                                     </Box>
                                 </Box>
 
                                 {finalizadosFiltrados.length === 0 && (<Box textAlign="center" py={6} sx={{ color: '#aaa', fontSize: 14 }}>No hay pedidos finalizados.</Box>)}
 
+                                <Paper variant="outlined" sx={{ borderRadius: '16px', overflow: 'hidden', borderColor: '#e6e9ef', boxShadow: '0 2px 10px rgba(16,24,40,0.05)' }}>
                                 {pedidosFinPagina.map((pedido, idxPedido) => {
                                     const rowKey = pedido?.key || `${pedido?.tipo || ''}-${pedido?.no_orden || ''}-${idxPedido}`;
                                     const prods = Array.isArray(pedido?.productos) ? pedido.productos : [];
@@ -1282,36 +1363,90 @@ function Surtiendo() {
                                     const noEnv = prods.reduce((s, p) => s + Number(p?.cant_no_enviada || 0), 0);
                                     const fecha = ultimaFechaEmbarque(prods);
                                     const packing = puedePackingList(prods);
+                                    const completo = noEnv === 0;
+                                    const fmtNum = (n) => Number(n || 0).toLocaleString('es-MX');
 
                                     return (
-                                        <div key={rowKey} style={card}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                                                <span style={badge(pedido.tipo)}>{pedido.tipo}</span>
-                                                <div>
-                                                    <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{pedido.no_orden}</div>
-                                                    <div style={{ fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                                                        {fecha ? <>⏱ Fin embarque: {fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' })}</> : <span style={{ color: '#bbb' }}>Sin fecha de embarque</span>}
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto', flexShrink: 0 }}>
-                                                    <span style={chip}>Total <strong>{total}</strong></span>
-                                                    <span style={chip}>Surtida <strong>{surtida}</strong></span>
-                                                    {noEnv > 0 ? <span style={chipRed}>No env. <strong>{noEnv}</strong></span> : <span style={chipGrn}>Completo</span>}
-                                                </div>
-                                            </div>
-                                            <div style={{ height: 1, background: '#f0f0f0', margin: '0 16px' }} />
-                                            <div style={{ display: 'flex', gap: 8, padding: '10px 16px', flexWrap: 'wrap' }}>
-                                                <button style={btnGhost} onClick={() => abrirDetalle(pedido)}>👁 Ver detalle</button>
-                                                {/* ✅ Vista previa PDF — fuente finalizado */}
-                                                <button style={btnGhost} onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
-                                                    📄 Vista previa surtido
-                                                </button>
-                                                <button style={packing ? btnBlue : btnBlueOff} disabled={!packing} title={!packing ? 'Necesita factura y totales para generar el Packing List' : ''} onClick={() => packing && generarPDFPackingList(pedido.no_orden, pedido.tipo)}>📄 Packing list</button>
-                                                <button style={btnTeal} onClick={() => abrirModalUbicacion(pedido.no_orden, pedido.tipo)}>📍 Ver ubicación</button>
-                                            </div>
-                                        </div>
+                                        <Box key={rowKey} sx={{
+                                            px: 2, py: 1.4, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+                                            borderLeft: `4px solid ${completo ? '#16a34a' : '#d32f2f'}`,
+                                            borderBottom: idxPedido < pedidosFinPagina.length - 1 ? '1px solid #eceff3' : 'none',
+                                            '&:hover': { background: '#f9fafc' },
+                                        }}>
+                                            <span style={badge(pedido.tipo)}>{pedido.tipo}</span>
+
+                                            <Box sx={{ minWidth: 190 }}>
+                                                <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>{pedido.no_orden}</Typography>
+                                                <Typography sx={{ fontSize: '0.76rem', color: fecha ? '#6b7280' : '#b6bcc9' }}>
+                                                    {fecha ? `Fin embarque: ${fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}` : 'Sin fecha de embarque'}
+                                                </Typography>
+                                            </Box>
+
+                                            <Box sx={{ display: 'flex', gap: 3, flex: 1, minWidth: 260 }}>
+                                                {[['Total', total, false], ['Surtida', surtida, false], ['No enviada', noEnv, noEnv > 0]].map(([label, valor, alerta]) => (
+                                                    <Box key={label}>
+                                                        <Typography sx={{ fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: alerta ? '#d32f2f' : '#8b93a7' }}>{label}</Typography>
+                                                        <Typography sx={{ fontSize: '0.98rem', fontWeight: 700, color: alerta ? '#d32f2f' : '#111827' }}>{fmtNum(valor)}</Typography>
+                                                    </Box>
+                                                ))}
+                                            </Box>
+
+                                            <Box component="span" sx={{
+                                                px: 1.4, py: 0.4, borderRadius: 99, fontSize: '0.78rem', fontWeight: 700,
+                                                background: completo ? '#e8f5e9' : '#fdecea', color: completo ? '#2e7d32' : '#d32f2f',
+                                            }}>
+                                                {completo ? 'Completo' : `No env. ${fmtNum(noEnv)}`}
+                                            </Box>
+
+                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                <Button size="small" variant="outlined" startIcon={<VisibilityOutlinedIcon fontSize="small" />} onClick={() => abrirDetalle(pedido)}>
+                                                    Detalle
+                                                </Button>
+                                                <Button size="small" variant="outlined" color="secondary" onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
+                                                    <BsFileEarmarkPdf style={{ verticalAlign: "-2px", marginRight: 6, fontSize: "1.15em" }} />Surtido
+                                                </Button>
+                                                <span title={!packing ? 'Necesita factura y totales para generar el Packing List' : ''}>
+                                                    <Button size="small" variant="contained" color="error" disabled={!packing}
+                                                        onClick={() => packing && generarPDFPackingList(pedido.no_orden, pedido.tipo)}>
+                                                        <BsFileEarmarkPdf style={{ verticalAlign: "-2px", marginRight: 6, fontSize: "1.15em" }} />Packing list
+                                                    </Button>
+                                                </span>
+                                                <Button size="small" variant="outlined" color="success" startIcon={<PlaceOutlinedIcon fontSize="small" />} onClick={() => abrirModalUbicacion(pedido.no_orden, pedido.tipo)}>
+                                                    Ubicación
+                                                </Button>
+                                            </Box>
+                                        </Box>
                                     );
                                 })}
+                                </Paper>
+
+                                {totalPagesFin > 1 && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2.5 }}>
+                                        <Pagination
+                                            count={totalPagesFin}
+                                            page={pageFin}
+                                            onChange={(_, p) => setPageFin(p)}
+                                            showFirstButton
+                                            showLastButton
+                                            siblingCount={1}
+                                            boundaryCount={1}
+                                            sx={{
+                                                '& .MuiPaginationItem-root': {
+                                                    width: 44, height: 44, minWidth: 44, borderRadius: '50%',
+                                                    margin: '0 4px', border: 'none', backgroundColor: 'transparent',
+                                                    color: '#5b6478', fontSize: '1rem', fontWeight: 400,
+                                                    '&:hover': { backgroundColor: '#f3f4f8' },
+                                                },
+                                                '& .MuiPaginationItem-previousNext, & .MuiPaginationItem-firstLast': { color: '#6b7280' },
+                                                '& .MuiPaginationItem-root.Mui-selected': {
+                                                    backgroundColor: '#eceffd', color: '#3b4cca', fontWeight: 500,
+                                                    '&:hover': { backgroundColor: '#e2e7fb' },
+                                                },
+                                                '& .MuiPaginationItem-root.Mui-disabled': { opacity: 0.45 },
+                                            }}
+                                        />
+                                    </Box>
+                                )}
 
                                 {modalDetalle.open && modalDetalle.pedido && (() => {
                                     const p = modalDetalle.pedido;
@@ -1321,66 +1456,119 @@ function Surtiendo() {
                                     const noEnv = prods.reduce((s, x) => s + Number(x?.cant_no_enviada || 0), 0);
                                     const ef = total > 0 ? Math.round((surtida / total) * 100) : 0;
                                     const fecha = ultimaFechaEmbarque(prods);
-                                    const packing = puedePackingList(prods);
+                                    const fechasDe = (campo) => prods.map(x => x?.[campo] ? new Date(x[campo]) : null).filter(Boolean);
+                                    const minF = (campo) => { const f = fechasDe(campo); return f.length ? new Date(Math.min(...f)) : null; };
+                                    const maxF = (campo) => { const f = fechasDe(campo); return f.length ? new Date(Math.max(...f)) : null; };
+                                    const fmtCorta = (d) => d ? d.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+                                    const colorEf = ef === 100 ? '#16a34a' : ef >= 80 ? '#2563eb' : '#d32f2f';
+                                    const etiqueta = { fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9ca3af' };
 
                                     return (
-                                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', overflowY: 'auto' }} onClick={(e) => e.target === e.currentTarget && cerrarDetalle()}>
-                                            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e0e0e0', width: '100%', maxWidth: 900, overflow: 'hidden' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box' }} onClick={(e) => e.target === e.currentTarget && cerrarDetalle()}>
+                                            <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 1400, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                                {/* Encabezado */}
+                                                <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: '1px solid #eceff3' }}>
                                                     <span style={badge(p.tipo)}>{p.tipo}</span>
-                                                    <div>
-                                                        <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{p.no_orden}</div>
-                                                        <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{fecha ? `Fin embarque: ${fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' })}` : 'Sin fecha de embarque registrada'}</div>
-                                                    </div>
-                                                    <button onClick={cerrarDetalle} style={{ marginLeft: 'auto', background: '#f3f3f3', border: '1px solid #e0e0e0', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                                                </div>
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 1, background: '#f0f0f0', borderBottom: '1px solid #f0f0f0' }}>
-                                                    {[{ label: 'Total pedido', val: total, color: '#185FA5' }, { label: 'Surtida', val: surtida, color: '#1D9E75' }, { label: 'No enviada', val: noEnv, color: noEnv > 0 ? '#A32D2D' : '#1D9E75' }, { label: 'Efectividad', val: ef + '%', color: ef === 100 ? '#1D9E75' : ef >= 80 ? '#185FA5' : '#A32D2D' }].map(m => (
-                                                        <div key={m.label} style={{ background: '#fff', padding: '12px 16px' }}>
-                                                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{m.label}</div>
-                                                            <div style={{ fontSize: 20, fontWeight: 600, color: m.color }}>{m.val}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div style={{ padding: '16px 20px' }}>
-                                                    <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Productos del pedido</div>
-                                                    <div style={{ overflowX: 'auto', border: '1px solid #f0f0f0', borderRadius: 8 }}>
-                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                                                            <thead><tr>{['Código', 'Cant.', 'Surtida', 'No env.', 'Bahía', 'Surtidor', 'Paquetería', 'Ini. surtido', 'Fin surtido', 'Ini. embarque', 'Fin embarque'].map(h => (<th key={h} style={th}>{h}</th>))}</tr></thead>
-                                                            <tbody>
-                                                                {prods.map((prod, i) => {
-                                                                    const alerta = Number(prod?.cant_no_enviada || 0) > 0;
-                                                                    const c = alerta ? tdAlert : td;
-                                                                    return (
-                                                                        <tr key={`${prod?.codigo_pedido || i}_${i}`}>
-                                                                            <td style={c}>{prod?.codigo_pedido}</td><td style={c}>{prod?.cantidad}</td>
-                                                                            <td style={c}>{prod?.cant_surtida}</td><td style={{ ...c, fontWeight: alerta ? 700 : 400 }}>{prod?.cant_no_enviada}</td>
-                                                                            <td style={c}>{prod?.ubi_bahia}</td><td style={c}>{prod?.nombre_usuario}</td>
-                                                                            <td style={c}>{prod?.nombre_paqueteria}</td><td style={c}>{fmt(prod?.inicio_surtido)}</td>
-                                                                            <td style={c}>{fmt(prod?.fin_surtido)}</td><td style={c}>{fmt(prod?.inicio_embarque)}</td>
-                                                                            <td style={c}>{fmt(prod?.fin_embarque)}</td>
+                                                    <Box>
+                                                        <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>{p.no_orden}</Typography>
+                                                        <Typography sx={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                                                            {fecha ? `Fin embarque: ${fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}` : 'Sin fecha de embarque registrada'}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Box sx={{ flex: 1 }} />
+                                                    <IconButton onClick={cerrarDetalle}><ClearIcon /></IconButton>
+                                                </Box>
+
+                                                {/* Cuerpo: resumen a la izquierda + lista a la derecha */}
+                                                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '220px minmax(0, 1fr)' }, gridTemplateRows: 'minmax(0, 1fr)', flex: 1, minHeight: 0 }}>
+                                                    <Box sx={{ p: 2, background: '#f7f9fc', borderRight: { md: '1px solid #eceff3' }, display: 'flex', flexDirection: 'column', gap: 1.6, overflowY: 'auto' }}>
+                                                        <Box>
+                                                            <Typography sx={etiqueta}>Efectividad</Typography>
+                                                            <Typography sx={{ fontSize: '2rem', fontWeight: 800, color: colorEf, lineHeight: 1.1 }}>{ef}%</Typography>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                                            <Box sx={{ flex: 1, background: '#fff', border: '1px solid #eceff3', borderRadius: 2, px: 1.2, py: 0.7 }}>
+                                                                <Typography sx={etiqueta}>Total</Typography>
+                                                                <Typography sx={{ fontWeight: 700, color: '#185FA5' }}>{total}</Typography>
+                                                            </Box>
+                                                            <Box sx={{ flex: 1, background: '#fff', border: '1px solid #eceff3', borderRadius: 2, px: 1.2, py: 0.7 }}>
+                                                                <Typography sx={etiqueta}>Surtida</Typography>
+                                                                <Typography sx={{ fontWeight: 700, color: '#1D9E75' }}>{surtida}</Typography>
+                                                            </Box>
+                                                        </Box>
+                                                        <Box sx={{ background: noEnv > 0 ? '#fdecea' : '#fff', border: `1px solid ${noEnv > 0 ? '#f7c1c1' : '#eceff3'}`, borderRadius: 2, px: 1.2, py: 0.7 }}>
+                                                            <Typography sx={{ ...etiqueta, color: noEnv > 0 ? '#d32f2f' : '#9ca3af' }}>No enviada</Typography>
+                                                            <Typography sx={{ fontWeight: 700, color: noEnv > 0 ? '#d32f2f' : '#111827' }}>{noEnv}</Typography>
+                                                        </Box>
+
+                                                        <Box sx={{ borderLeft: '2px solid #d1d5db', pl: 1.5, display: 'flex', flexDirection: 'column', gap: 1.2, mt: 0.5 }}>
+                                                            {[['Inicio surtido', minF('inicio_surtido')], ['Fin surtido', maxF('fin_surtido')], ['Inicio embarque', minF('inicio_embarque')], ['Fin embarque', maxF('fin_embarque')]].map(([label, f]) => (
+                                                                <Box key={label}>
+                                                                    <Typography sx={etiqueta}>{label}</Typography>
+                                                                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: f ? '#111827' : '#b6bcc9' }}>{fmtCorta(f)}</Typography>
+                                                                </Box>
+                                                            ))}
+                                                        </Box>
+                                                        <Typography sx={{ fontSize: '0.72rem', color: '#9ca3af', mt: 'auto' }}>{prods.length} productos</Typography>
+                                                    </Box>
+
+                                                    <div style={{ overflow: 'auto', minWidth: 0 }}>
+                                                        {(() => {
+                                                            const thG = (bg, fg) => ({ ...th, textAlign: 'center', background: bg, color: fg, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', position: 'sticky', top: 0, zIndex: 2 });
+                                                            const th2 = { ...th, position: 'sticky', top: 30, zIndex: 2, textTransform: 'uppercase', fontSize: 10.5 };
+                                                            const th2S = { ...th2, textAlign: 'center', background: '#fffbe0', color: '#8a6d00' };
+                                                            const th2V = { ...th2, textAlign: 'center', background: '#eaf2ff', color: '#1d4ed8' };
+                                                            const base = (alerta) => (alerta ? tdAlert : td);
+                                                            const num = (v) => (v === null || v === undefined || v === '' ? 0 : v);
+                                                            return (
+                                                                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th colSpan={4} style={{ ...thG('#f7f9fc', '#6b7280'), textAlign: 'left' }}>Producto</th>
+                                                                            <th colSpan={4} style={thG('#fff4b8', '#8a6d00')}>Conf. surtidor</th>
+                                                                            <th colSpan={3} style={{ ...thG('#f7f9fc', '#6b7280'), textAlign: 'left' }}>Surtido</th>
+                                                                            <th colSpan={4} style={thG('#d9e8ff', '#1d4ed8')}>Conf. validador</th>
+                                                                            <th colSpan={4} style={{ ...thG('#f7f9fc', '#6b7280'), textAlign: 'left' }}>Embarque</th>
                                                                         </tr>
-                                                                    );
-                                                                })}
-                                                            </tbody>
-                                                        </table>
+                                                                        <tr>
+                                                                            {['Código', 'Cantidad', 'Surtida', 'No env.'].map(h => (<th key={h} style={th2}>{h}</th>))}
+                                                                            {['PZ', 'PQ', 'Inner', 'Master'].map(h => (<th key={'s' + h} style={th2S}>{h}</th>))}
+                                                                            {['Surtidor', 'Inicio surtido', 'Fin surtido'].map(h => (<th key={h} style={th2}>{h}</th>))}
+                                                                            {['PZ', 'PQ', 'Inner', 'Master'].map(h => (<th key={'v' + h} style={th2V}>{h}</th>))}
+                                                                            {['Validador', 'Inicio', 'Fin', 'Motivo no enviado'].map(h => (<th key={h} style={th2}>{h}</th>))}
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {prods.map((prod, i) => {
+                                                                            const alerta = Number(prod?.cant_no_enviada || 0) > 0;
+                                                                            const c = base(alerta);
+                                                                            const cS = { ...c, textAlign: 'center', background: alerta ? '#FCEBEB' : '#fffdf0' };
+                                                                            const cV = { ...c, textAlign: 'center', background: alerta ? '#FCEBEB' : '#f5f9ff' };
+                                                                            return (
+                                                                                <tr key={`${prod?.codigo_pedido || i}_${i}`}>
+                                                                                    <td style={{ ...c, fontWeight: 700 }}>{prod?.codigo_pedido}</td>
+                                                                                    <td style={c}>{prod?.cantidad}</td>
+                                                                                    <td style={c}>{prod?.cant_surtida}</td>
+                                                                                    <td style={{ ...c, fontWeight: alerta ? 700 : 400 }}>{prod?.cant_no_enviada}</td>
+                                                                                    <td style={cS}>{num(prod?._pz)}</td><td style={cS}>{num(prod?._pq)}</td><td style={cS}>{num(prod?._inner)}</td><td style={cS}>{num(prod?._master)}</td>
+                                                                                    <td style={c}>{prod?.nombre_usuario}</td>
+                                                                                    <td style={c}>{fmt(prod?.inicio_surtido)}</td>
+                                                                                    <td style={c}>{fmt(prod?.fin_surtido)}</td>
+                                                                                    <td style={cV}>{num(prod?.v_pz)}</td><td style={cV}>{num(prod?.v_pq)}</td><td style={cV}>{num(prod?.v_inner)}</td><td style={cV}>{num(prod?.v_master)}</td>
+                                                                                    <td style={c}>{prod?.nombre_paqueteria}</td>
+                                                                                    <td style={c}>{fmt(prod?.inicio_embarque)}</td>
+                                                                                    <td style={c}>{fmt(prod?.fin_embarque)}</td>
+                                                                                    <td style={{ ...c, whiteSpace: 'normal', minWidth: 140 }}>{prod?.motivo || ''}</td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            );
+                                                        })()}
                                                     </div>
-                                                </div>
-                                                <div style={{ padding: '12px 20px', borderTop: '1px solid #f0f0f0', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                                    <button style={btnGhost} onClick={cerrarDetalle}>✕ Cerrar</button>
-                                                    {/* ✅ Vista previa surtido desde modal finalizado */}
-                                                    <button style={btnGhost} onClick={() => verPreviaPDF(p.no_orden, p.tipo)}>
-                                                        📄 Vista previa surtido
-                                                    </button>
-                                                    <button style={btnTeal} onClick={() => { cerrarDetalle(); abrirModalUbicacion(p.no_orden, p.tipo); }}>
-                                                        📍 Ver ubicación
-                                                    </button>
-                                                    <button style={packing ? btnBlue : btnBlueOff} disabled={!packing}
-                                                        title={!packing ? 'Necesita factura y totales' : ''}
-                                                        onClick={() => packing && generarPDFPackingList(p.no_orden, p.tipo)}>
-                                                        📄 Generar packing list
-                                                    </button>
-                                                </div>
+                                                </Box>
+
                                             </div>
                                         </div>
                                     );
@@ -1522,8 +1710,9 @@ function Surtiendo() {
                             <Box display="flex" gap={1} flexWrap="wrap" mt={1.5}>
                                 {!modoEdicionSurtido && (
                                     <Button size="small" variant="outlined" color="warning"
+                                        startIcon={<EditOutlinedIcon fontSize="small" />}
                                         onClick={() => setModoEdicionSurtido(true)}>
-                                        ✏️ Modificar
+                                        Modificar
                                     </Button>
                                 )}
 
@@ -1541,9 +1730,9 @@ function Surtiendo() {
                                     </Button>
                                 )}
 
-                                <Button size="small" variant="outlined" color="secondary"
+                                <Button size="small" variant="outlined" color="error"
                                     onClick={() => verPreviaPDF(pedido.no_orden, pedido.tipo)}>
-                                    📄 Vista previa PDF
+                                    <BsFileEarmarkPdf style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Vista previa PDF
                                 </Button>
 
                                 {progreso === 100 && (
@@ -1560,51 +1749,86 @@ function Surtiendo() {
 
             {/* ========== MODAL UBICACIÓN ========== */}
             {modalUbicacion.open && (
-                <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ background: "#fff", borderRadius: "12px", padding: "24px", width: "90%", maxWidth: "700px", maxHeight: "90vh", overflowY: "auto" }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                            <Typography variant="h6" fontWeight="bold">📍 {modalUbicacion.pedido?.noOrden} - {modalUbicacion.pedido?.tipo}</Typography>
+                <div
+                    style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    onClick={(e) => e.target === e.currentTarget && setModalUbicacion({ open: false, pedido: null, cliente: null })}
+                >
+                    <div style={{ background: "#fff", borderRadius: 16, width: "92%", maxWidth: 980, maxHeight: "92vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                        {/* Encabezado */}
+                        <Box sx={{ px: 2.5, py: 1.6, display: 'flex', alignItems: 'center', gap: 1.2, borderBottom: '1px solid #eceff3' }}>
+                            <PlaceOutlinedIcon sx={{ color: '#d32f2f' }} />
+                            <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827' }}>
+                                {modalUbicacion.pedido?.noOrden} · {modalUbicacion.pedido?.tipo}
+                            </Typography>
+                            <Box sx={{ flex: 1 }} />
                             <IconButton onClick={() => setModalUbicacion({ open: false, pedido: null, cliente: null })}><ClearIcon /></IconButton>
                         </Box>
+
                         {loadingModal ? (
-                            <Box textAlign="center" py={4}><Typography>Cargando datos...</Typography></Box>
+                            <Box textAlign="center" py={6}><Typography>Cargando datos...</Typography></Box>
                         ) : (
-                            <>
-                                <Paper variant="outlined" sx={{ p: 2, mb: 2, background: "#f9f9f9" }}>
-                                    <Typography variant="subtitle1" fontWeight="bold" mb={1}>📋 Datos Generales</Typography>
-                                    <Grid container spacing={1}>
-                                        <Grid item xs={6}><Typography variant="body2"><b>Cliente:</b> {modalUbicacion.cliente?.nombre_cliente || "S/D"}</Typography></Grid>
-                                        <Grid item xs={6}><Typography variant="body2"><b>No. Cliente:</b> {modalUbicacion.cliente?.num_consigna || "S/D"}</Typography></Grid>
-                                        <Grid item xs={6}><Typography variant="body2"><b>Factura:</b> {modalUbicacion.cliente?.no_factura || "---"}</Typography></Grid>
-                                        <Grid item xs={6}><Typography variant="body2"><b>Teléfono:</b> {modalUbicacion.cliente?.telefono || "S/D"}</Typography></Grid>
-                                        <Grid item xs={12}><Typography variant="body2"><b>Dirección:</b> {modalUbicacion.cliente?.direccion || "S/D"}</Typography></Grid>
-                                        <Grid item xs={6}><Typography variant="body2"><b>Total:</b> ${formatMoney(modalUbicacion.cliente?.total)}</Typography></Grid>
-                                        <Grid item xs={6}><Typography variant="body2"><b>Total con IVA:</b> ${formatMoney(modalUbicacion.cliente?.total_con_iva)}</Typography></Grid>
-                                    </Grid>
-                                </Paper>
-                                <Paper variant="outlined" sx={{ p: 1, mb: 2 }}>
-                                    <Typography variant="subtitle1" fontWeight="bold" mb={1}>🗺️ Mapa</Typography>
-                                    {modalUbicacion.cliente?.direccion ? (
-                                        <iframe title="mapa-cliente" width="100%" height="300" style={{ border: 0, borderRadius: "8px" }} loading="lazy" src={`https://www.google.com/maps?q=${encodeURIComponent(modalUbicacion.cliente.direccion)}&output=embed`} />
-                                    ) : (
-                                        <Typography color="textSecondary" textAlign="center" py={2}>No hay dirección disponible.</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '290px minmax(0, 1fr)' }, minHeight: 0, overflowY: 'auto' }}>
+                                {/* Columna izquierda: datos */}
+                                <Box sx={{ p: 2.5, background: '#f7f9fc', borderRight: { md: '1px solid #eceff3' }, display: 'flex', flexDirection: 'column', gap: 1.6 }}>
+                                    <Box>
+                                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9ca3af' }}>Cliente</Typography>
+                                        <Typography sx={{ fontWeight: 700, color: '#111827' }}>{modalUbicacion.cliente?.nombre_cliente || "S/D"}</Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', gap: 3 }}>
+                                        <Box>
+                                            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9ca3af' }}>No. cliente</Typography>
+                                            <Typography sx={{ fontWeight: 600 }}>{modalUbicacion.cliente?.num_consigna || "S/D"}</Typography>
+                                        </Box>
+                                        <Box>
+                                            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9ca3af' }}>Factura</Typography>
+                                            <Typography sx={{ fontWeight: 600 }}>{modalUbicacion.cliente?.no_factura || "---"}</Typography>
+                                        </Box>
+                                    </Box>
+                                    <Box>
+                                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9ca3af' }}>Teléfono</Typography>
+                                        <Typography sx={{ fontWeight: 600 }}>{modalUbicacion.cliente?.telefono || "S/D"}</Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#9ca3af' }}>Dirección</Typography>
+                                        <Typography sx={{ fontSize: '0.9rem', color: '#374151', lineHeight: 1.4 }}>{modalUbicacion.cliente?.direccion || "S/D"}</Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <Box sx={{ flex: 1, background: '#fff', border: '1px solid #eceff3', borderRadius: 2, px: 1.5, py: 0.8 }}>
+                                            <Typography sx={{ fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af' }}>Total</Typography>
+                                            <Typography sx={{ fontWeight: 700 }}>${formatMoney(modalUbicacion.cliente?.total)}</Typography>
+                                        </Box>
+                                        <Box sx={{ flex: 1, background: '#fff', border: '1px solid #eceff3', borderRadius: 2, px: 1.5, py: 0.8 }}>
+                                            <Typography sx={{ fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af' }}>Con IVA</Typography>
+                                            <Typography sx={{ fontWeight: 700 }}>${formatMoney(modalUbicacion.cliente?.total_con_iva)}</Typography>
+                                        </Box>
+                                    </Box>
+                                    {!miUbicacion && (
+                                        <Typography sx={{ fontSize: '0.78rem', color: '#a16207' }}>⚠️ Activa tu ubicación para ver tiempo estimado</Typography>
                                     )}
-                                </Paper>
-                                <Box display="flex" gap={1} flexWrap="wrap">
+                                </Box>
+
+                                {/* Columna derecha: mapa */}
+                                <Box sx={{ position: 'relative', minHeight: 360, background: '#eef0f4' }}>
+                                    {modalUbicacion.cliente?.direccion ? (
+                                        <iframe title="mapa-cliente" width="100%" height="100%" style={{ border: 0, position: 'absolute', inset: 0 }} loading="lazy" src={`https://www.google.com/maps?q=${encodeURIComponent(modalUbicacion.cliente.direccion)}&output=embed`} />
+                                    ) : (
+                                        <Typography color="textSecondary" textAlign="center" py={4}>No hay dirección disponible.</Typography>
+                                    )}
                                     {modalUbicacion.cliente?.direccion && (
                                         <Button variant="contained" color="primary" size="small"
+                                            startIcon={<DirectionsCarOutlinedIcon fontSize="small" />}
+                                            sx={{ position: 'absolute', right: 14, bottom: 14, boxShadow: '0 4px 12px rgba(16,24,40,0.2)' }}
                                             onClick={() => {
                                                 const destino = encodeURIComponent(modalUbicacion.cliente.direccion);
                                                 const origen = miUbicacion ? `${miUbicacion.lat},${miUbicacion.lng}` : "";
                                                 const url = origen ? `https://www.google.com/maps/dir/${origen}/${destino}` : `https://www.google.com/maps/search/${destino}`;
                                                 window.open(url, "_blank");
                                             }}>
-                                            🚗 Cómo llegar
+                                            Cómo llegar
                                         </Button>
                                     )}
-                                    {!miUbicacion && (<Typography variant="body2" color="textSecondary" alignSelf="center">⚠️ Activa tu ubicación para ver tiempo estimado</Typography>)}
                                 </Box>
-                            </>
+                            </Box>
                         )}
                     </div>
                 </div>

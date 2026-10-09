@@ -460,13 +460,17 @@ const getpedidosFinalizados = async (anio, mes) => {
             pf.cant_no_enviada,
             pf.ubi_bahia,
             pf._pz,
+            pf._pq,
             pf._inner,
             pf._master,
             pf.inicio_surtido,
             pf.fin_surtido,
             pf.v_master,
             pf.v_pz,
+            pf.v_pq,
             pf.v_inner,
+            pf.motivo,
+            prod.descripcion AS descripcion_producto,
             pf.inicio_embarque,
             pf.fin_embarque,
             pf.registro_fin,
@@ -478,6 +482,7 @@ const getpedidosFinalizados = async (anio, mes) => {
         LEFT JOIN usuarios u ON pf.id_usuario = u.id
         LEFT JOIN usuarios a ON pf.id_usuario_paqueteria = a.id
         LEFT JOIN sanced s ON pf.no_orden = s.no_orden  -- 🔥 JOIN
+        LEFT JOIN productos prod ON pf.codigo_pedido = prod.codigo
         ${where}
         ORDER BY pf.registro_fin DESC, pf.no_orden DESC;
     `, params);

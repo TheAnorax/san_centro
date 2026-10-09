@@ -3,9 +3,21 @@ import {
     Box, Button, Typography, Table, TableHead, TableBody,
     TableRow, TableCell, TableContainer, Paper, Select,
     MenuItem, FormControl, InputLabel, Chip, Checkbox,
-    TextField, IconButton, Tooltip, Modal, Tabs, Tab, Divider, TableFooter
+    TextField, IconButton, Tooltip, Modal, Tabs, Tab, Divider, TableFooter, Popover
 } from '@mui/material';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { FaTimes } from "react-icons/fa";
+import { BsFileEarmarkExcel } from "react-icons/bs";
+// import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+// import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
 import BorderColorIcon from '@mui/icons-material/BorderColor';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -39,6 +51,93 @@ const formatMoney = (value) => {
     return num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+
+// 📅 Calendario personalizado (selector de día)
+const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DIAS_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const pad2 = n => String(n).padStart(2, '0');
+
+const CalendarioDia = ({ value, onChange }) => {
+    const [anchor, setAnchor] = useState(null);
+    const hoy = new Date().toLocaleDateString('en-CA');
+    const base = value || hoy;
+    const [vista, setVista] = useState({ y: +base.slice(0, 4), m: +base.slice(5, 7) - 1 });
+
+    const abrir = (e) => {
+        const b = value || hoy;
+        setVista({ y: +b.slice(0, 4), m: +b.slice(5, 7) - 1 });
+        setAnchor(e.currentTarget);
+    };
+    const mover = (d) => setVista(v => {
+        const n = new Date(v.y, v.m + d, 1);
+        return { y: n.getFullYear(), m: n.getMonth() };
+    });
+    const elegir = (iso) => { onChange(iso); setAnchor(null); };
+
+    const primero = new Date(vista.y, vista.m, 1).getDay();
+    const diasMes = new Date(vista.y, vista.m + 1, 0).getDate();
+    const celdas = [];
+    for (let i = 0; i < primero; i++) celdas.push(null);
+    for (let d = 1; d <= diasMes; d++) celdas.push(`${vista.y}-${pad2(vista.m + 1)}-${pad2(d)}`);
+
+    const sel = value ? new Date(+value.slice(0, 4), +value.slice(5, 7) - 1, +value.slice(8, 10)) : null;
+    const textoBoton = value ? `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}` : 'Elegir día';
+
+    return (
+        <>
+            <Box onClick={abrir} sx={{
+                display: 'inline-flex', alignItems: 'center', gap: 0.8, cursor: 'pointer', userSelect: 'none',
+            }}>
+                <CalendarMonthOutlinedIcon fontSize="small" sx={{ color: value ? '#2f6fed' : '#9aa3b2' }} />
+                <Typography sx={{ fontSize: 14, color: '#374151' }}>{textoBoton}</Typography>
+            </Box>
+            <Popover open={!!anchor} anchorEl={anchor} onClose={() => setAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                slotProps={{ paper: { sx: { mt: 1, borderRadius: 4, width: 290, overflow: 'hidden', boxShadow: '0 12px 32px rgba(16,24,40,0.18)' } } }}>
+                <Box sx={{ bgcolor: '#6c4fd1', color: '#fff', px: 2, py: 1.5 }}>
+                    <Typography sx={{ fontSize: 12, opacity: 0.85 }}>{sel ? DIAS_ES[sel.getDay()] : 'Sin día elegido'}</Typography>
+                    <Typography sx={{ fontSize: 20, fontWeight: 600 }}>
+                        {sel ? `${sel.getDate()} ${MESES_ES[sel.getMonth()].slice(0, 3).toLowerCase()} ${sel.getFullYear()}` : 'Todo el mes'}
+                    </Typography>
+                </Box>
+                <Box sx={{ p: 1.5 }}>
+                    <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                        <IconButton size="small" onClick={() => mover(-1)}><ChevronLeftIcon fontSize="small" /></IconButton>
+                        <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{MESES_ES[vista.m]} {vista.y}</Typography>
+                        <IconButton size="small" onClick={() => mover(1)}><ChevronRightIcon fontSize="small" /></IconButton>
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', rowGap: 0.3, textAlign: 'center' }}>
+                        {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d, i) => (
+                            <Typography key={i} sx={{ fontSize: 11, color: '#9aa3b2', py: 0.5 }}>{d}</Typography>
+                        ))}
+                        {celdas.map((iso, i) => {
+                            if (!iso) return <Box key={i} />;
+                            const esSel = iso === value;
+                            const esHoy = iso === hoy;
+                            return (
+                                <Box key={iso} onClick={() => elegir(iso)} sx={{
+                                    mx: 'auto', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    borderRadius: 2.5, cursor: 'pointer', fontSize: 13,
+                                    fontWeight: esSel || esHoy ? 700 : 400,
+                                    bgcolor: esSel ? '#6c4fd1' : esHoy ? '#ece8fb' : 'transparent',
+                                    color: esSel ? '#fff' : esHoy ? '#4b35a8' : '#374151',
+                                    '&:hover': { bgcolor: esSel ? '#5a3fc0' : '#f3f0fd' },
+                                }}>{+iso.slice(8, 10)}</Box>
+                            );
+                        })}
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" mt={1.5} px={0.5}>
+                        <Box onClick={() => { onChange(''); setAnchor(null); }}
+                            sx={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#6c4fd1' }}>Ver todo el mes</Box>
+                        <Box onClick={() => elegir(hoy)}
+                            sx={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#6c4fd1' }}>Hoy</Box>
+                    </Box>
+                </Box>
+            </Popover>
+        </>
+    );
+};
+
 function Plan() {
     const [pedidos, setPedidos] = useState([]);
     const [rutas, setRutas] = useState({});
@@ -50,7 +149,8 @@ function Plan() {
     const [filtroCliente, setFiltroCliente] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
 
-    const [tabIndex, setTabIndex] = useState(0);
+    // Solo se muestra la pestaña "Pedidos del día" (índice 2). Plan y Rutas guardadas quedan comentadas.
+    const [tabIndex, setTabIndex] = useState(2);
     const [rutasDB, setRutasDB] = useState([]);
     const [cargandoRutas, setCargandoRutas] = useState(false);
 
@@ -73,11 +173,12 @@ function Plan() {
     const [pedidosSanced, setPedidosSanced] = useState([]);
     const [cargandoSanced, setCargandoSanced] = useState(false);
     const [cambiosSanced, setCambiosSanced] = useState({});
-    const [mesSanced, setMesSanced] = useState(
-        new Date().toISOString().slice(0, 7) // '2026-05'
-    );
+    // Fecha local de hoy (YYYY-MM-DD): la pantalla abre mostrando los pedidos de HOY
+    const hoyLocal = new Date().toLocaleDateString('en-CA');
+    const [mesSanced, setMesSanced] = useState(hoyLocal.slice(0, 7)); // '2026-10'
 
-    const [diaSanced, setDiaSanced] = useState('');
+    const [diaSanced, setDiaSanced] = useState(hoyLocal);
+    const [soloSinFecha, setSoloSinFecha] = useState(false);
 
     const [modalPaqueteria, setModalPaqueteria] = useState({ open: false, pedido: null });
 
@@ -414,20 +515,23 @@ function Plan() {
         piezas: peds.reduce((s, p) => s + (p.PIEZAS || 0), 0),
     });
 
-    // ✅ Días únicos disponibles en los pedidos cargados
-    const diasDisponibles = useMemo(() => {
-        const dias = [...new Set(pedidosSanced.map(p => (p.fecha_factura || p.fecha)?.slice(0, 10)).filter(Boolean))];
-        return dias.sort();
-    }, [pedidosSanced]);
-
     // ✅ Pedidos filtrados por día si se seleccionó uno
     const pedidosSancedFiltrados = useMemo(() => {
         if (!diaSanced) return pedidosSanced;
         return pedidosSanced.filter(p => (p.fecha_factura || p.fecha)?.slice(0, 10) === diaSanced);
     }, [pedidosSanced, diaSanced]);
 
+    // ⚠️ Pedidos (no cancelados) sin fecha de entrega
+    const sinFechaEntrega = useMemo(() => pedidosSanced.filter(p => {
+        const c = cambiosSanced[p.no_orden] || {};
+        const fecha = c.fecha_entrega ?? p.fecha_entrega?.slice(0, 10);
+        return !fecha && (c.status ?? p.status) !== 'cancelado';
+    }), [pedidosSanced, cambiosSanced]);
+    const pedidosVisibles = soloSinFecha && sinFechaEntrega.length > 0 ? sinFechaEntrega : pedidosSancedFiltrados;
+
     // ✅ Cargar por mes
-    const cargarPedidosSanced = async (mes) => {
+    // `dia`: si se manda, fija el día a mostrar ('' = todo el mes). Si no se manda, conserva el día actual.
+    const cargarPedidosSanced = async (mes, dia) => {
         setCargandoSanced(true);
         try {
             const mesParam = mes || mesSanced;
@@ -436,13 +540,19 @@ function Plan() {
             );
             setPedidosSanced(res.data.data || []);
             setCambiosSanced({});
-            setDiaSanced('');
+            if (dia !== undefined) setDiaSanced(dia);
         } catch {
             setPedidosSanced([]);
         } finally {
             setCargandoSanced(false);
         }
     };
+
+    // Al abrir la pantalla ya estamos en "Pedidos del día": carga los datos
+    useEffect(() => {
+        cargarPedidosSanced();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // #region SUBIR_EXCEL_ENTREGAS
     const excelSerialAFecha = (valor) => {
@@ -569,12 +679,12 @@ function Plan() {
 
     return (
         <div className="place_holder-container fade-in">
-            <div className="place_holder-header" style={{ background: '#e74c3c', padding: '8px 16px' }}>
-                <span className="place_holder-title" style={{ color: '#fff', fontWeight: 600, fontSize: 20 }}>
+            <div className="place_holder-header">
+                <span className="place_holder-title">
                     Plan de Rutas
                 </span>
                 <button className="place_holder-close" onClick={() => (window.location.href = '/menu')}>
-                    <FaTimes color="#fff" />
+                    <FaTimes />
                 </button>
             </div>
 
@@ -585,9 +695,9 @@ function Plan() {
                     if (v === 1) cargarRutasDB();
                     if (v === 2) cargarPedidosSanced(); // ✅ NUEVO TAB
                 }}>
-                    <Tab label="📋 Plan" />
-                    <Tab label="🚛 Rutas Guardadas" />
-                    <Tab label="📦 Pedidos del Día" /> {/* ✅ NUEVO */}
+                    {/* <Tab icon={<AssignmentOutlinedIcon fontSize="small" />} iconPosition="start" label="Plan" sx={{ minHeight: 52, textTransform: 'none', fontWeight: 600, fontSize: '0.95rem' }} /> */}
+                    {/* <Tab icon={<LocalShippingOutlinedIcon fontSize="small" />} iconPosition="start" label="Rutas guardadas" sx={{ minHeight: 52, textTransform: 'none', fontWeight: 600, fontSize: '0.95rem' }} /> */}
+                    <Tab value={2} icon={<Inventory2OutlinedIcon fontSize="small" />} iconPosition="start" label="Pedidos del día" sx={{ minHeight: 52, textTransform: 'none', fontWeight: 600, fontSize: '0.95rem' }} />
                 </Tabs>
             </Box>
 
@@ -596,20 +706,20 @@ function Plan() {
                 <Box p={2}>
                     <Paper sx={{ p: 2, mb: 2 }}>
                         <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-                            <Button variant="contained" component="label" sx={{ bgcolor: '#1976d2', textTransform: 'none' }}>
-                                📂 Subir Excel
+                            <Button variant="contained" component="label" sx={{ bgcolor: '#1976d2', color: '#fff', borderColor: '#1976d2', textTransform: 'none', '&:hover': { bgcolor: '#1565c0', color: '#fff' } }}>
+                                <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Subir Excel
                                 <input hidden type="file" accept=".xlsx,.xls" onChange={handleFileUpload} />
                             </Button>
                             <Button variant="contained" disabled={cargandoCD} onClick={cargarPedidosCDDesdeAPI}
-                                sx={{ bgcolor: '#00897b', textTransform: 'none' }}>
-                                {cargandoCD ? 'Cargando...' : '🔄 Cargar CD (API)'}
+                                sx={{ bgcolor: '#00897b', color: '#fff', borderColor: '#00897b', textTransform: 'none', '&:hover': { bgcolor: '#00796b', color: '#fff' } }}>
+                                {cargandoCD ? 'Cargando...' : <><SyncOutlinedIcon fontSize="small" sx={{ mr: 1 }} />Cargar CD (API)</>}
                             </Button>
                             <TextField size="small" placeholder="Nombre de Ruta" value={nuevaRuta}
                                 onChange={e => setNuevaRuta(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && agregarRuta()}
                                 sx={{ minWidth: 160 }} />
-                            <Button variant="contained" onClick={agregarRuta} sx={{ bgcolor: '#fb8c00', textTransform: 'none' }}>
-                                + Agregar Ruta
+                            <Button variant="contained" onClick={agregarRuta} sx={{ bgcolor: '#fb8c00', color: '#fff', borderColor: '#fb8c00', textTransform: 'none', '&:hover': { bgcolor: '#ef6c00', color: '#fff' } }}>
+                                <AddIcon fontSize="small" sx={{ mr: 0.5 }} />Agregar ruta
                             </Button>
                             <FormControl size="small" sx={{ minWidth: 160 }}>
                                 <InputLabel>Tipo de Ruta</InputLabel>
@@ -618,7 +728,7 @@ function Plan() {
                                 </Select>
                             </FormControl>
                             <Button variant="contained" color="success" disabled={cargando} onClick={handleEnviar} sx={{ textTransform: 'none' }}>
-                                {cargando ? 'Enviando...' : '✅ Enviar Rutas'}
+                                {cargando ? 'Enviando...' : <><CheckCircleOutlineIcon fontSize="small" sx={{ mr: 1 }} />Enviar rutas</>}
                             </Button>
                             <Button variant="contained" color="error"
                                 onClick={() => {
@@ -632,7 +742,7 @@ function Plan() {
                                         guardarLS(rutas, []);
                                     });
                                 }} sx={{ textTransform: 'none' }}>
-                                🗑 Limpiar Tabla
+                                <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />Limpiar tabla
                             </Button>
                         </Box>
 
@@ -741,7 +851,7 @@ function Plan() {
                         </Paper>
                     ) : (
                         <Box textAlign="center" mt={6} color="#888">
-                            <Typography variant="h6">📂 Sube un archivo Excel para comenzar</Typography>
+                            <Typography variant="h6"><BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Sube un archivo Excel para comenzar</Typography>
                         </Box>
                     )}
                 </Box>
@@ -844,79 +954,43 @@ function Plan() {
                     {/* HEADER */}
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}
                         sx={{ bgcolor: '#f5f5f5', p: 2, borderRadius: 2 }}>
-                        <Typography variant="h6" fontWeight="bold">📦 Pedidos del Mes</Typography>
+                        <Typography variant="h6" fontWeight="bold">{diaSanced ? 'Pedidos del día' : 'Pedidos del mes'}</Typography>
 
                         <Box display="flex" gap={2} alignItems="center">
-                            <FormControl size="small" sx={{ minWidth: 100 }}>
-                                <InputLabel>Año</InputLabel>
-                                <Select
-                                    value={mesSanced.split('-')[0]}
-                                    label="Año"
-                                    onChange={e => {
-                                        const nuevoMes = `${e.target.value}-${mesSanced.split('-')[1]}`;
-                                        setMesSanced(nuevoMes);
-                                        setDiaSanced('');
-                                        cargarPedidosSanced(nuevoMes);
+                            {/* Calendario para filtrar por día (limitado al mes elegido) */}
+                            <Box sx={{
+                                display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1.5, height: 40,
+                                border: diaSanced ? '1px solid #2f6fed' : '1px solid #d9dde6', borderRadius: 99, background: '#fff',
+                                boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
+                            }}>
+                                <CalendarioDia
+                                    value={diaSanced}
+                                    onChange={v => {
+                                        if (!v) { setDiaSanced(''); return; }
+                                        const mesNuevo = v.slice(0, 7);
+                                        if (mesNuevo !== mesSanced) {
+                                            setMesSanced(mesNuevo);
+                                            cargarPedidosSanced(mesNuevo, v);
+                                        } else {
+                                            setDiaSanced(v);
+                                        }
                                     }}
-                                >
-                                    {[2024, 2025, 2026, 2027].map(anio => (
-                                        <MenuItem key={anio} value={String(anio)}>{anio}</MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-
-                            <FormControl size="small" sx={{ minWidth: 130 }}>
-                                <InputLabel>Mes</InputLabel>
-                                <Select
-                                    value={mesSanced.split('-')[1]}
-                                    label="Mes"
-                                    onChange={e => {
-                                        const nuevoMes = `${mesSanced.split('-')[0]}-${e.target.value}`;
-                                        setMesSanced(nuevoMes);
-                                        setDiaSanced('');
-                                        cargarPedidosSanced(nuevoMes);
-                                    }}
-                                >
-                                    <MenuItem value="01">Enero</MenuItem>
-                                    <MenuItem value="02">Febrero</MenuItem>
-                                    <MenuItem value="03">Marzo</MenuItem>
-                                    <MenuItem value="04">Abril</MenuItem>
-                                    <MenuItem value="05">Mayo</MenuItem>
-                                    <MenuItem value="06">Junio</MenuItem>
-                                    <MenuItem value="07">Julio</MenuItem>
-                                    <MenuItem value="08">Agosto</MenuItem>
-                                    <MenuItem value="09">Septiembre</MenuItem>
-                                    <MenuItem value="10">Octubre</MenuItem>
-                                    <MenuItem value="11">Noviembre</MenuItem>
-                                    <MenuItem value="12">Diciembre</MenuItem>
-                                </Select>
-                            </FormControl>
-
-                            {diasDisponibles.length > 0 && (
-                                <FormControl size="small" sx={{ minWidth: 150 }}>
-                                    <InputLabel>Filtrar por día</InputLabel>
-                                    <Select
-                                        value={diaSanced}
-                                        label="Filtrar por día"
-                                        onChange={e => setDiaSanced(e.target.value)}
-                                    >
-                                        <MenuItem value="">-- Todos los días --</MenuItem>
-                                        {diasDisponibles.map(dia => (
-                                            <MenuItem key={dia} value={dia}>
-                                                {new Date(dia + 'T12:00:00').toLocaleDateString('es-MX', {
-                                                    weekday: 'long', day: 'numeric', month: 'long'
-                                                })}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                            )}
+                                />
+                            </Box>
 
                             <Button variant="outlined" size="small"
                                 onClick={() => cargarPedidosSanced(mesSanced)}
                                 disabled={cargandoSanced}>
                                 🔄 Actualizar
                             </Button>
+
+                            {sinFechaEntrega.length > 0 && (
+                                <Button variant={soloSinFecha ? 'contained' : 'outlined'} size="small" color="warning"
+                                    onClick={() => setSoloSinFecha(v => !v)}
+                                    startIcon={<WarningAmberOutlinedIcon />}>
+                                    {soloSinFecha ? 'Ver todos' : `${sinFechaEntrega.length} sin fecha de entrega (mes)`}
+                                </Button>
+                            )}
 
                             {/* #region SUBIR_EXCEL_ENTREGAS - UI */}
                             <input
@@ -929,12 +1003,12 @@ function Plan() {
                             <Button variant="outlined" size="small" color="secondary"
                                 onClick={() => inputExcelEntregasRef.current?.click()}
                                 disabled={subiendoEntregas}>
-                                {subiendoEntregas ? 'Procesando…' : '📤 Subir Excel de Entregas'}
+                                {subiendoEntregas ? 'Procesando…' : <><BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Subir Excel de Entregas</>}
                             </Button>
                             {/* #endregion SUBIR_EXCEL_ENTREGAS - UI */}
 
                             <Chip
-                                label={`${pedidosSancedFiltrados.length} pedidos`}
+                                label={`${pedidosVisibles.length} pedidos`}
                                 sx={{ bgcolor: '#e3f2fd', fontWeight: 'bold' }} />
                         </Box>
                     </Box>
@@ -968,8 +1042,9 @@ function Plan() {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {pedidosSancedFiltrados.map((p) => {
+                                        {pedidosVisibles.map((p) => {
                                             const cambio = cambiosSanced[p.no_orden] || {};
+                                            const sinFecha = !(cambio.fecha_entrega ?? p.fecha_entrega?.slice(0, 10)) && (cambio.status ?? p.status) !== 'cancelado';
                                             const statusActual = cambio.status ?? p.status;
                                             const entregaActual = cambio.entrega ?? p.entrega;
                                             const hayPendiente = cambiosSanced[p.no_orden] !== undefined;
@@ -1016,6 +1091,7 @@ function Plan() {
                                                             value={cambio.fecha_entrega ?? p.fecha_entrega?.slice(0, 10) ?? ''}
                                                             onChange={e => handleCambioSanced(p.no_orden, 'fecha_entrega', e.target.value)}
                                                             InputLabelProps={{ shrink: true }}
+                                                            error={sinFecha}
                                                             sx={{ minWidth: 145 }}
                                                         />
                                                     </TableCell>

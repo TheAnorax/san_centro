@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Card, CardContent, Typography, Box, Divider, Button, TextField, Chip, MenuItem, Select, Tooltip, Checkbox } from '@mui/material';
+import { Card, Typography, Box, Button, TextField, Chip, MenuItem, Select, Tooltip, Checkbox, InputAdornment, IconButton } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import Pagination from '@mui/material/Pagination';
 import { FaTimes } from "react-icons/fa";
 import axios from 'axios';
-import logoSantul from '../../img/general/icono_santul.png';
 import Swal from "sweetalert2";
+import logoSantul from '../../img/general/icono_santul.png';
 
 function Pedidos() {
     const [pedidos, setPedidos] = useState([]);
@@ -13,11 +15,26 @@ function Pedidos() {
     const [page, setPage] = useState(1);
     const [searchNoOrden, setSearchNoOrden] = useState('');
     const [, setBuscando] = useState(false);
-    const pedidosPorPagina = 6;
+    const pedidosPorPagina = 4;
     const searchTimeout = useRef(null);
 
     const [bahias, setBahias] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
+    const nombreBonito = (n) => (n || '').toString().trim().toLowerCase()
+        .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+    const usuariosOrdenados = useMemo(
+        () => [...usuarios].sort((a, b) => nombreBonito(a.nombre).localeCompare(nombreBonito(b.nombre), 'es')),
+        [usuarios]
+    );
+    const menuUsuarios = {
+        PaperProps: { sx: { borderRadius: '12px', mt: 0.5, maxHeight: 320, boxShadow: '0 8px 24px rgba(16,24,40,0.15)' } },
+        MenuListProps: { sx: { py: 0.5 } },
+    };
+    const itemUsuarioSx = {
+        fontSize: '0.88rem', mx: 0.5, borderRadius: '8px', py: 0.8,
+        '&.Mui-selected': { backgroundColor: '#eaf1ff', color: '#1d4ed8', fontWeight: 600 },
+        '&.Mui-selected:hover': { backgroundColor: '#dde8ff' },
+    };
     const [bahiasPorPedido, setBahiasPorPedido] = useState({});
     const [usuariosPorPedido, setUsuariosPorPedido] = useState({});
     const [responsablesCuarto, setResponsablesCuarto] = useState([]);
@@ -253,22 +270,44 @@ function Pedidos() {
 
     return (
         <div className="place_holder-container fade-in">
-            <div className="place_holder-header" style={{ background: '#e74c3c', padding: '8px 16px' }}>
-                <span className="place_holder-title" style={{ color: '#fff', fontWeight: 600, fontSize: 20 }}>
+            <div className="place_holder-header">
+                <span className="place_holder-title">
                     Pedidos Faltantes
                 </span>
                 <button className="place_holder-close" onClick={() => (window.location.href = '/menu')}>
-                    <FaTimes color="#fff" />
+                    <FaTimes />
                 </button>
             </div>
 
             <Box display="flex" justifyContent="center" alignItems="center" mt={3} mb={2}>
                 <TextField
-                    size="small" variant="outlined" label="Buscar por No. Orden"
+                    size="small" variant="outlined" placeholder="Buscar por No. Orden"
                     value={searchNoOrden} onChange={e => { setSearchNoOrden(e.target.value); setPage(1); }}
-                    sx={{ width: 240, mr: 1 }}
+                    sx={{
+                        width: 320,
+                        '& .MuiOutlinedInput-root': {
+                            borderRadius: 99, background: '#fff', height: 42,
+                            boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
+                            '& fieldset': { borderColor: '#d9dde6' },
+                            '&:hover fieldset': { borderColor: '#b6bdcc' },
+                            '&.Mui-focused fieldset': { borderColor: '#2f6fed', borderWidth: 1 },
+                        },
+                    }}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon fontSize="small" sx={{ color: '#9aa3b2' }} />
+                            </InputAdornment>
+                        ),
+                        endAdornment: searchNoOrden ? (
+                            <InputAdornment position="end">
+                                <IconButton size="small" onClick={() => setSearchNoOrden('')}>
+                                    <ClearIcon fontSize="small" />
+                                </IconButton>
+                            </InputAdornment>
+                        ) : null,
+                    }}
                 />
-                {searchNoOrden && <Button color="secondary" onClick={() => setSearchNoOrden('')}>Limpiar</Button>}
             </Box>
 
             {totalPaginas > 1 && (
@@ -297,6 +336,7 @@ function Pedidos() {
                     {selectedPedidos.length >= 2 && (<>
                         <Select
                             multiple
+                            MenuProps={menuUsuarios}
                             value={bahiasFusion}
                             onChange={e => setBahiasPorPedido(prev => ({
                                 ...prev,
@@ -312,10 +352,10 @@ function Pedidos() {
                             sx={{ minWidth: 180, background: '#fff' }}
                             displayEmpty
                         >
-                            <MenuItem disabled value=""><em>Bahía(s)</em></MenuItem>
+                            <MenuItem disabled value="" sx={itemUsuarioSx}><em>Bahía(s)</em></MenuItem>
                             {bahiasLibres.map(b => {
                                 const name = nombreBahia(b);
-                                return <MenuItem key={name} value={name}>{name}</MenuItem>;
+                                return <MenuItem key={name} value={name} sx={itemUsuarioSx}>{name}</MenuItem>;
                             })}
                         </Select>
 
@@ -337,19 +377,20 @@ function Pedidos() {
                         </Box>
 
                         {modoFusion === 'individual' && (
-                            <select
+                            <Select
+                                size="small"
+                                displayEmpty
                                 value={usuarioFusion || ''}
                                 onChange={e => handleUsuarioChange(FUSION_KEY, Number(e.target.value))}
-                                style={{
-                                    height: 38, borderRadius: 8, border: '1px solid #ce93d8',
-                                    fontSize: 15, padding: '0 10px', background: '#fff', minWidth: 140
-                                }}
+                                MenuProps={menuUsuarios}
+                                renderValue={(v) => v === '' ? <span style={{ color: '#9ca3af' }}>Selecciona usuario</span> : nombreBonito((usuarios.find(u => u.id_usuario === v) || {}).nombre)}
+                                sx={{ background: '#fff', borderRadius: '10px', fontSize: '0.85rem', minWidth: 190, '& .MuiSelect-select': { py: 0.7 } }}
                             >
-                                <option value="">Selecciona usuario</option>
-                                {usuarios.map(u => (
-                                    <option key={u.id_usuario} value={u.id_usuario}>{u.nombre}</option>
+                                <MenuItem disabled value="" sx={itemUsuarioSx}><em>Selecciona usuario</em></MenuItem>
+                                {usuariosOrdenados.map(u => (
+                                    <MenuItem key={u.id_usuario} value={u.id_usuario} sx={itemUsuarioSx}>{nombreBonito(u.nombre)}</MenuItem>
                                 ))}
-                            </select>
+                            </Select>
                         )}
 
                         <Button
@@ -438,223 +479,256 @@ function Pedidos() {
                             return (
                                 <Card
                                     sx={{
-                                        mb: 4,
-                                        boxShadow: isSeleccionado ? '0 0 0 2px #7b1fa2' : 2,
-                                        background: isSeleccionado ? '#fce4ff' : '#fff'
+                                        mb: 2.5,
+                                        overflow: 'hidden',
+                                        borderRadius: '16px',
+                                        border: isSeleccionado ? '2px solid #7b1fa2' : '1px solid #e6e9ef',
+                                        boxShadow: '0 2px 10px rgba(16,24,40,0.06)',
+                                        background: isSeleccionado ? '#fdf4ff' : '#fff',
+                                        transition: 'box-shadow .2s ease, transform .2s ease',
+                                        '&:hover': { boxShadow: '0 8px 24px rgba(16,24,40,0.10)' },
                                     }}
                                     key={pedido.no_orden}
                                 >
-                                    <CardContent>
-                                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                    {/* ── Encabezado: pedido + asignación ── */}
+                                    <Box sx={{
+                                        px: 2.5, py: 1.5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5,
+                                        background: isSeleccionado ? '#f6e3fa' : 'linear-gradient(180deg, #fafbff 0%, #f3f5fb 100%)',
+                                        borderBottom: '1px solid #e6e9ef',
+                                    }}>
+                                        {pedido.estado_proceso === 'PENDIENTE' && (
+                                            <Tooltip title={isSeleccionado ? "Quitar de fusión" : "Seleccionar para fusión"} arrow>
+                                                <Checkbox
+                                                    checked={isSeleccionado}
+                                                    onChange={() => toggleSeleccionPedido(pedido)}
+                                                    sx={{ p: 0.5, color: '#9aa3b2', '&.Mui-checked': { color: '#7b1fa2' }, '& .MuiSvgIcon-root': { fontSize: 32 } }}
+                                                />
+                                            </Tooltip>
+                                        )}
 
-                                            {/* Logo + Checkbox */}
-                                            <Box display="flex" alignItems="center" gap={1}>
-                                                <img src={logoSantul} alt="Logo" style={{ width: 90, height: 90 }} />
-                                                {pedido.estado_proceso === 'PENDIENTE' && (
-                                                    <Tooltip title={isSeleccionado ? "Quitar de fusión" : "Seleccionar para fusión"} arrow>
-                                                        <Checkbox
-                                                            checked={isSeleccionado}
-                                                            onChange={() => toggleSeleccionPedido(pedido)}
-                                                            sx={{ color: '#7b1fa2', '&.Mui-checked': { color: '#7b1fa2' } }}
-                                                        />
-                                                    </Tooltip>
-                                                )}
-                                            </Box>
+                                        <Box sx={{
+                                            width: 46, height: 46, borderRadius: '14px', background: '#fff',
+                                            border: '1px solid #e6e9ef', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
+                                        }}>
+                                            <img src={logoSantul} alt="Logo" style={{ width: 30, height: 30 }} />
+                                        </Box>
 
-                                            {/* Controles — se ocultan solo si está seleccionado para fusión */}
-                                            <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: 'wrap' }}>
-                                                {isSeleccionado ? (
-                                                    // ✅ Pedido seleccionado: solo muestra chip, controles ocultos
-                                                    <Chip
-                                                        label="Seleccionado para fusión 🔗"
-                                                        sx={{ background: '#7b1fa2', color: '#fff', fontWeight: 700 }}
-                                                    />
-                                                ) : (
-                                                    // ✅ Pedido normal: muestra todos los controles
-                                                    <>
-                                                        <Select
-                                                            multiple
-                                                            value={bahiasPorPedido[pedido.no_orden] || []}
-                                                            onChange={(e) =>
-                                                                setBahiasPorPedido(prev => ({
-                                                                    ...prev,
-                                                                    [pedido.no_orden]: typeof e.target.value === 'string'
-                                                                        ? e.target.value.split(',')
-                                                                        : e.target.value
-                                                                }))
-                                                            }
-                                                            renderValue={(selected) => (
-                                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                                                    {selected.map((value) => <Chip key={value} label={value} />)}
-                                                                </Box>
-                                                            )}
-                                                            sx={{ minWidth: 200 }}
-                                                            displayEmpty
-                                                        >
-                                                            <MenuItem disabled value=""><em>Bahía(s)</em></MenuItem>
-                                                            {bahiasLibres.map(b => {
-                                                                const name = nombreBahia(b);
-                                                                return <MenuItem key={name} value={name}>{name}</MenuItem>;
-                                                            })}
-                                                        </Select>
-
-                                                        <Box sx={{ display: 'flex', border: '1px solid #ddd', borderRadius: 2, overflow: 'hidden' }}>
-                                                            <button
-                                                                onClick={() => handleModoChange(pedido.no_orden, 'individual')}
-                                                                style={{
-                                                                    padding: '6px 14px', fontSize: 13, cursor: 'pointer', border: 'none',
-                                                                    background: modo === 'individual' ? '#1565c0' : '#f5f5f5',
-                                                                    color: modo === 'individual' ? '#fff' : '#333',
-                                                                    fontWeight: modo === 'individual' ? 700 : 400,
-                                                                }}
-                                                            >
-                                                                👤 Individual
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleModoChange(pedido.no_orden, 'cuarto')}
-                                                                style={{
-                                                                    padding: '6px 14px', fontSize: 13, cursor: 'pointer', border: 'none',
-                                                                    borderLeft: '1px solid #ddd',
-                                                                    background: modo === 'cuarto' ? '#2e7d32' : '#f5f5f5',
-                                                                    color: modo === 'cuarto' ? '#fff' : '#333',
-                                                                    fontWeight: modo === 'cuarto' ? 700 : 400,
-                                                                }}
-                                                            >
-                                                                🏢 Por Cuarto
-                                                            </button>
-                                                        </Box>
-
-                                                        {modo === 'individual' && (
-                                                            <select
-                                                                value={usuariosPorPedido[pedido.no_orden] || ''}
-                                                                onChange={e => handleUsuarioChange(pedido.no_orden, Number(e.target.value))}
-                                                                style={{
-                                                                    height: 38, borderRadius: 8, border: '1px solid #bbb',
-                                                                    fontSize: 16, padding: '0 10px', background: '#faf9f9',
-                                                                    minWidth: 140
-                                                                }}
-                                                            >
-                                                                <option value="">Selecciona usuario</option>
-                                                                {usuarios.map(u => (
-                                                                    <option key={u.id_usuario} value={u.id_usuario}>{u.nombre}</option>
-                                                                ))}
-                                                            </select>
-                                                        )}
-
-                                                        <Tooltip
-                                                            title={
-                                                                pedido.estado_proceso === 'EN EMBARQUE'
-                                                                    ? '🚛 Este pedido ya está siendo embarcado.'
-                                                                    : pedido.estado_proceso === 'EN SURTIDO'
-                                                                        ? '📦 Este pedido ya está siendo surtido.'
-                                                                        : !puedeAgregar
-                                                                            ? '⚠️ Selecciona bahía' + (modo === 'individual' ? ' y usuario' : '')
-                                                                            : '✅ Listo para asignar'
-                                                            }
-                                                            arrow placement="top"
-                                                        >
-                                                            <span>
-                                                                <Button
-                                                                    variant="contained" size="small"
-                                                                    disabled={!puedeAgregar}
-                                                                    onClick={() => handleAgregarPedido(pedido)}
-                                                                    sx={{
-                                                                        bgcolor: modo === 'cuarto' ? '#2e7d32' : undefined,
-                                                                        '&:hover': { bgcolor: modo === 'cuarto' ? '#1b5e20' : undefined },
-                                                                        '&.Mui-disabled': {
-                                                                            bgcolor: pedido.estado_proceso === 'EN EMBARQUE'
-                                                                                ? '#1565c0 !important'
-                                                                                : pedido.estado_proceso === 'EN SURTIDO'
-                                                                                    ? '#e65100 !important'
-                                                                                    : undefined,
-                                                                            color: pedido.estado_proceso !== 'PENDIENTE' ? '#fff !important' : undefined,
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    {pedido.estado_proceso !== 'PENDIENTE'
-                                                                        ? pedido.estado_proceso
-                                                                        : modo === 'cuarto' ? '🏢 Asignar por Cuarto' : 'Agregar'
-                                                                    }
-                                                                </Button>
-                                                            </span>
-                                                        </Tooltip>
-                                                    </>
-                                                )}
-                                            </Box>
-
-                                            <Box flex={1} textAlign="center">
-                                                <Typography variant="h5" fontWeight={600}>
+                                        <Box sx={{ flex: '1 1 220px', minWidth: 200 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                                <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
                                                     {pedido.tipo} : {pedido.no_orden}
                                                 </Typography>
+                                                {pedido.estado_proceso !== 'PENDIENTE' && (
+                                                <Chip
+                                                    size="small"
+                                                    label={pedido.estado_proceso}
+                                                    sx={{
+                                                        fontWeight: 700, fontSize: '0.68rem', height: 22,
+                                                        background: pedido.estado_proceso === 'EN SURTIDO' ? '#fff1e6'
+                                                            : pedido.estado_proceso === 'EN EMBARQUE' ? '#e7f0ff' : '#fff8e1',
+                                                        color: pedido.estado_proceso === 'EN SURTIDO' ? '#c2410c'
+                                                            : pedido.estado_proceso === 'EN EMBARQUE' ? '#1d4ed8' : '#a16207',
+                                                    }}
+                                                />
+                                                )}
+                                                {isSeleccionado && (
+                                                    <Chip size="small" label="Fusión 🔗" sx={{ background: '#7b1fa2', color: '#fff', fontWeight: 700, height: 22 }} />
+                                                )}
                                             </Box>
-                                            <Typography variant="body1" align="right">
-                                                Registro: {pedido.registro ? new Date(pedido.registro).toLocaleDateString('es-MX') : ''}
+                                            <Typography sx={{ fontSize: '0.78rem', color: '#6b7280', mt: 0.4 }}>
+                                                Registro {pedido.registro ? new Date(pedido.registro).toLocaleDateString('es-MX') : ''} · {productos.length} productos
                                             </Typography>
                                         </Box>
 
-                                        <Divider sx={{ mb: 2 }} />
+                                        {!isSeleccionado && (
+                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                                                <Select
+                                                    multiple
+                                                    MenuProps={menuUsuarios}
+                                                    size="small"
+                                                    value={bahiasPorPedido[pedido.no_orden] || []}
+                                                    onChange={(e) =>
+                                                        setBahiasPorPedido(prev => ({
+                                                            ...prev,
+                                                            [pedido.no_orden]: typeof e.target.value === 'string'
+                                                                ? e.target.value.split(',')
+                                                                : e.target.value
+                                                        }))
+                                                    }
+                                                    renderValue={(selected) => (
+                                                        selected.length === 0
+                                                            ? <span style={{ color: '#9ca3af' }}>Bahía(s)</span>
+                                                            : (
+                                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                                                    {selected.map((value) => <Chip key={value} label={value} size="small" />)}
+                                                                </Box>
+                                                            )
+                                                    )}
+                                                    sx={{ background: '#fff', borderRadius: '10px', fontSize: '0.85rem', minWidth: 150, '& .MuiSelect-select': { py: 0.7 } }}
+                                                    displayEmpty
+                                                >
+                                                    <MenuItem disabled value="" sx={itemUsuarioSx}><em>Bahía(s)</em></MenuItem>
+                                                    {bahiasLibres.map(b => {
+                                                        const name = nombreBahia(b);
+                                                        return <MenuItem key={name} value={name} sx={itemUsuarioSx}>{name}</MenuItem>;
+                                                    })}
+                                                </Select>
 
-                                        <Box sx={{ maxWidth: 1000, margin: '0 auto', mb: 2 }}>
-                                            <Typography variant="h6" align="center">Productos</Typography>
-                                        </Box>
+                                                <Box sx={{ display: 'flex', background: '#e9ecf3', borderRadius: '10px', p: '3px', gap: '3px' }}>
+                                                    {[['individual', 'Individual'], ['cuarto', 'Por cuarto']].map(([m, texto]) => (
+                                                        <Box
+                                                            key={m}
+                                                            onClick={() => handleModoChange(pedido.no_orden, m)}
+                                                            sx={{
+                                                                px: 1.6, py: 0.55, borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', whiteSpace: 'nowrap',
+                                                                fontWeight: modo === m ? 700 : 500,
+                                                                color: modo === m ? '#111827' : '#6b7280',
+                                                                background: modo === m ? '#fff' : 'transparent',
+                                                                boxShadow: modo === m ? '0 1px 3px rgba(16,24,40,0.15)' : 'none',
+                                                                transition: 'all .15s ease',
+                                                            }}
+                                                        >
+                                                            {texto}
+                                                        </Box>
+                                                    ))}
+                                                </Box>
 
-                                        {/* ✅ Tabla de productos — siempre visible, incluso si está seleccionado */}
-                                        <Box sx={{ overflowX: 'auto', maxWidth: 1000, margin: '0 auto', mt: 1 }}>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.92rem', background: 'transparent', tableLayout: 'fixed' }}>
-                                                <thead>
-                                                    <tr style={{ background: isSeleccionado ? '#e1bee7' : '#f5f5f5' }}>
-                                                        <th style={{ padding: '6px', width: '15%', textAlign: 'center' }}>Código</th>
-                                                        <th style={{ padding: '6px', width: modo === 'cuarto' ? '28%' : '35%', textAlign: 'center' }}>Descripción</th>
-                                                        <th style={{ padding: '6px', width: '12%', textAlign: 'center' }}>Cantidad</th>
-                                                        <th style={{ padding: '6px', width: '18%', textAlign: 'center' }}>Pasillo</th>
-                                                        {modo === 'cuarto' && !isSeleccionado && (
-                                                            <th style={{ padding: '6px', width: '27%', textAlign: 'center' }}>Responsable</th>
-                                                        )}
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {(productosToShow || []).map((item, idx) => {
-                                                        const responsable = (modo === 'cuarto' && !isSeleccionado) ? getResponsable(item.ubicacion) : null;
-                                                        return (
-                                                            <tr key={idx} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.03)' }}>
-                                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>{item.codigo_pedido}</td>
-                                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>{item.descripcion}</td>
-                                                                <td style={{ padding: '4px 6px', textAlign: 'center' }}>{item.cantidad}</td>
-                                                                <td style={{
-                                                                    padding: '4px 6px', textAlign: 'center',
-                                                                    color: (!item.ubicacion || item.ubicacion === '' || item.ubicacion.toLowerCase().includes('sin ubicación')) ? '#d32f2f' : '#222',
-                                                                    fontWeight: (!item.ubicacion || item.ubicacion === '' || item.ubicacion.toLowerCase().includes('sin ubicación')) ? 600 : 400
+                                                {modo === 'individual' && (
+                                                    <Select
+                                                        size="small"
+                                                        displayEmpty
+                                                        value={usuariosPorPedido[pedido.no_orden] || ''}
+                                                        onChange={e => handleUsuarioChange(pedido.no_orden, Number(e.target.value))}
+                                                        MenuProps={menuUsuarios}
+                                                        renderValue={(v) => v === '' ? <span style={{ color: '#9ca3af' }}>Selecciona usuario</span> : nombreBonito((usuarios.find(u => u.id_usuario === v) || {}).nombre)}
+                                                        sx={{ background: '#fff', borderRadius: '10px', fontSize: '0.85rem', minWidth: 190, '& .MuiSelect-select': { py: 0.7 } }}
+                                                    >
+                                                        <MenuItem disabled value="" sx={itemUsuarioSx}><em>Selecciona usuario</em></MenuItem>
+                                                        {usuariosOrdenados.map(u => (
+                                                            <MenuItem key={u.id_usuario} value={u.id_usuario} sx={itemUsuarioSx}>{nombreBonito(u.nombre)}</MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                )}
+
+                                                <Tooltip
+                                                    title={
+                                                        pedido.estado_proceso === 'EN EMBARQUE'
+                                                            ? '🚛 Este pedido ya está siendo embarcado.'
+                                                            : pedido.estado_proceso === 'EN SURTIDO'
+                                                                ? '📦 Este pedido ya está siendo surtido.'
+                                                                : !puedeAgregar
+                                                                    ? '⚠️ Selecciona bahía' + (modo === 'individual' ? ' y usuario' : '')
+                                                                    : '✅ Listo para asignar'
+                                                    }
+                                                    arrow placement="top"
+                                                >
+                                                    <span>
+                                                        <Button
+                                                            variant="contained" size="small"
+                                                            disabled={!puedeAgregar}
+                                                            onClick={() => handleAgregarPedido(pedido)}
+                                                            sx={{
+                                                                height: 36, borderRadius: '10px', px: 2.5,
+                                                                bgcolor: modo === 'cuarto' ? '#2e7d32' : undefined,
+                                                                ...(modo === 'cuarto' && { color: '#fff', borderColor: '#2e7d32' }),
+                                                                '&:hover': {
+                                                                    bgcolor: modo === 'cuarto' ? '#1b5e20' : undefined,
+                                                                    ...(modo === 'cuarto' && { color: '#fff', borderColor: '#1b5e20' }),
+                                                                },
+                                                                '&.Mui-disabled': {
+                                                                    bgcolor: pedido.estado_proceso === 'EN EMBARQUE'
+                                                                        ? '#1565c0 !important'
+                                                                        : pedido.estado_proceso === 'EN SURTIDO'
+                                                                            ? '#e65100 !important'
+                                                                            : undefined,
+                                                                    color: pedido.estado_proceso !== 'PENDIENTE' ? '#fff !important' : undefined,
+                                                                }
+                                                            }}
+                                                        >
+                                                            {pedido.estado_proceso !== 'PENDIENTE'
+                                                                ? pedido.estado_proceso
+                                                                : modo === 'cuarto' ? 'Asignar por cuarto' : 'Agregar'
+                                                            }
+                                                        </Button>
+                                                    </span>
+                                                </Tooltip>
+                                            </Box>
+                                        )}
+                                    </Box>
+
+                                    {/* ── Tabla de productos ── */}
+                                    <Box sx={{ overflowX: 'auto', px: 1 }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', tableLayout: 'fixed' }}>
+                                            <thead>
+                                                <tr>
+                                                    {[
+                                                        ['Código', modo === 'cuarto' && !isSeleccionado ? '11%' : '12%', 'left'],
+                                                        ['Descripción', modo === 'cuarto' && !isSeleccionado ? '34%' : '50%', 'left'],
+                                                        ['Cantidad', '12%', 'center'],
+                                                        ['Pasillo', '20%', 'center'],
+                                                        ...(modo === 'cuarto' && !isSeleccionado ? [['Responsable', '23%', 'center']] : []),
+                                                    ].map(([titulo, ancho, align]) => (
+                                                        <th key={titulo} style={{
+                                                            padding: '10px 12px', width: ancho, textAlign: align,
+                                                            color: '#8b93a7', fontWeight: 700, fontSize: '0.7rem',
+                                                            textTransform: 'uppercase', letterSpacing: '0.6px',
+                                                        }}>{titulo}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(productosToShow || []).map((item, idx) => {
+                                                    const responsable = (modo === 'cuarto' && !isSeleccionado) ? getResponsable(item.ubicacion) : null;
+                                                    const sinUbic = (!item.ubicacion || item.ubicacion === '' || item.ubicacion.toLowerCase().includes('sin ubicación'));
+                                                    return (
+                                                        <tr key={idx} style={{ borderTop: '1px solid #f0f2f6' }}>
+                                                            <td style={{ padding: '8px 12px', fontWeight: 700, color: '#111827' }}>{item.codigo_pedido}</td>
+                                                            <td style={{ padding: '8px 12px', color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.descripcion}>{item.descripcion}</td>
+                                                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                                                <span style={{ background: '#eaf1ff', color: '#1d4ed8', fontWeight: 700, borderRadius: 8, padding: '3px 10px', fontSize: '0.82rem' }}>
+                                                                    {item.cantidad}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                                                <span style={{
+                                                                    background: sinUbic ? '#fdecea' : '#f1f3f7',
+                                                                    color: sinUbic ? '#d32f2f' : '#374151',
+                                                                    fontWeight: sinUbic ? 700 : 500,
+                                                                    borderRadius: 99, padding: '3px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap',
                                                                 }}>
                                                                     {item.ubicacion || 'Sin ubicación'}
-                                                                </td>
-                                                                {modo === 'cuarto' && !isSeleccionado && (
-                                                                    <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                                                                        {responsable ? (
-                                                                            <span style={{ background: '#e8f5e9', color: '#2e7d32', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-                                                                                👤 {responsable.nombre}
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span style={{ color: '#bbb', fontSize: 11 }}>Sin asignar</span>
-                                                                        )}
-                                                                    </td>
-                                                                )}
-                                                            </tr>
-                                                        );
-                                                    })}
-
-                                                    {(pedido.productos?.length || 0) > 5 && (
-                                                        <tr>
-                                                            <td colSpan={(modo === 'cuarto' && !isSeleccionado) ? 5 : 4} style={{ textAlign: 'center', paddingTop: 8 }}>
-                                                                <Button size="small" variant="outlined" color="primary" onClick={() => toggleExpandPedido(pedido.no_orden)}>
-                                                                    {isExpanded ? "Ver menos" : `Ver todos (${pedido.productos.length})`}
-                                                                </Button>
+                                                                </span>
                                                             </td>
+                                                            {modo === 'cuarto' && !isSeleccionado && (
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                                                    {responsable ? (
+                                                                        <span style={{ background: '#e8f5e9', color: '#2e7d32', borderRadius: 99, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
+                                                                            {responsable.nombre}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ color: '#b6bcc9', fontSize: 11 }}>Sin asignar</span>
+                                                                    )}
+                                                                </td>
+                                                            )}
                                                         </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </Box>
+
+                                    {productos.length > 5 && (
+                                        <Box
+                                            onClick={() => toggleExpandPedido(pedido.no_orden)}
+                                            sx={{
+                                                textAlign: 'center', py: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
+                                                color: '#2f6fed', borderTop: '1px solid #f0f2f6', '&:hover': { background: '#f5f8ff' },
+                                            }}
+                                        >
+                                            {isExpanded ? 'Ver menos ▲' : `Ver todos (${productos.length}) ▼`}
                                         </Box>
-                                    </CardContent>
+                                    )}
                                 </Card>
                             );
                         })

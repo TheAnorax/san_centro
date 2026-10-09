@@ -1,6 +1,6 @@
 // src/components/views/Usuarios.jsx
 import React, { useState, useEffect, useMemo } from "react";
-import PrintIcon from "@mui/icons-material/Print";
+import PrintIcon from "@mui/icons-material/PrintOutlined";
 import { useNavigate } from "react-router-dom";
 import { FaTimes } from "react-icons/fa";
 import {
@@ -12,9 +12,9 @@ import {
 } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
 import AddIcon from "@mui/icons-material/PersonAdd";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import EditIcon from "@mui/icons-material/EditOutlined";
+import DeleteIcon from "@mui/icons-material/DeleteOutline";
+import VisibilityIcon from "@mui/icons-material/VisibilityOutlined";
 import QRCode from "qrcode";
 
 import "../../css/main_css/views/place_holder.css";
@@ -328,9 +328,9 @@ const Usuarios = ({ isSwitching }) => {
                         Lista de usuarios registrados
                     </Typography>
                     <Box display="flex" gap={1}>
+                        {/* Estilo de botón tomado del tema global (src/theme.js): borde rojo suave + texto rojo */}
                         <Button
                             variant="contained"
-                            sx={{ backgroundColor: "#1976d2", color: "#fff", textTransform: "none", fontWeight: "bold" }}
                             startIcon={<AddIcon />}
                             onClick={() => handleOpenDialog()}
                         >
@@ -340,7 +340,7 @@ const Usuarios = ({ isSwitching }) => {
                         {userRole === "admin" && (
                             <Button
                                 variant="outlined"
-                                sx={{ textTransform: "none", fontWeight: "bold" }}
+                                color="secondary"
                                 onClick={() => setOpenRolesModal(true)}
                             >
                                 Administrar Roles
@@ -349,8 +349,8 @@ const Usuarios = ({ isSwitching }) => {
 
                         {userRole === "admin" && (
                             <Button
-                                variant="text"
-                                sx={{ textTransform: "none", fontWeight: "bold", color: "#616161" }}
+                                variant="outlined"
+                                color="info"
                                 onClick={() => setOpenPermisos(true)}
                             >
                                 Permisos
@@ -368,11 +368,11 @@ const Usuarios = ({ isSwitching }) => {
                 ) : (
                     <Box display="flex" flexDirection="column" gap={3}>
                         {usuariosPorRol.map(([rol, lista]) => (
-                            <Paper key={rol} elevation={4} sx={{ borderRadius: 3, overflow: "hidden" }}>
-                                <Box sx={{ px: 2, py: 1.5, bgcolor: "#f44336" }}>
-                                    <Typography variant="subtitle1" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <Paper key={rol} elevation={0} sx={{ borderRadius: 2, overflow: "hidden", border: "1px solid #e5e7eb" }}>
+                                <Box sx={{ px: 2, py: 1.5, bgcolor: "#fff", borderBottom: "1px solid #e5e7eb" }}>
+                                    <Typography variant="subtitle1" sx={{ color: "#111827", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3 }}>
                                         {rol}{" "}
-                                        <Typography component="span" sx={{ ml: 1, fontWeight: 400 }}>
+                                        <Typography component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: 10, fontWeight: 600, fontSize: "0.8rem", color: "#2f6fed", bgcolor: "#eef4ff" }}>
                                             ({lista.length})
                                         </Typography>
                                     </Typography>
@@ -382,7 +382,7 @@ const Usuarios = ({ isSwitching }) => {
                                     <Table size="small">
                                         <TableHead>
                                             <TableRow>
-                                                {["Nombre", "Correo", "Rol", "Turno", "Acciones"].map((title) => (
+                                                {["Nombre", "Correo", "Acciones"].map((title) => (
                                                     <TableCell key={title} sx={{ fontWeight: 600, fontSize: 14 }}>
                                                         {title}
                                                     </TableCell>
@@ -398,8 +398,6 @@ const Usuarios = ({ isSwitching }) => {
                                                 >
                                                     <TableCell>{user.nombre}</TableCell>
                                                     <TableCell>{user.correo}</TableCell>
-                                                    <TableCell>{user.rol}</TableCell>
-                                                    <TableCell>{user.turno}</TableCell>
                                                     <TableCell>
                                                         <Box display="flex" gap={1}>
                                                             {userRole === "admin" && (
@@ -407,7 +405,7 @@ const Usuarios = ({ isSwitching }) => {
                                                                     <IconButton
                                                                         size="small"
                                                                         onClick={() => handleOpenDialog(user)}
-                                                                        sx={{ color: "#1976d2" }}
+                                                                        sx={{ color: "#2f6fed" }}
                                                                     >
                                                                         <EditIcon />
                                                                     </IconButton>
@@ -415,7 +413,7 @@ const Usuarios = ({ isSwitching }) => {
                                                                     <IconButton
                                                                         size="small"
                                                                         onClick={() => handleEliminarUsuario(user.id)}
-                                                                        sx={{ color: "#d32f2f" }}
+                                                                        sx={{ color: "#e53935" }}
                                                                     >
                                                                         <DeleteIcon />
                                                                     </IconButton>
@@ -426,7 +424,7 @@ const Usuarios = ({ isSwitching }) => {
                                                             <IconButton
                                                                 size="small"
                                                                 onClick={() => handleVerQR(user)}
-                                                                sx={{ color: "#2f00ffff" }}
+                                                                sx={{ color: "#16a34a" }}
                                                                 title="Ver QR de acceso"
                                                             >
                                                                 <VisibilityIcon />
@@ -436,7 +434,7 @@ const Usuarios = ({ isSwitching }) => {
                                                                 <IconButton
                                                                     size="small"
                                                                     onClick={() => handleOpenPrinter(user)}
-                                                                    sx={{ color: "#000000ff" }}
+                                                                    sx={{ color: "#7c3aed" }}
                                                                     title="Asignar impresora"
                                                                 >
                                                                     <PrintIcon />

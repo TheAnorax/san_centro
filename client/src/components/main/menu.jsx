@@ -16,7 +16,7 @@ import { useContext } from "react";
 import { UserContext } from "../../context/UserContext";
 
 // ? Importar Iconos ? \\
-import { FaHome, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { FaHome } from "react-icons/fa";
 
 // ? Importar Iconos 2 ? \\
 // import { FaChartColumn } from "react-icons/fa6";
@@ -29,8 +29,10 @@ import "../../css/main_css/main/menu.css";
 
 // ? Importar imágenes ? \\
 import icono_santul from "../../img/general/icono_santul.png";
-import user_pic_default from "../../img/menu/user_pic_defautl.png";
-import logo_sancedch_blanco from "../../img/general/logo_SanCed_CH.png";
+import logo_sancedch from "../../img/logob2.png";
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
+import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import RouteIcon from '@mui/icons-material/Route';
 
@@ -53,19 +55,9 @@ import Plan from "../views/Plan";
 
 
 
-import {
-  Menu as MuiMenu,
-  MenuItem,
-  Divider,
-  ListItemIcon,
-  Box,
-  Typography,
-} from "@mui/material"; // al inicio del archivo
 import PeopleIcon from "@mui/icons-material/People"; // Para Usuarios
 import Inventory2Icon from "@mui/icons-material/Inventory2"; // Para Productos
 import InputIcon from '@mui/icons-material/Input';
-import LogoutIcon from "@mui/icons-material/Logout";
-import BadgeIcon from "@mui/icons-material/Badge";
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import BallotIcon from '@mui/icons-material/Ballot';
@@ -82,7 +74,8 @@ import CategoryIcon from '@mui/icons-material/Category';
 
 // ? FUNCIÓN: Mostrar ventana de menú ? \\
 const Menu = () => {
-  const [isOpen, setIsOpen] = useState(true);
+  // El menú lateral ahora es un panel que se abre encima (con el fondo en gris).
+  const [isOpen, setIsOpen] = useState(false);
 
   // * ╔════════════════════════════════════════════════════════════╗ * \\
   // * ║                         Dashboard                          ║ * \\
@@ -123,16 +116,6 @@ const Menu = () => {
   // };
 
   // ... dentro del componente Menu
-  const [anchorEl, setAnchorEl] = useState(null);
-
-  const handleProfileClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -163,74 +146,46 @@ const Menu = () => {
 
   return (
     <div className="menu-container">
-      <header className="menu-header">
+      {/* Con el panel lateral abierto el encabezado se oculta (el panel ya trae logo y usuario) */}
+      <header className={`menu-header ${isOpen ? "menu-header-oculto" : ""}`}>
+        {/* Botón hamburguesa: abre/cierra el menú lateral */}
+        <button className="menu-hamburger" onClick={toggleSidebar} aria-label="Abrir o cerrar menú">
+          <MenuIcon />
+        </button>
         <div className="header-title">
-          <img src={logo_sancedch_blanco} className="header-logo" alt="Logo" />
+          <img src={logo_sancedch} className="header-logo" alt="SanCen Centro Histórico" />
         </div>
+        {/* Solo informativo: sin clic ni menú (cerrar sesión está en el panel lateral) */}
         <div className="user-profile">
-          <div className="profile-circle" onClick={handleProfileClick}>
-            <img src={user_pic_default} alt="Perfil" className="profile-pic" />
+          <div className="profile-circle">
+            <span className="profile-initial">
+              {(usuario?.nombre || "U").trim().charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="user-info">
+            <span className="user-name">{usuario?.nombre || "Usuario"}</span>
+            <span className="user-role">{usuario?.rol || ""}</span>
           </div>
         </div>
       </header>
-
-      <MuiMenu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        transformOrigin={{ vertical: "top", horizontal: "right" }}
-        PaperProps={{
-          elevation: 4,
-          sx: {
-            width: 220,
-            borderRadius: 2,
-            mt: 1,
-            boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
-          },
-        }}
-      >
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <Typography variant="subtitle1" fontWeight="bold">
-            👤 {usuario?.nombre || "Usuario"}
-          </Typography>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ display: "flex", alignItems: "center", mt: 0.5 }}
-          >
-            <BadgeIcon sx={{ fontSize: 16, mr: 0.5 }} />
-            Rol: {usuario?.rol || "..."}
-          </Typography>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ display: "flex", alignItems: "center", mt: 0.5 }}
-          >
-            <BadgeIcon sx={{ fontSize: 16, mr: 0.5 }} />
-            Correo: {usuario?.correo || "..."}
-          </Typography>
-        </Box>
-
-        <Divider />
-
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon>
-            <LogoutIcon fontSize="small" />
-          </ListItemIcon>
-          <Typography variant="body2">Cerrar sesión</Typography>
-        </MenuItem>
-      </MuiMenu>
 
       {/* Barra de opciones se agregan las nuevas opciones  aqui se delimeintan los usuarios  */}
       {/* <div className="options-bar">{renderOptionsContent()}</div> */}
 
       <div className="menu-body">
+        {/* Fondo gris que cubre la pantalla cuando el menú está abierto */}
+        {isOpen && <div className="menu-backdrop" onClick={() => setIsOpen(false)} />}
+
         <nav className={`menu-sidebar ${isOpen ? "open" : "closed"}`}>
-          <button className="toggle-btn" onClick={toggleSidebar}>
-            {isOpen ? <FaChevronLeft /> : <FaChevronRight />}
-          </button>
-          <ul>
+          <div className="drawer-header">
+            <img src={logo_sancedch} className="drawer-logo" alt="SanCen Centro Histórico" />
+            <button className="drawer-close" onClick={() => setIsOpen(false)} aria-label="Cerrar menú">
+              <CloseIcon />
+            </button>
+          </div>
+
+          {/* Al elegir una opción el panel se cierra solo */}
+          <ul onClick={(e) => { if (e.target.closest("a")) setIsOpen(false); }}>
             {/* Inicio (puede mostrarse siempre o también con permiso) */}
             <li className="menu-item">
               <Link to="/menu" className="menu-link">
@@ -348,6 +303,24 @@ const Menu = () => {
             )}
 
           </ul>
+
+          {/* Usuario + cerrar sesión al fondo del panel */}
+          <div className="drawer-footer">
+            <div className="drawer-user">
+              <div className="profile-circle">
+                <span className="profile-initial">
+                  {(usuario?.nombre || "U").trim().charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div className="user-info">
+                <span className="user-name">{usuario?.nombre || "Usuario"}</span>
+                <span className="user-role">{usuario?.rol || ""}</span>
+              </div>
+            </div>
+            <button className="drawer-logout" onClick={handleLogout}>
+              <PowerSettingsNewIcon /> CERRAR SESION
+            </button>
+          </div>
         </nav>
 
         <main className={`menu-content ${isOpen ? "menu-open" : "menu-closed"}`}>
