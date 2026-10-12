@@ -238,15 +238,15 @@ const finalizarSurtido = async (no_orden, tipo, bahia) => {
             [no_orden, tipo]
         );
 
-        // Único cambio real: estado -> 'E', y la bahía si se escaneó una.
+        // Único cambio real: estado -> 'E'. La bahía (`ubi_bahia`) NO se toca:
+        // es la asignada en la base; el escaneo de la app solo la valida.
         // No se mueve ni se borra ninguna fila.
         await conn.query(
             `UPDATE pedidos_surtiendo
              SET estado = 'E',
-                 fin_surtido = IF(fin_surtido IS NULL, NOW(), fin_surtido),
-                 ubi_bahia = COALESCE(?, ubi_bahia)
+                 fin_surtido = IF(fin_surtido IS NULL, NOW(), fin_surtido)
              WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
-            [bahia || null, no_orden, tipo]
+            [no_orden, tipo]
         );
 
         await conn.commit();

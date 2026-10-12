@@ -772,15 +772,14 @@ function Surtiendo() {
                 doc.autoTable({
                     startY: y,
                     headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 7, fontStyle: "bold" },
-                    head: [["SKU", "DESCRIPCIÓN", "CANTIDAD", "UM", "PZ", "PQ", "INNER", "MASTER", "TARIMA", "ATADOS", "VALIDA"]],
+                    head: [["SKU", "DESCRIPCIÓN", "CANTIDAD", "UM", "PZ", "PQ", "INNER", "MASTER"]],
                     body: caja.productos.filter(p => p.cant_surtida > 0).map(p => [
                         p.codigo_producto, p.descripcion_producto, p.cant_surtida, p.um,
-                        p._pz || 0, p._pq || 0, p._inner || 0, p._master || 0,
-                        tipoMostrar === "TARIMA" ? 1 : 0, tipoMostrar === "ATADO" ? 1 : 0, ""
+                        p._pz || 0, p._pq || 0, p._inner || 0, p._master || 0
                     ]),
                     theme: "grid", margin: { left: 10 }, tableWidth: 190,
                     styles: { fontSize: 7, halign: "center", cellPadding: 1.3 },
-                    columnStyles: { 1: { cellWidth: 60 } }
+                    columnStyles: { 1: { cellWidth: 80 } }
                 });
                 y = doc.lastAutoTable.finalY + 6;
                 if (y > 260) { doc.addPage(); drawFooterSantul(doc); y = 20; }
