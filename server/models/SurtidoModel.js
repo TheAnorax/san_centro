@@ -474,6 +474,7 @@ const getpedidosFinalizados = async (anio, mes) => {
             pf.inicio_embarque,
             pf.fin_embarque,
             pf.registro_fin,
+            pf.ordenes_unidas,
             -- 🔥 DATOS DE SANCED
             s.no_factura,
             s.total,

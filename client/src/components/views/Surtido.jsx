@@ -658,7 +658,8 @@ function Surtiendo() {
         const tip = String(p?.tipo ?? '').toLowerCase();
         const enProductos = (Array.isArray(p?.productos) ? p.productos : [])
             .some(prod => String(prod?.codigo_pedido ?? '').toLowerCase().includes(q));
-        return no.includes(q) || tip.includes(q) || enProductos;
+        const unidas = String((Array.isArray(p?.productos) ? p.productos.find(x => x?.ordenes_unidas)?.ordenes_unidas : '') ?? '').toLowerCase();
+        return no.includes(q) || tip.includes(q) || unidas.includes(q) || enProductos;
     });
 
     useEffect(() => { setPageFin(1); }, [qFin, pedidosFinalizados]);
@@ -1375,7 +1376,9 @@ function Surtiendo() {
                                             <span style={badge(pedido.tipo)}>{pedido.tipo}</span>
 
                                             <Box sx={{ minWidth: 190 }}>
-                                                <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>{pedido.no_orden}</Typography>
+                                                <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>
+                                                    {prods.find(x => x?.ordenes_unidas)?.ordenes_unidas || pedido.no_orden}
+                                                </Typography>
                                                 <Typography sx={{ fontSize: '0.76rem', color: fecha ? '#6b7280' : '#b6bcc9' }}>
                                                     {fecha ? `Fin embarque: ${fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}` : 'Sin fecha de embarque'}
                                                 </Typography>
@@ -1469,7 +1472,9 @@ function Surtiendo() {
                                                 <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: '1px solid #eceff3' }}>
                                                     <span style={badge(p.tipo)}>{p.tipo}</span>
                                                     <Box>
-                                                        <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>{p.no_orden}</Typography>
+                                                        <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>
+                                                            {(Array.isArray(p.productos) && p.productos.find(x => x?.ordenes_unidas)?.ordenes_unidas) || p.no_orden}
+                                                        </Typography>
                                                         <Typography sx={{ fontSize: '0.78rem', color: '#6b7280' }}>
                                                             {fecha ? `Fin embarque: ${fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}` : 'Sin fecha de embarque registrada'}
                                                         </Typography>
