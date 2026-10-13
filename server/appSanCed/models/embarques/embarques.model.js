@@ -22,7 +22,7 @@ const SELECT_EMBARQUES_BASE = `
             pe.ubi_bahia, pe.estado, pe.id_usuario, pe.id_usuario_paqueteria,
             pe.caja, pe.cajas, pe.tipo_caja,
             pe.unido, pe.fusion, pe.ordenes_unidas,
-            pe.inicio_embarque, pe.fin_embarque,
+            pe.inicio_embarque, pe.fin_embarque, pe.motivo,
             prod.descripcion,
             -- ✅ nuevo — catálogo de producto (tabla productos): piezas por
             -- empaque y códigos de barras de cada presentación, igual que ya
