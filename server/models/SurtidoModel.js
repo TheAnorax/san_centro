@@ -164,9 +164,9 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
             um, _bl, _pz, _pq, _inner, _master,
             ubi_bahia, estado, id_usuario,
             id_usuario_paqueteria,
-            registro, inicio_surtido, fin_surtido, motivo,
+            registro, inicio_surtido, fin_surtido, motivo, id_usuario_libero,
             unido, fusion, ordenes_unidas
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
                     p.no_orden, p.tipo, p.codigo_pedido, p.clave,
                     p.cantidad, p.cant_surtida, p.cant_no_enviada,
@@ -174,7 +174,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                     p.ubi_bahia, 'E', p.id_usuario,
                     p.id_usuario_paqueteria,
                     p.registro, p.inicio_surtido, p.fin_surtido,
-                    p.motivo,
+                    p.motivo, p.id_usuario_libero,
                     p.unido, p.fusion, p.ordenes_unidas
                 ]);
             }
@@ -203,9 +203,9 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
             um, _bl, _pz, _pq, _inner, _master,
             ubi_bahia, estado, id_usuario,
             id_usuario_paqueteria,
-            registro, inicio_surtido, fin_surtido, motivo,
+            registro, inicio_surtido, fin_surtido, motivo, id_usuario_libero,
             unido, fusion, ordenes_unidas
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
                 p.no_orden, p.tipo, p.codigo_pedido, p.clave,
                 p.cantidad, p.cant_surtida, p.cant_no_enviada,
@@ -213,7 +213,7 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                 p.ubi_bahia, 'E', p.id_usuario,
                 p.id_usuario_paqueteria,
                 p.registro, p.inicio_surtido, p.fin_surtido,
-                p.motivo,
+                p.motivo, p.id_usuario_libero,
                 p.unido, p.fusion, p.ordenes_unidas
             ]);
         }
