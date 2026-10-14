@@ -730,7 +730,10 @@ function Surtiendo() {
             doc.text(`NOMBRE DEL CLIENTE: ${cliente.nombre_cliente || 'S/D'}`, 60, y); y += 4;
             doc.text(`TELÉFONO: ${cliente.telefono || 'S/D'}`, marginLeft, y); y += 4;
             doc.text(`DIRECCIÓN: ${cliente.direccion || 'S/D'}`, marginLeft, y); y += 4;
-            doc.text(`No Orden: ${noOrden}-${tipo}`, marginLeft, y); y += 4;
+            // Pedido unido (dos tipos, p. ej. 650-22090): se muestra lo que trae
+            // la columna `ordenes_unidas`; si no es unido, queda como siempre.
+            const ordenesUnidas = String(cajas.find(c => c?.ordenes_unidas)?.ordenes_unidas ?? '').trim();
+            doc.text(`No Orden: ${ordenesUnidas || `${noOrden}-${tipo}`}`, marginLeft, y); y += 4;
             doc.text(`FACTURA No.: ${cliente.no_factura || '---'}`, marginLeft, y); y += 4;
 
             const bloqueAltura = 18;

@@ -629,9 +629,10 @@ const obtenerDetallePedido = async (noOrden, tipo) => {
             pf.tipo,
             pf.cajas,
             pf.tipo_caja,
+            pf.ordenes_unidas,
             pf.codigo_pedido,
             pf.cantidad,
-            pf.cant_surtida,   
+            pf.cant_surtida,
             pf.cant_no_enviada, 
             pf.um,
             COALESCE(pf._pz, 0)     AS _pz,
@@ -660,6 +661,7 @@ const obtenerDetallePedido = async (noOrden, tipo) => {
                 tipo: row.tipo,
                 cajas: row.cajas,
                 tipo_caja: row.tipo_caja,
+                ordenes_unidas: row.ordenes_unidas || null,
                 productos: [],
             });
         }
