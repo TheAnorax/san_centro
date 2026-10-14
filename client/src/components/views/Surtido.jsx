@@ -733,7 +733,16 @@ function Surtiendo() {
             // Pedido unido (dos tipos, p. ej. 650-22090): se muestra lo que trae
             // la columna `ordenes_unidas`; si no es unido, queda como siempre.
             const ordenesUnidas = String(cajas.find(c => c?.ordenes_unidas)?.ordenes_unidas ?? '').trim();
-            doc.text(`No Orden: ${ordenesUnidas || `${noOrden}-${tipo}`}`, marginLeft, y); y += 4;
+            // "662-22114" + tipo "CD-VQ"  →  "662-CD-22114-VQ" (cada orden con su tipo).
+            let textoOrden = `${noOrden}-${tipo}`;
+            if (ordenesUnidas) {
+                const nums = ordenesUnidas.split('-').map(s => s.trim()).filter(Boolean);
+                const tipos = String(tipo ?? '').split('-').map(s => s.trim()).filter(Boolean);
+                textoOrden = nums.length === tipos.length
+                    ? nums.map((n, i) => `${n}-${tipos[i]}`).join('-')
+                    : `${ordenesUnidas}-${tipo}`;
+            }
+            doc.text(`No Orden: ${textoOrden}`, marginLeft, y); y += 4;
             doc.text(`FACTURA No.: ${cliente.no_factura || '---'}`, marginLeft, y); y += 4;
 
             const bloqueAltura = 18;
