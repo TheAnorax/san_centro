@@ -5,6 +5,7 @@
  */
 
 const pool = require('../../config/db.config');
+const { conLog } = require('../../utils/logAccion');
 // Mismo helper que ya usa el panel web de Usuarios para impresoras
 // (tabla `prints`) — se reutiliza tal cual, sin duplicar la lógica.
 const usuarioModel = require('../../../models/usuarioModel');
@@ -538,19 +539,23 @@ const obtenerCajasActuales = async (no_orden, tipo) => {
 };
 // #endregion ESCANEO_EN_VIVO
 
+// Las acciones que escriben en la BD imprimen un log de color en la consola
+// (ver utils/logAccion.js). Los listados no, porque la app los consulta seguido.
+const L = (nombre, fn) => conLog('EMBARQUES', nombre, fn);
+
 module.exports = {
     listarPedidosEnEmbarque,
     listarPedidosFinalizadosEmbarque,
-    asignarCaja,
-    asignarUsuarioPaqueteria,
-    liberarUsuarioPaqueteria,
-    finalizarEmbarque,
-    regresarASurtido,
+    asignarCaja: L('asignarCaja', asignarCaja),
+    asignarUsuarioPaqueteria: L('asignarUsuarioPaqueteria', asignarUsuarioPaqueteria),
+    liberarUsuarioPaqueteria: L('liberarUsuarioPaqueteria', liberarUsuarioPaqueteria),
+    finalizarEmbarque: L('finalizarEmbarque', finalizarEmbarque),
+    regresarASurtido: L('regresarASurtido', regresarASurtido),
     obtenerImpresoraDeUsuario,
     listarImpresoras,
     asignarImpresoraAUsuario,
     conectarImpresoraPorMac,
-    registrarEscaneoEmbarque,
+    registrarEscaneoEmbarque: L('registrarEscaneoEmbarque', registrarEscaneoEmbarque),
     obtenerSiguienteCaja,
     obtenerCajasActuales,
 };

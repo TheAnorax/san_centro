@@ -5,6 +5,7 @@
  */
 
 const pool = require('../../config/db.config');
+const { conLog } = require('../../utils/logAccion');
 
 // Cuánto representa "1 unidad escaneada" en piezas, según la unidad de medida (um)
 // que trae la línea del pedido. Si um no es una de estas, se trata como 1 pieza.
@@ -262,9 +263,13 @@ const finalizarSurtido = async (no_orden, tipo, bahia) => {
     }
 };
 
+// Las acciones que escriben en la BD imprimen un log de color en la consola
+// (ver utils/logAccion.js). El listado no, porque la app lo consulta seguido.
+const L = (nombre, fn) => conLog('SURTIDO', nombre, fn);
+
 module.exports = {
     listarPedidosEnSurtido,
-    registrarEscaneo,
-    registrarNoSurtido,
-    finalizarSurtido,
+    registrarEscaneo: L('registrarEscaneo', registrarEscaneo),
+    registrarNoSurtido: L('registrarNoSurtido', registrarNoSurtido),
+    finalizarSurtido: L('finalizarSurtido', finalizarSurtido),
 };
