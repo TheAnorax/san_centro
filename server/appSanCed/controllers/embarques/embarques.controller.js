@@ -90,11 +90,11 @@ const conectarImpresoraPorMac = async (req, res) => {
 const registrarEscaneo = async (req, res) => {
     try {
         const { id_pedi } = req.params;
-        const { unitType, caja, cantidad } = req.body;
+        const { unitType, caja, cantidad, motivoEmbarque, idUsuarioLiberoEmbarque } = req.body;
         if (!unitType) {
             return res.status(400).json({ ok: false, message: 'Falta unitType.' });
         }
-        const resultado = await embarquesModel.registrarEscaneoEmbarque({ id_pedi, unitType, caja, cantidad });
+        const resultado = await embarquesModel.registrarEscaneoEmbarque({ id_pedi, unitType, caja, cantidad, motivoEmbarque, idUsuarioLiberoEmbarque });
         if (!resultado.ok) return res.status(resultado.code || 500).json(resultado);
         res.json(resultado);
     } catch (err) {

@@ -294,8 +294,9 @@ const finalizarEmbarque = async (no_orden, tipo) => {
                     um, _pz, _pq, _inner, _master, v_pz, v_pq, v_inner, v_master,
                     ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
                     inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
-                    unido, fusion, ordenes_unidas, caja, tipo_caja, motivo, registro_fin
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, NOW())`,
+                    unido, fusion, ordenes_unidas, caja, tipo_caja, motivo, registro_fin,
+                    motivo_embarque, id_usuario_libero_embarque
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
                 [
                     l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
                     l.um, l._pz, l._pq, l._inner, l._master, l.v_pz, l.v_pq, l.v_inner, l.v_master,
@@ -309,6 +310,7 @@ const finalizarEmbarque = async (no_orden, tipo) => {
                     // el primer escaneo (ver registrarEscaneoEmbarque), y
                     // fin_embarque se marca aquí, al finalizar.
                     l.unido, l.fusion, l.ordenes_unidas, l.caja, l.tipo_caja, l.motivo,
+                    l.motivo_embarque ?? null, l.id_usuario_libero_embarque ?? null,
                 ]
             );
         }
@@ -396,7 +398,7 @@ const COLUMNAS_POR_UNIDAD = { PZ: 'v_pz', PQ: 'v_pq', INNER: 'v_inner', MASTER: 
 // un jalón la cantidad completa que falte (por ejemplo, para presentación
 // PQ, que no tiene código de barras propio y por eso nunca se puede
 // escanear pieza por pieza).
-const registrarEscaneoEmbarque = async ({ id_pedi, unitType, caja, cantidad }) => {
+const registrarEscaneoEmbarque = async ({ id_pedi, unitType, caja, cantidad, motivoEmbarque, idUsuarioLiberoEmbarque }) => {
     const columna = COLUMNAS_POR_UNIDAD[String(unitType || '').toUpperCase()];
     if (!columna) {
         return { ok: false, code: 400, message: 'Tipo de unidad inválido.' };
@@ -411,12 +413,26 @@ const registrarEscaneoEmbarque = async ({ id_pedi, unitType, caja, cantidad }) =
     // que es la única función que ahora toca esas tres columnas). Aquí solo
     // se suma la cantidad validada — el número de caja de trabajo se queda
     // nada más en la memoria de la app hasta el cierre.
+    // Si la cantidad se liberó con autorización de un supervisor, se guarda
+    // el motivo y quién la liberó (solo en ese caso, para no depender de las
+    // columnas en un escaneo normal).
+    const extraSet = [];
+    const extraParams = [];
+    if (motivoEmbarque) {
+        extraSet.push('motivo_embarque = ?');
+        extraParams.push(String(motivoEmbarque).slice(0, 100));
+    }
+    if (idUsuarioLiberoEmbarque) {
+        extraSet.push('id_usuario_libero_embarque = ?');
+        extraParams.push(String(idUsuarioLiberoEmbarque));
+    }
     const [result] = await pool.query(
         `UPDATE pedidos_embarques
          SET ${columna} = ${columna} + ?,
+             ${extraSet.length ? extraSet.join(', ') + ',' : ''}
              inicio_embarque = IF(inicio_embarque IS NULL, NOW(), inicio_embarque)
          WHERE id_pedi = ?`,
-        [delta, id_pedi]
+        [delta, ...extraParams, id_pedi]
     );
     if (result.affectedRows === 0) {
         return { ok: false, code: 404, message: 'No se encontró esa línea en embarques.' };
@@ -446,7 +462,7 @@ const obtenerSiguienteCaja = async (no_orden, tipo) => {
  */
 const obtenerCajasActuales = async (no_orden, tipo) => {
     let [rows] = await pool.query(
-        `SELECT pe.caja, pe.tipo_caja AS tipoCaja, pe.codigo_pedido AS codigoPed,
+        `SELECT pe.caja, pe.cajas AS cajasTrail, pe.tipo_caja AS tipoCaja, pe.codigo_pedido AS codigoPed,
                 prod.descripcion, pe.v_pz, pe.v_pq, pe.v_inner, pe.v_master
          FROM pedidos_embarques pe
          LEFT JOIN productos prod ON pe.codigo_pedido = prod.codigo
@@ -463,7 +479,7 @@ const obtenerCajasActuales = async (no_orden, tipo) => {
     // solo de uno todavía activo.
     if (rows.length === 0) {
         const [finalRows] = await pool.query(
-            `SELECT pf.caja, pf.tipo_caja AS tipoCaja, pf.codigo_pedido AS codigoPed,
+            `SELECT pf.caja, pf.cajas AS cajasTrail, pf.tipo_caja AS tipoCaja, pf.codigo_pedido AS codigoPed,
                     prod.descripcion, pf.v_pz, pf.v_pq, pf.v_inner, pf.v_master
              FROM pedido_finalizado pf
              LEFT JOIN productos prod ON pf.codigo_pedido = prod.codigo
@@ -475,21 +491,35 @@ const obtenerCajasActuales = async (no_orden, tipo) => {
         rows = finalRows;
     }
 
+    // `cajas` guarda TODAS las cajas donde estuvo un código, separadas por
+    // comas (ej. "1,2"); `caja` solo trae la última. Cada número de la lista
+    // es una caja distinta, así que se separan una por una.
     const mapa = new Map();
     for (const r of rows) {
-        if (!mapa.has(r.caja)) {
-            mapa.set(r.caja, { caja: Number(r.caja), tipoCaja: r.tipoCaja, productos: [] });
+        const numeros = new Set(
+            String(r.cajasTrail || '')
+                .split(',')
+                .map((c) => c.trim())
+                .filter((c) => c && c !== '0' && !Number.isNaN(Number(c)))
+                .map(Number)
+        );
+        if (Number(r.caja) > 0) numeros.add(Number(r.caja));
+
+        for (const n of numeros) {
+            if (!mapa.has(n)) {
+                mapa.set(n, { caja: n, tipoCaja: r.tipoCaja, productos: [] });
+            }
+            mapa.get(n).productos.push({
+                codigoPed: r.codigoPed,
+                descripcion: r.descripcion,
+                vPz: r.v_pz,
+                vPq: r.v_pq,
+                vInner: r.v_inner,
+                vMaster: r.v_master,
+            });
         }
-        mapa.get(r.caja).productos.push({
-            codigoPed: r.codigoPed,
-            descripcion: r.descripcion,
-            vPz: r.v_pz,
-            vPq: r.v_pq,
-            vInner: r.v_inner,
-            vMaster: r.v_master,
-        });
     }
-    return Array.from(mapa.values());
+    return Array.from(mapa.values()).sort((a, b) => a.caja - b.caja);
 };
 // #endregion ESCANEO_EN_VIVO
 
