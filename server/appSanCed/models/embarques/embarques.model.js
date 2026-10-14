@@ -286,32 +286,47 @@ const finalizarEmbarque = async (no_orden, tipo) => {
             return { ok: false, code: 404, message: 'No se encontraron líneas de este pedido en embarques.' };
         }
 
+        // ✅ Se copian TODAS las columnas de `pedidos_embarques` que también
+        // existan en `pedido_finalizado` (en vez de una lista escrita a mano
+        // que se iba quedando corta: antes se perdían `cajas`, `_bl`,
+        // `_palet`, `registro_surtido`, `registro_embarque`, `unificado`,
+        // `id_usuario_libero`...). Si mañana se agrega otra columna a las dos
+        // tablas, se copia sola.
+        const [colsPF] = await conn.query(
+            `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedido_finalizado'`
+        );
+        const existenEnFinalizado = new Set(colsPF.map((r) => r.c));
+        // No se copian: el id propio de la tabla, ni las que se calculan al finalizar.
+        const CALCULADAS = new Set(['id_pedi', 'estado', 'fin_embarque', 'registro_fin']);
+
         for (const l of lineas) {
             const estadoFinal = l.estado === 'C' ? 'C' : 'F';
+
+            const columnas = Object.keys(l).filter(
+                (c) => existenEnFinalizado.has(c) && !CALCULADAS.has(c)
+            );
+            const valores = columnas.map((c) => l[c]);
+
+            // Las calculadas: estado final, y fin_embarque / registro_fin con
+            // la hora real en que se finaliza (inicio_embarque ya se marcó
+            // con el primer escaneo, ver registrarEscaneoEmbarque).
+            const extraCols = ['estado'];
+            const extraVals = ['?'];
+            valores.push(estadoFinal);
+            if (existenEnFinalizado.has('fin_embarque')) {
+                extraCols.push('fin_embarque');
+                extraVals.push('NOW()');
+            }
+            if (existenEnFinalizado.has('registro_fin')) {
+                extraCols.push('registro_fin');
+                extraVals.push('NOW()');
+            }
+
             await conn.query(
-                `INSERT INTO pedido_finalizado (
-                    no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
-                    um, _pz, _pq, _inner, _master, v_pz, v_pq, v_inner, v_master,
-                    ubi_bahia, estado, id_usuario, id_usuario_paqueteria, registro,
-                    inicio_surtido, fin_surtido, inicio_embarque, fin_embarque,
-                    unido, fusion, ordenes_unidas, caja, tipo_caja, motivo, registro_fin,
-                    motivo_embarque, id_usuario_libero_embarque
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
-                [
-                    l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
-                    l.um, l._pz, l._pq, l._inner, l._master, l.v_pz, l.v_pq, l.v_inner, l.v_master,
-                    l.ubi_bahia, estadoFinal, l.id_usuario, l.id_usuario_paqueteria, l.registro,
-                    l.inicio_surtido, l.fin_surtido, l.inicio_embarque,
-                    // ✅ corregido — `fin_embarque` nunca se escribía en ningún
-                    // lado del código (se cargaba tal cual de la fila, que
-                    // siempre venía NULL). Se pone aquí, con NOW(), justo en
-                    // el momento real en que el pedido se finaliza — el "cierre
-                    // de tiempos" que pediste: inicio_embarque ya se marca con
-                    // el primer escaneo (ver registrarEscaneoEmbarque), y
-                    // fin_embarque se marca aquí, al finalizar.
-                    l.unido, l.fusion, l.ordenes_unidas, l.caja, l.tipo_caja, l.motivo,
-                    l.motivo_embarque ?? null, l.id_usuario_libero_embarque ?? null,
-                ]
+                `INSERT INTO pedido_finalizado (${[...columnas, ...extraCols].join(', ')})
+                 VALUES (${[...columnas.map(() => '?'), ...extraVals].join(', ')})`,
+                valores
             );
         }
 
