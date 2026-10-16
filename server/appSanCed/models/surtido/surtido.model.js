@@ -11,7 +11,10 @@ const { conLog } = require('../../utils/logAccion');
 // que trae la línea del pedido. Si um no es una de estas, se trata como 1 pieza.
 const FACTOR_POR_UM = (um, factorEmpaque) => {
     const u = String(um || '').toUpperCase().trim();
-    if (u === 'PZ') return 1;
+    // Una PZ del catálogo puede traer varias piezas (ej. bolsa de 10, factor
+    // `_pz` del producto): la app manda ese factor en `factorEmpaque`.
+    // Sin factor, 1 PZ = 1 pieza.
+    if (u === 'PZ') return Math.max(Number(factorEmpaque) || 1, 1);
     // Para unidades de empaque (MASTER, INNER, PQ, etc.) el factor real de piezas
     // por empaque viene del catálogo de producto (factorEmpaque); si no se conoce,
     // se asume 1 para no inflar cantidades por error.

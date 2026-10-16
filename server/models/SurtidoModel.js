@@ -86,7 +86,7 @@ const acomodarEmpaquesEnLineas = async (conn, lineas) => {
     if (codigos.length === 0) return cambiadas;
 
     const [catalogo] = await conn.query(
-        `SELECT codigo, _inner, _master,
+        `SELECT codigo, _pz, _inner, _master,
                 CAST(barcode_inner AS CHAR) AS bc_inner,
                 CAST(barcode_master AS CHAR) AS bc_master
          FROM productos WHERE codigo IN (?)`,
@@ -104,12 +104,15 @@ const acomodarEmpaquesEnLineas = async (conn, lineas) => {
         const fM = cat && tieneBc(cat.bc_master) && Number(cat._master) > 1 ? Number(cat._master) : 0;
         const fI = cat && tieneBc(cat.bc_inner) && Number(cat._inner) > 1 ? Number(cat._inner) : 0;
 
-        const actuales = Number(p._pz || 0) + Number(p._inner || 0) * fI + Number(p._master || 0) * fM;
+        // Una PZ del catálogo puede traer varias piezas (ej. bolsa de 10).
+        const fP = cat && Number(cat._pz) > 1 ? Number(cat._pz) : 1;
+
+        const actuales = Number(p._pz || 0) * fP + Number(p._inner || 0) * fI + Number(p._master || 0) * fM;
         if (actuales === surtida) continue; // ya cuadra
 
         const m = fM > 0 ? Math.floor(surtida / fM) : 0;
         const i = fI > 0 ? Math.floor((surtida - m * fM) / fI) : 0;
-        const pz = surtida - m * fM - i * fI;
+        const pz = Math.ceil((surtida - m * fM - i * fI) / fP);
 
         console.log(`🔧 [acomodar] ${p.no_orden}-${p.tipo} ${p.codigo_pedido}: surtida=${surtida} | antes pz=${p._pz} inner=${p._inner} master=${p._master} → ahora pz=${pz} inner=${i} master=${m}`);
         p._pz = pz;
