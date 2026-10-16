@@ -75,8 +75,55 @@ const getPedidosSurtiendo = async () => {
     return rows;
 };
 
+// Acomoda _pz / _inner / _master de las líneas (en memoria, MUTA los objetos)
+// para que sumen `cant_surtida`, repartiendo MASTER → INNER → PZ con los
+// factores y códigos de barras del catálogo. Las líneas que ya cuadran no se
+// tocan; tampoco las que traen PQ o PALET ni las de cant_surtida = 0.
+// Devuelve las líneas que cambiaron.
+const acomodarEmpaquesEnLineas = async (conn, lineas) => {
+    const cambiadas = [];
+    const codigos = [...new Set(lineas.map(p => p.codigo_pedido))];
+    if (codigos.length === 0) return cambiadas;
+
+    const [catalogo] = await conn.query(
+        `SELECT codigo, _inner, _master,
+                CAST(barcode_inner AS CHAR) AS bc_inner,
+                CAST(barcode_master AS CHAR) AS bc_master
+         FROM productos WHERE codigo IN (?)`,
+        [codigos]
+    );
+    const porCodigo = new Map(catalogo.map(c => [String(c.codigo), c]));
+    const tieneBc = (v) => v != null && v !== '' && Number(v) > 0;
+
+    for (const p of lineas) {
+        const surtida = Number(p.cant_surtida) || 0;
+        if (surtida <= 0) continue;
+        if (Number(p._pq) > 0 || Number(p._palet) > 0) continue;
+
+        const cat = porCodigo.get(String(p.codigo_pedido));
+        const fM = cat && tieneBc(cat.bc_master) && Number(cat._master) > 1 ? Number(cat._master) : 0;
+        const fI = cat && tieneBc(cat.bc_inner) && Number(cat._inner) > 1 ? Number(cat._inner) : 0;
+
+        const actuales = Number(p._pz || 0) + Number(p._inner || 0) * fI + Number(p._master || 0) * fM;
+        if (actuales === surtida) continue; // ya cuadra
+
+        const m = fM > 0 ? Math.floor(surtida / fM) : 0;
+        const i = fI > 0 ? Math.floor((surtida - m * fM) / fI) : 0;
+        const pz = surtida - m * fM - i * fI;
+
+        console.log(`🔧 [acomodar] ${p.no_orden}-${p.tipo} ${p.codigo_pedido}: surtida=${surtida} | antes pz=${p._pz} inner=${p._inner} master=${p._master} → ahora pz=${pz} inner=${i} master=${m}`);
+        p._pz = pz;
+        p._inner = i;
+        p._master = m;
+        cambiadas.push(p);
+    }
+    return cambiadas;
+};
+
 // ✏️ Edición manual desde el dashboard web: permite corregir cantidad,
 // cant_surtida, cant_no_enviada y motivo de una línea en pedidos_surtiendo.
+// Al guardar, también acomoda _pz/_inner/_master de ESA línea según su
+// cant_surtida (si ya cuadran, no se tocan).
 const actualizarProductoSurtiendo = async (id_pedi, { cantidad, cant_surtida, cant_no_enviada, motivo }) => {
     const [result] = await pool.query(`
         UPDATE pedidos_surtiendo
@@ -86,6 +133,17 @@ const actualizarProductoSurtiendo = async (id_pedi, { cantidad, cant_surtida, ca
             motivo = ?
         WHERE id_pedi = ?
     `, [cantidad, cant_surtida, cant_no_enviada, motivo || null, id_pedi]);
+
+    if (result.affectedRows > 0) {
+        const [filas] = await pool.query(`SELECT * FROM pedidos_surtiendo WHERE id_pedi = ?`, [id_pedi]);
+        const cambiadas = await acomodarEmpaquesEnLineas(pool, filas);
+        for (const p of cambiadas) {
+            await pool.query(
+                `UPDATE pedidos_surtiendo SET _pz = ?, _inner = ?, _master = ? WHERE id_pedi = ?`,
+                [p._pz, p._inner, p._master, p.id_pedi]
+            );
+        }
+    }
 
     return result.affectedRows > 0;
 };
@@ -142,6 +200,14 @@ const moverPedidoASurtidoFinalizado = async (noOrden, tipo) => {
                 .join('; ');
             throw new Error(`El motivo no coincide con lo capturado y no se puede liberar. Revisa: ${detalle}.`);
         }
+
+        // 2️⃣.2 Acomodar _pz / _inner / _master según `cant_surtida`.
+        // `cant_surtida` es la verdad: si los contadores de empaque no suman
+        // esas piezas (datos de la app anterior, o se corrigió solo la
+        // cantidad surtida a mano), se reparten MASTER → INNER → PZ con los
+        // factores y códigos de barras del catálogo. Las líneas que ya
+        // cuadran no se tocan; tampoco las que traen PQ o PALET.
+        await acomodarEmpaquesEnLineas(connection, lineasActivas);
 
         // 3️⃣ Calcular totales
         const totalSurtido = lineasActivas.reduce(
