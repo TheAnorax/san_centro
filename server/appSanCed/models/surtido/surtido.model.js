@@ -202,14 +202,19 @@ const registrarNoSurtido = async ({ id_pedi, cantidadNoEnviada, motivo, idUsuari
  *
  * `bahia`, si se manda, se guarda en `ubi_bahia` de todas las líneas del pedido.
  */
-const finalizarSurtido = async (no_orden, tipo, bahia) => {
+const finalizarSurtido = async (no_orden, tipo, bahia, id_usuario = null) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
+        // Si viene id_usuario (surtidor), solo se consideran SUS líneas:
+        // las de otros usuarios del mismo pedido ni se validan ni se cierran.
+        const filtroUsuario = id_usuario ? 'AND id_usuario = ?' : '';
+        const paramsUsuario = id_usuario ? [id_usuario] : [];
+
         const [lineas] = await conn.query(
-            `SELECT * FROM pedidos_surtiendo WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) FOR UPDATE`,
-            [no_orden, tipo]
+            `SELECT * FROM pedidos_surtiendo WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) ${filtroUsuario} FOR UPDATE`,
+            [no_orden, tipo, ...paramsUsuario]
         );
 
         if (lineas.length === 0) {
@@ -235,8 +240,9 @@ const finalizarSurtido = async (no_orden, tipo, bahia) => {
              INNER JOIN pedidos_surtiendo ps ON ps.codigo_pedido = i.codigo_producto
              SET i.cant_stock_real = i.cant_stock_real - ps.cant_surtida
              WHERE ps.no_orden = ? AND UPPER(ps.tipo) = UPPER(?)
+               ${id_usuario ? 'AND ps.id_usuario = ?' : ''}
                AND ps.cant_surtida > 0 AND i.cant_stock_real >= ps.cant_surtida`,
-            [no_orden, tipo]
+            [no_orden, tipo, ...paramsUsuario]
         );
 
         // Único cambio real: estado -> 'E'. La bahía (`ubi_bahia`) NO se toca:
@@ -246,8 +252,8 @@ const finalizarSurtido = async (no_orden, tipo, bahia) => {
             `UPDATE pedidos_surtiendo
              SET estado = 'E',
                  fin_surtido = IF(fin_surtido IS NULL, NOW(), fin_surtido)
-             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?)`,
-            [no_orden, tipo]
+             WHERE no_orden = ? AND UPPER(tipo) = UPPER(?) ${filtroUsuario}`,
+            [no_orden, tipo, ...paramsUsuario]
         );
 
         await conn.commit();

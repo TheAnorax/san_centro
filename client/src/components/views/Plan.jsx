@@ -554,6 +554,31 @@ function Plan() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // #region DESCARGAR_EXCEL_PEDIDOS
+    // Descarga lo que se está viendo en "Pedidos del día/mes": son los pedidos
+    // de `sanced` que ya están en `pedido_finalizado` (la consulta del servidor
+    // hace esa validación), con no_orden, tipo original, factura, cliente,
+    // total y fecha.
+    const descargarExcelPedidos = () => {
+        if (pedidosVisibles.length === 0) return;
+        const filas = pedidosVisibles.map(p => ({
+            no_orden: p.no_orden,
+            tipo_original: p.tpo_original ?? '',
+            no_factura: p.no_factura ?? '',
+            nombre_cliente: p.nombre_cliente ?? '',
+            total: Number(p.total) || 0,
+            fecha: (p.fecha_factura || p.fecha || '').toString().slice(0, 10),
+        }));
+        const ws = XLSX.utils.json_to_sheet(filas, {
+            header: ['no_orden', 'tipo_original', 'no_factura', 'nombre_cliente', 'total', 'fecha'],
+        });
+        ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 40 }, { wch: 14 }, { wch: 12 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Pedidos');
+        XLSX.writeFile(wb, `pedidos_${diaSanced || mesSanced}.xlsx`);
+    };
+    // #endregion DESCARGAR_EXCEL_PEDIDOS
+
     // #region SUBIR_EXCEL_ENTREGAS
     const excelSerialAFecha = (valor) => {
         if (valor instanceof Date) {
@@ -1006,6 +1031,12 @@ function Plan() {
                                 {subiendoEntregas ? 'Procesando…' : <><BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Subir Excel de Entregas</>}
                             </Button>
                             {/* #endregion SUBIR_EXCEL_ENTREGAS - UI */}
+
+                            <Button variant="outlined" size="small" color="success"
+                                onClick={descargarExcelPedidos}
+                                disabled={cargandoSanced || pedidosVisibles.length === 0}>
+                                <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Descargar Excel
+                            </Button>
 
                             <Chip
                                 label={`${pedidosVisibles.length} pedidos`}

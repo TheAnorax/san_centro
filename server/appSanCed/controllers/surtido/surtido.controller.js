@@ -90,7 +90,11 @@ const finalizarSurtido = async (req, res) => {
     try {
         const { no_orden, tipo } = req.params;
         const { bahia } = req.body || {};
-        const resultado = await surtidoModel.finalizarSurtido(no_orden, tipo, bahia);
+        // Un surtidor solo cierra SUS líneas; las de otros usuarios del mismo
+        // pedido no se tocan ni cuentan para validar. Admin/Master cierran todo.
+        const esSurtidor = Number(req.usuario?.rol_id) === ROL_SURTIDOR;
+        const id_usuario = esSurtidor ? req.usuario?.id : null;
+        const resultado = await surtidoModel.finalizarSurtido(no_orden, tipo, bahia, id_usuario);
         if (!resultado.ok) return res.status(resultado.code || 500).json(resultado);
         res.json(resultado);
     } catch (err) {
