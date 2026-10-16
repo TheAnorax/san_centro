@@ -174,7 +174,7 @@ const obtenerPedidosPorFecha = async (fecha) => {
             s.fecha_entrega, s.costos
         FROM sanced s
         INNER JOIN pedido_finalizado pf ON pf.no_orden = s.no_orden
-        WHERE DATE_FORMAT(s.fecha_factura, '%Y-%m') = ?
+        WHERE (? = 'todos' OR DATE_FORMAT(s.fecha_factura, '%Y-%m') = ?)
 
         UNION
 
@@ -192,10 +192,10 @@ const obtenerPedidosPorFecha = async (fecha) => {
             ON CONVERT(SUBSTRING_INDEX(pf2.ordenes_unidas, '-', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci 
              = CONVERT(CAST(s2.no_orden AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         INNER JOIN sanced s3 ON s3.no_orden = pf2.no_orden
-        WHERE DATE_FORMAT(s3.fecha_factura, '%Y-%m') = ?
+        WHERE (? = 'todos' OR DATE_FORMAT(s3.fecha_factura, '%Y-%m') = ?)
 
         ORDER BY fecha_factura ASC, registro DESC
-    `, [fechaFiltro, fechaFiltro]);
+    `, [fechaFiltro, fechaFiltro, fechaFiltro, fechaFiltro]);
 
     return rows;
 };

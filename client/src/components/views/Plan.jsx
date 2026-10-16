@@ -559,9 +559,23 @@ function Plan() {
     // de `sanced` que ya están en `pedido_finalizado` (la consulta del servidor
     // hace esa validación), con no_orden, tipo original, factura, cliente,
     // total y fecha.
-    const descargarExcelPedidos = () => {
-        if (pedidosVisibles.length === 0) return;
-        const filas = pedidosVisibles.map(p => ({
+    // Trae TODOS los meses (fecha=todos), no solo el que está en pantalla.
+    const descargarExcelPedidos = async () => {
+        let lista = [];
+        try {
+            Swal.fire({ title: 'Preparando Excel...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+            const res = await axios.get('http://66.232.105.107:3001/api/Plan/pedidos-por-fecha?fecha=todos');
+            lista = res.data.data || [];
+            Swal.close();
+        } catch {
+            Swal.fire('❌ Error', 'No se pudieron traer los pedidos', 'error');
+            return;
+        }
+        if (lista.length === 0) {
+            Swal.fire({ icon: 'info', title: 'No hay pedidos para descargar' });
+            return;
+        }
+        const filas = lista.map(p => ({
             no_orden: p.no_orden,
             tipo_original: p.tpo_original ?? '',
             no_factura: p.no_factura ?? '',
@@ -575,7 +589,7 @@ function Plan() {
         ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 40 }, { wch: 14 }, { wch: 12 }];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Pedidos');
-        XLSX.writeFile(wb, `pedidos_${diaSanced || mesSanced}.xlsx`);
+        XLSX.writeFile(wb, `pedidos_finalizados_todos.xlsx`);
     };
     // #endregion DESCARGAR_EXCEL_PEDIDOS
 
@@ -1034,7 +1048,7 @@ function Plan() {
 
                             <Button variant="outlined" size="small" color="success"
                                 onClick={descargarExcelPedidos}
-                                disabled={cargandoSanced || pedidosVisibles.length === 0}>
+                                disabled={cargandoSanced}>
                                 <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Descargar Excel
                             </Button>
 
