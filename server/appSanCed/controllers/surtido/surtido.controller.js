@@ -22,10 +22,24 @@ const listarPedidosEnSurtido = async (req, res) => {
     }
 };
 
+// Escaneos ya aplicados (por `idScan` que manda la app). Si la app reenvía
+// un escaneo (se perdió la respuesta por mala señal, o salió de la cola sin
+// internet), no se suma dos veces. Es en memoria: guarda los últimos 5000.
+const escaneosAplicados = new Set();
+const recordarEscaneo = (idScan) => {
+    escaneosAplicados.add(idScan);
+    if (escaneosAplicados.size > 5000) {
+        escaneosAplicados.delete(escaneosAplicados.values().next().value);
+    }
+};
+
 const escanearProducto = async (req, res) => {
     try {
         const { id_pedi } = req.params;
-        const { unidadesEscaneadas, um, factorEmpaque } = req.body;
+        const { unidadesEscaneadas, um, factorEmpaque, idScan } = req.body;
+        if (idScan && escaneosAplicados.has(String(idScan))) {
+            return res.json({ ok: true, duplicado: true });
+        }
         const id_usuario = req.usuario?.id ?? req.body.id_usuario;
 
         if (!unidadesEscaneadas || Number(unidadesEscaneadas) <= 0) {
@@ -43,6 +57,7 @@ const escanearProducto = async (req, res) => {
         });
 
         if (!resultado.ok) return res.status(resultado.code || 500).json(resultado);
+        if (idScan) recordarEscaneo(String(idScan));
         res.json(resultado);
     } catch (err) {
         console.error('❌ [surtido] escanearProducto:', err);
