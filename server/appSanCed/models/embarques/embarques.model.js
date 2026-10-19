@@ -374,13 +374,14 @@ const regresarASurtido = async (no_orden, tipo) => {
                     no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
                     um, _bl, _pz, _pq, _inner, _master, _palet, ubi_bahia, estado, id_usuario,
                     id_usuario_paqueteria, registro, inicio_surtido, fin_surtido, unido,
-                    ordenes_unidas, registro_surtido, motivo, id_usuario_libero, unificado, fusion
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    ordenes_unidas, registro_surtido, motivo, id_usuario_libero, unificado, fusion, cant_por_orden
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     l.no_orden, l.tipo, l.codigo_pedido, l.clave, l.cantidad, l.cant_surtida, l.cant_no_enviada,
                     l.um, l.ubi_bahia, l.id_usuario,
                     l.id_usuario_paqueteria, l.registro, l.inicio_surtido, l.fin_surtido, l.unido,
                     l.ordenes_unidas, l.registro_surtido, l.motivo, l.id_usuario_libero, l.unificado, l.fusion,
+                    l.cant_por_orden,
                 ]
             );
         }

@@ -183,8 +183,17 @@ const agregarPedidoSurtiendo = async ({ ordenes, bahias, usuario, modo }) => {
             const unidoOriginal = Number(grupo[0].unido) === 1 ? 1 : 0;
             const fusionFinal   = estaEnAmbas ? 1 : 0;
 
+            // Cantidad que traía cada orden original para este código, ej.
+            // "CD:100 | VQ:100". Se guarda en la propia fila (cant_por_orden)
+            // para ya no depender de la tabla `pedidos`, de donde las
+            // órdenes se borran al pasar a surtido (paso 6).
+            const cantPorOrden = ordenes.length > 1
+                ? grupo.map(p => `${p.tipo}:${Number(p.cantidad)}`).join(' | ')
+                : null;
+
             productosFinales.push({
                 ...grupo[0],                        // base del primer registro
+                cant_por_orden:  cantPorOrden,
                 no_orden_final:  primerOrden,       // ← siempre el primero
                 tipo_final:      primerTipo,        // ← tipo del primero
                 cantidad_final:  cantidadFinal,
@@ -212,15 +221,15 @@ const agregarPedidoSurtiendo = async ({ ordenes, bahias, usuario, modo }) => {
                 INSERT INTO pedidos_surtiendo (
                     no_orden, tipo, codigo_pedido, clave, cantidad, cant_surtida, cant_no_enviada,
                     um, _bl, _pz, _pq, _inner, _master, ubi_bahia, estado, avance, id_usuario,
-                    registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?)
+                    registro, inicio_surtido, fin_surtido, unido, fusion, ordenes_unidas, cant_por_orden
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 prod.no_orden_final, prod.tipo_final, prod.codigo_pedido, prod.clave,
                 prod.cantidad_final, prod.cant_surtida, prod.cant_no_enviada,
                 prod.um, prod._bl, prod._pz, prod._pq, prod._inner, prod._master,
                 bahiasString, prod.avance, id_usuario_final,
                 prod.registro, prod.inicio_surtido, prod.fin_surtido,
-                prod.unido, prod.fusion, prod.ordenes_unidas
+                prod.unido, prod.fusion, prod.ordenes_unidas, prod.cant_por_orden
             ]);
 
             const [verif] = await conn.query(
@@ -313,6 +322,7 @@ const fusionarVqEnEmbarque = async ({ noOrdenCD, tipoCD, noOrdenVQ, tipoVQ }) =>
                 // sumamos cantidad Y el empaque (_pz, _pq, _inner, _master)
                 await conn.query(
                     `UPDATE pedidos_embarques SET
+                        cant_por_orden = CONCAT(?, ':', cantidad, ' | ', ?, ':', ?),
                         cantidad     = cantidad     + ?,
                         cant_surtida = cant_surtida + ?,
                         _bl     = COALESCE(_bl,0)     + ?,
@@ -323,6 +333,7 @@ const fusionarVqEnEmbarque = async ({ noOrdenCD, tipoCD, noOrdenVQ, tipoVQ }) =>
                         unido = 1
                      WHERE no_orden = ? AND codigo_pedido = ?`,
                     [
+                        tipoCD, tipoVQ, Number(vq.cantidad),   // cant_por_orden: "CD:<antes> | VQ:<vq>"
                         Number(vq.cantidad),
                         Number(vq.cantidad),          // cant_surtida (VQ ya está lista = completa)
                         Number(vq._bl     || 0),
@@ -340,19 +351,28 @@ const fusionarVqEnEmbarque = async ({ noOrdenCD, tipoCD, noOrdenVQ, tipoVQ }) =>
                         no_orden, tipo, codigo_pedido, clave,
                         cantidad, cant_surtida, cant_no_enviada,
                         um, _bl, _pz, _pq, _inner, _master,
-                        ubi_bahia, estado, id_usuario, registro, unido, ordenes_unidas
-                     ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'E', ?, ?, 0, ?)`,
+                        ubi_bahia, estado, id_usuario, registro, unido, ordenes_unidas, cant_por_orden
+                     ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'E', ?, ?, 0, ?, ?)`,
                     [
                         noOrdenCD, tipoFinal, vq.codigo_pedido, vq.clave,
                         Number(vq.cantidad), Number(vq.cantidad),  // cant_surtida = cantidad
                         vq.um, vq._bl, vq._pz, vq._pq, vq._inner, vq._master,
                         productosCD[0].ubi_bahia,                   // misma bahía que la CD
                         productosCD[0].id_usuario,                  // mismo surtidor
-                        vq.registro, ordenesUnidas
+                        vq.registro, ordenesUnidas,
+                        `${tipoVQ}:${Number(vq.cantidad)}`
                     ]
                 );
             }
         }
+
+        // 2.5) Códigos que solo traía la CD: su cantidad por orden es solo la de la CD.
+        await conn.query(
+            `UPDATE pedidos_embarques
+             SET cant_por_orden = CONCAT(?, ':', cantidad)
+             WHERE no_orden = ? AND cant_por_orden IS NULL`,
+            [tipoCD, noOrdenCD]
+        );
 
         // 3) Marcar TODA la orden (en embarques) con el tipo y ordenes_unidas de la fusión
         await conn.query(

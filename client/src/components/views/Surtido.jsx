@@ -345,14 +345,41 @@ function Surtiendo() {
         // antes de fusionarse — ej. "CD: 46 | VQ: 42" (no es suma de piezas,
         // es el conteo de códigos de cada orden original). Un código con
         // unido = 1 cuenta como DOS partidas de ese código (no una sola).
+        // 📦 Lo que se guardó en la propia fila al fusionar (`cant_por_orden`,
+        // ej. "CD:100 | VQ:100"): ya no depende de la tabla `pedidos`, de donde
+        // las órdenes se borran al pasar a surtido. Solo si no existe (pedidos
+        // viejos) se usa lo que se pudo leer de `pedidos` (ordenesOriginales).
+        const parseCantPorOrden = (txt) => {
+            const mapa = {};
+            String(txt || "").split("|").forEach((parte) => {
+                const [t, c] = parte.split(":").map((s) => s.trim());
+                if (t) mapa[t] = c;
+            });
+            return mapa;
+        };
+        const hayGuardado = productos.some((p) => p.cant_por_orden);
+        if (hayGuardado) {
+            const tiposDeTipo = String(tipo || "").split("-").map((s) => s.trim()).filter(Boolean);
+            tiposDeTipo.forEach((t) => { if (!tiposOriginales.includes(t)) tiposOriginales.push(t); });
+        }
+
         let resumenTotalPorTipo = "";
         if (esFusion) {
             const conteoPartidasPorTipo = {};
-            for (const orden of ordenesOriginales) {
-                conteoPartidasPorTipo[orden.tipo] = (orden.productos || []).reduce(
-                    (acc, p) => acc + 1 + (Number(p.unido) === 1 ? 1 : 0),
-                    0
-                );
+            if (hayGuardado) {
+                // Cada tipo presente en el código cuenta como una partida de ese tipo.
+                for (const p of productos) {
+                    Object.keys(parseCantPorOrden(p.cant_por_orden)).forEach((t) => {
+                        conteoPartidasPorTipo[t] = (conteoPartidasPorTipo[t] || 0) + 1;
+                    });
+                }
+            } else {
+                for (const orden of ordenesOriginales) {
+                    conteoPartidasPorTipo[orden.tipo] = (orden.productos || []).reduce(
+                        (acc, p) => acc + 1 + (Number(p.unido) === 1 ? 1 : 0),
+                        0
+                    );
+                }
             }
             resumenTotalPorTipo = tiposOriginales.map((t) => `${t}: ${conteoPartidasPorTipo[t] ?? 0}`).join(" | ");
         }
@@ -391,9 +418,10 @@ function Surtiendo() {
         const body = productosOrdenados.map((p) => {
             const cod = String(p.codigo_pedido);
             // Construye "CD:60 | VQ:60"
+            const guardado = p.cant_por_orden ? parseCantPorOrden(p.cant_por_orden) : null;
             const cantPorOrden = esFusion
                 ? tiposOriginales.map(t => {
-                    const cant = mapaOriginal[cod]?.[t];
+                    const cant = guardado ? guardado[t] : mapaOriginal[cod]?.[t];
                     return cant !== undefined ? `${t}:${cant}` : `${t}:0`;
                 }).join(' | ')
                 : null;
