@@ -75,7 +75,14 @@ import CategoryIcon from '@mui/icons-material/Category';
 // ? FUNCIÓN: Mostrar ventana de menú ? \\
 const Menu = () => {
   // El menú lateral ahora es un panel que se abre encima (con el fondo en gris).
-  const [isOpen, setIsOpen] = useState(false);
+  // Se recuerda en el navegador: si lo dejas abierto, sigue abierto al cambiar
+  // de pantalla (o al recargar) hasta que tú le des a cerrar (la X).
+  const [isOpen, setIsOpen] = useState(() => {
+    try { return localStorage.getItem("menuAbierto") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("menuAbierto", isOpen ? "1" : "0"); } catch { /* sin storage */ }
+  }, [isOpen]);
 
   // * ╔════════════════════════════════════════════════════════════╗ * \\
   // * ║                         Dashboard                          ║ * \\
@@ -147,7 +154,7 @@ const Menu = () => {
   return (
     <div className="menu-container">
       {/* Con el panel lateral abierto el encabezado se oculta (el panel ya trae logo y usuario) */}
-      <header className={`menu-header ${isOpen ? "menu-header-oculto" : ""}`}>
+      <header className={`menu-header ${isOpen ? "menu-header-desplazado" : ""}`}>
         {/* Botón hamburguesa: abre/cierra el menú lateral */}
         <button className="menu-hamburger" onClick={toggleSidebar} aria-label="Abrir o cerrar menú">
           <MenuIcon />
@@ -173,8 +180,7 @@ const Menu = () => {
       {/* <div className="options-bar">{renderOptionsContent()}</div> */}
 
       <div className="menu-body">
-        {/* Fondo gris que cubre la pantalla cuando el menú está abierto */}
-        {isOpen && <div className="menu-backdrop" onClick={() => setIsOpen(false)} />}
+        {/* Menú fijo: sin fondo gris, para poder usar la pantalla con el menú abierto */}
 
         <nav className={`menu-sidebar ${isOpen ? "open" : "closed"}`}>
           <div className="drawer-header">
@@ -185,7 +191,7 @@ const Menu = () => {
           </div>
 
           {/* Al elegir una opción el panel se cierra solo */}
-          <ul onClick={(e) => { if (e.target.closest("a")) setIsOpen(false); }}>
+          <ul>
             {/* Inicio (puede mostrarse siempre o también con permiso) */}
             <li className="menu-item">
               <Link to="/menu" className="menu-link">

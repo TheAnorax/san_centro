@@ -42,6 +42,14 @@ html {
   box-shadow: none;
 }
 
+/* -- Menú fijo abierto: el encabezado y el contenido se recorren a la derecha del panel -- */
+.menu-header.menu-header-desplazado {
+  margin-left: min(320px, 85vw);
+}
+.menu-content.menu-open {
+  margin-left: min(320px, 85vw);
+}
+
 /* -- Botón hamburguesa (abre/cierra el menú lateral) -- */
 .menu-hamburger {
   width: 44px;
