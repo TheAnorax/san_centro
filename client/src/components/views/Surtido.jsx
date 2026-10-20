@@ -1679,7 +1679,10 @@ function Surtiendo() {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {(pedido.productos || []).map((prod, idx) => {
+                                        {[...(pedido.productos || [])].sort((a, b) =>
+                                            String(a.codigo_ped ?? a.codigo ?? '').localeCompare(
+                                                String(b.codigo_ped ?? b.codigo ?? ''), 'es', { numeric: true })
+                                        ).map((prod, idx) => {
                                             const edicion = edicionesSurtido[prod.id_pedi] || {};
                                             const valCantidad = edicion.cantidad ?? prod.cantidad;
                                             const valSurtida = edicion.cant_surtida ?? prod.cant_surtida;
