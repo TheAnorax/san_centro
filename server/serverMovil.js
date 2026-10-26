@@ -3,7 +3,6 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const routes = require('./appapp'); // Archivo de rutas (app vieja de surtido/embarques)
 
 // appSanCed: módulo nuevo de Surtido/Embarques (mismo servidor, mismo puerto,
 // pero rutas propias bajo /api/app/... para no chocar con nada de lo de arriba).
@@ -18,7 +17,6 @@ const port = 3003;
 
 app.use(cors());
 app.use(express.json());
-app.use('/', routes);
 
 app.use('/api/app/surtido', surtidoRoutesNuevo);
 app.use('/api/app/embarques', embarquesRoutesNuevo);
