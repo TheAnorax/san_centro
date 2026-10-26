@@ -79,8 +79,8 @@ function esLoopback(req) {
 // Se compara contra SERVICE_API_KEY del .env. Si no está definida, queda desactivada.
 const crypto = require('crypto');
 
-function llaveDeServicioValida(req) {
-  const esperada = process.env.SERVICE_API_KEY;
+function llaveDeServicioValida(req, nombreVariable = 'SERVICE_API_KEY') {
+  const esperada = process.env[nombreVariable];
   const recibida = req.headers['x-api-key'];
   if (!esperada || typeof recibida !== 'string') return false;
   const a = Buffer.from(esperada);

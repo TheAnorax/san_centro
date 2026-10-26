@@ -40,8 +40,7 @@ app.use('/api', (req, res, next) => {
   if (RUTAS_PUBLICAS.includes(req.path)) return next();
   if (req.path === '/surtido/notificar-cambio' && esLoopback(req)) return next();
   // Lectura de solo consulta para `sanced`, que no tiene token de este sistema: usa llave de servicio.
-  if (req.method === 'GET' && req.path === '/traspaso/recibidos' && llaveDeServicioValida(req)) return next();
-  return verifyToken(req, res, next);
+  if (req.method === 'GET' && req.path === '/traspaso/recibidos' && llaveDeServicioValida(req)) return next();  return verifyToken(req, res, next);
 });
 
 const path = require('path');
