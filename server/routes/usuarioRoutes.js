@@ -28,11 +28,16 @@ router.post('/impresoras/quitar', quitarImpresora);                // POST /api/
 
 // usuarios
 router.get('/', listarUsuarios);
-router.get('/:id/credenciales', getCredencialesUsuario);
+// 🔒 Credenciales (QR), crear, editar y borrar usuarios: solo Admin (1) y Master (4).
+//    El token ya lo exige server.js para toda la API.
+const requireRole = require('../appSanCed/middlewares/requireRole');
+const soloAdmin = requireRole([1, 4]);
+
+router.get('/:id/credenciales', soloAdmin, getCredencialesUsuario);
 router.get('/:id', obtenerUsuario);
 
-router.post('/', crearNuevoUsuario);
-router.put('/:id', actualizarUsuarioExistente);
-router.delete('/:id', eliminarUsuarioLogico);
+router.post('/', soloAdmin, crearNuevoUsuario);
+router.put('/:id', soloAdmin, actualizarUsuarioExistente);
+router.delete('/:id', soloAdmin, eliminarUsuarioLogico);
 
 module.exports = router;

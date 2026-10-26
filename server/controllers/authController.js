@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../appSanCed/config/auth.config');
 const { findUserByEmail, createUser } = require('../models/userModel');
 
 // LOGIN
@@ -24,7 +25,7 @@ const login = async (req, res) => {
         rol: user.rol,
         rol_id: user.rol_id // ✅ para poder validar acceso por id (estable) y no por el nombre (frágil: mayúsculas/typos)
       },
-      process.env.JWT_SECRET || 'secreto123',
+      JWT_SECRET, // mismo valor que verifica verifyToken (server/.env)
       { expiresIn: '8h' }
     );
 

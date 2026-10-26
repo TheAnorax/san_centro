@@ -25,11 +25,23 @@ app.use(express.json());
 // * ╚════════════════════════════════════════════════════════════╝ * \\
 // Rutas públicas
 
-app.use((req, res, next) => {
-  if (["POST", "PUT", "PATCH"].includes(req.method)) {
-    console.log(`📦 [${req.method}] ${req.path} Body:`, req.body);
-  }
-  next();
+const { cabecerasSeguras, logBodies, esLoopback, llaveDeServicioValida } = require('./middlewares/seguridad');
+const verifyToken = require('./appSanCed/middlewares/verifyToken');
+
+app.disable('x-powered-by');
+app.use(cabecerasSeguras);
+app.use(logBodies); // ya no imprime contraseñas
+
+// 🔒 Toda la API exige token, salvo el login y la lista de roles (públicos).
+//    `notificar-cambio` lo llama la app vieja (puerto 3003) desde el mismo servidor, sin token:
+//    se permite SOLO si viene de 127.0.0.1.
+const RUTAS_PUBLICAS = ['/auth/login', '/auth/roles'];
+app.use('/api', (req, res, next) => {
+  if (RUTAS_PUBLICAS.includes(req.path)) return next();
+  if (req.path === '/surtido/notificar-cambio' && esLoopback(req)) return next();
+  // Lectura de solo consulta para `sanced`, que no tiene token de este sistema: usa llave de servicio.
+  if (req.method === 'GET' && req.path === '/traspaso/recibidos' && llaveDeServicioValida(req)) return next();
+  return verifyToken(req, res, next);
 });
 
 const path = require('path');

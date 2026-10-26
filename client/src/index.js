@@ -26,6 +26,9 @@ import { UserProvider } from './context/UserContext';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 
+// ? Token automático en las llamadas al backend (debe ir antes que App) ? \\
+import './utils/authHeaders';
+
 // ? Importar archivos ? \\
 import App from './App'; // Archivo app (que va a abrir)
 
