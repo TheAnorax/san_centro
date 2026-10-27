@@ -33,7 +33,8 @@ router.get('/', listarUsuarios);
 const requireRole = require('../appSanCed/middlewares/requireRole');
 const soloAdmin = requireRole([1, 4]);
 
-router.get('/:id/credenciales', soloAdmin, getCredencialesUsuario);
+// El Supervisor (rol 13) también puede ver las credenciales (QR de acceso).
+router.get('/:id/credenciales', requireRole([1, 4, 13]), getCredencialesUsuario);
 router.get('/:id', obtenerUsuario);
 
 router.post('/', soloAdmin, crearNuevoUsuario);
