@@ -9,6 +9,8 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import Swal from "sweetalert2";
 import axios from 'axios';
+
+const API_TRASPASO_INV = 'http://66.232.105.107:3001/api/traspaso';
 import * as XLSX from "xlsx";
 
 const IMG_BASE = 'http://66.232.105.83:9101/images';
@@ -377,6 +379,7 @@ function InventarioListado() {
     // los 647 faltantes de inventario": ahora solo se ve lo que el usuario
     // sube.
     const [productosExcelPreview, setProductosExcelPreview] = useState([]);
+    const [traspasosPorRecibir, setTraspasosPorRecibir] = useState([]);
     // #endregion SOLICITUD_MASIVA_EXCEL_ESTADO
 
     // #region BANDEJA_PLANEACION
@@ -715,15 +718,77 @@ function InventarioListado() {
                 return tieneConfig && (qty <= 0 || (qty <= invMin && qty > 0));
             });
 
+            // 🚚 Traspasos pendientes (ya pedidos y aún NO recibidos): lo que viene en
+            // camino se DESCUENTA de lo que se va a solicitar. La cantidad del traspaso
+            // se compara tal cual contra las piezas a solicitar (sin convertir por _pz:
+            // si hubiera diferencia de unidades, se descuenta de menos, nunca de más).
+            const enTraspasoPorCodigo = {};
+            const detalleTraspasos = {}; // codigo -> { codigo, descripcion, ordenes:Set, cantidad }
+            let traspasosNoDisponibles = false;
+            try {
+                const resTr = await axios.get(`${API_TRASPASO_INV}/pendientes`);
+                (resTr.data || []).forEach(t => {
+                    const cod = String(t.Codigo ?? '').trim();
+                    const cant = Number(t.Cantidad) || 0;
+                    if (!cod || cant <= 0) return;
+                    enTraspasoPorCodigo[cod] = (enTraspasoPorCodigo[cod] || 0) + cant;
+                    if (!detalleTraspasos[cod]) {
+                        detalleTraspasos[cod] = { codigo: cod, descripcion: t.Descripcion || '', ordenes: new Set(), cantidad: 0 };
+                    }
+                    detalleTraspasos[cod].cantidad += cant;
+                    if (t.No_Orden !== undefined && t.No_Orden !== null) detalleTraspasos[cod].ordenes.add(String(t.No_Orden));
+                });
+            } catch (e) {
+                traspasosNoDisponibles = true; // sin traspasos: se pide la cantidad completa
+            }
+
+            // Panel "Traspasos por recibir": qué códigos son, cuánto falta por recibir y
+            // cómo afecta a lo que se va a solicitar (faltante → lo que realmente se pide).
+            const faltantePorCodigo = {};
+            faltantes.forEach(item => { faltantePorCodigo[String(item.codigo_producto ?? '').trim()] = Number(item.inv_opt) || 0; });
+            setTraspasosPorRecibir(
+                Object.values(detalleTraspasos)
+                    .map(d => {
+                        const faltante = faltantePorCodigo[d.codigo];
+                        return {
+                            codigo: d.codigo,
+                            descripcion: d.descripcion,
+                            ordenes: [...d.ordenes].join(', '),
+                            cantidad: d.cantidad,
+                            faltante: faltante ?? null,
+                            aPedir: faltante != null ? Math.max(faltante - d.cantidad, 0) : null,
+                        };
+                    })
+                    .sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }))
+            );
+
+            let cubiertosPorTraspaso = 0;
             const preview = faltantes
-                .map(item => ({ codigo: item.codigo_producto, cantidad: Number(item.inv_opt) || 0, match: item }))
+                .map(item => {
+                    const cod = String(item.codigo_producto ?? '').trim();
+                    const faltante = Number(item.inv_opt) || 0;
+                    const enTraspaso = enTraspasoPorCodigo[cod] || 0;
+                    const neto = Math.max(faltante - enTraspaso, 0);
+                    if (faltante > 0 && neto === 0) cubiertosPorTraspaso += 1;
+                    return { codigo: item.codigo_producto, cantidad: neto, enTraspaso, faltante, match: item };
+                })
                 .filter(p => p.cantidad > 0)
-                .map(p => construirFilaPreview(p.codigo, p.cantidad, p.match));
+                .map(p => ({
+                    ...construirFilaPreview(p.codigo, p.cantidad, p.match),
+                    enTraspaso: p.enTraspaso,
+                    faltanteOriginal: p.faltante,
+                }));
 
             setProductosExcelPreview(preview);
             setSolicitudMasivaResultado(null);
 
-            Swal.fire({ icon: 'success', title: `${preview.length} faltante(s) sincronizado(s)`, timer: 1500, showConfirmButton: false });
+            const avisos = [];
+            if (cubiertosPorTraspaso > 0) avisos.push(`${cubiertosPorTraspaso} código(s) ya están cubiertos por traspasos pendientes y no se incluyeron.`);
+            if (traspasosNoDisponibles) avisos.push('No se pudieron consultar los traspasos pendientes: se muestran las cantidades completas.');
+
+            Swal.fire(avisos.length
+                ? { icon: traspasosNoDisponibles ? 'warning' : 'info', title: `${preview.length} faltante(s) sincronizado(s)`, html: avisos.join('<br>') }
+                : { icon: 'success', title: `${preview.length} faltante(s) sincronizado(s)`, timer: 1500, showConfirmButton: false });
         } catch (err) {
             Swal.fire('❌ Error', 'No se pudo sincronizar', 'error');
         } finally {
@@ -1003,6 +1068,45 @@ function InventarioListado() {
                                 )}
                                 {/* #endregion UI_BANDEJA_PLANEACION */}
 
+                                {/* #region UI_TRASPASOS_POR_RECIBIR */}
+                                {traspasosPorRecibir.length > 0 && (
+                                    <Box sx={{ mt: 2 }}>
+                                        <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#1565c0" }}>
+                                            🚚 Traspasos por recibir ({traspasosPorRecibir.length} código(s)) — se descuentan de lo que vas a solicitar
+                                        </p>
+                                        <TableContainer sx={{ maxHeight: '25vh', overflowY: 'auto', border: '1px solid #cfe0f5', borderRadius: 2 }}>
+                                            <Table size="small" stickyHeader>
+                                                <TableHead>
+                                                    <TableRow sx={{ background: "#e8f1fc" }}>
+                                                        {["Código", "Descripción", "No. Orden", "Falta por recibir", "Faltante calculado", "Se va a pedir"].map(col => (
+                                                            <TableCell key={col} sx={{ fontWeight: "bold", color: "#1565c0" }}>{col}</TableCell>
+                                                        ))}
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {traspasosPorRecibir.map(t => (
+                                                        <TableRow key={t.codigo}>
+                                                            <TableCell>{t.codigo}</TableCell>
+                                                            <TableCell>{t.descripcion || '-'}</TableCell>
+                                                            <TableCell>{t.ordenes || '-'}</TableCell>
+                                                            <TableCell><b>{t.cantidad}</b></TableCell>
+                                                            <TableCell>{t.faltante ?? <span style={{ color: '#aaa' }}>no está en faltantes</span>}</TableCell>
+                                                            <TableCell>
+                                                                {t.aPedir === null
+                                                                    ? <span style={{ color: '#aaa' }}>—</span>
+                                                                    : t.aPedir === 0
+                                                                        ? <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Cubierto</span>
+                                                                        : <b>{t.aPedir}</b>}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                    </Box>
+                                )}
+                                {/* #endregion UI_TRASPASOS_POR_RECIBIR */}
+
                                 {/* #region UI_PREVIEW_EXCEL_ANTES_DE_ENVIAR */}
                                 {productosExcelPreview.length > 0 && (
                                     <Box sx={{ mt: 2 }}>
@@ -1026,7 +1130,7 @@ function InventarioListado() {
                                                 <TableHead>
                                                     <TableRow sx={{ background: "#ffe7e1" }}>
                                                         {[
-                                                            "Código", "Descripción", "Stock", "Inv. Mínimo", "Inv. Máximo", "Cantidad a solicitar",
+                                                            "Código", "Descripción", "Stock", "Inv. Mínimo", "Inv. Máximo", "En traspaso", "Cantidad a solicitar",
                                                             // 🆕 Disponible en vivo del almacén 7050 (Existencia_Fisica -
                                                             // Comprometido) — solo informativo, no se guarda en la base.
                                                             "Disponible (7050)",
@@ -1053,6 +1157,11 @@ function InventarioListado() {
                                                                 <TableCell>{row.stock}</TableCell>
                                                                 <TableCell>{row.invMin ?? '-'}</TableCell>
                                                                 <TableCell>{row.invMax ?? '-'}</TableCell>
+                                                                <TableCell>
+                                                                    {row.enTraspaso > 0
+                                                                        ? <span style={{ color: '#1565c0', fontWeight: 'bold' }} title={`Faltante original: ${row.faltanteOriginal}`}>🚚 {row.enTraspaso}</span>
+                                                                        : <span style={{ color: '#aaa' }}>—</span>}
+                                                                </TableCell>
                                                                 <TableCell>{row.cantidad} PZ</TableCell>
                                                                 <TableCell>
                                                                     {cargandoDisponible7050
