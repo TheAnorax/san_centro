@@ -26,7 +26,7 @@ const { plantillaCorreoStockMasivo, plantillaCorreoSolicitarAutorizacion } = req
 // costo real de cada producto, no solo el código y la cantidad.
 const { resolverUnidadYCosto } = require("../utils/preciosProducto");
 
-const DESTINATARIOS = ["desarrollo4@santul.net"];
+const DESTINATARIOS = ["desarrollo4@santul.net","eduardo.sandler@santul.net","gerente.desarrollo@santul.net"];
 
 // ================================================
 // GET Inventario
