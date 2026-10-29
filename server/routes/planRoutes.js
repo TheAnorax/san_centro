@@ -10,7 +10,8 @@ const {
     obtenerPedidosPorFactura,
     obtenerPedidosFinalizadosPorMes,
     obtenerHistoricoCrossDocking,
-    obtenerPedidosCD
+    obtenerPedidosCD,
+    obtenerFacturacionDiariaCD,
 } = require('../controllers/planController');
 
 router.post('/insertar', insertarRutasPlan);
@@ -24,4 +25,5 @@ router.post('/pedidos-finalizados-tipo', obtenerPedidosPorFactura);
 router.post('/pedidos-finalizados-mes-cd', obtenerPedidosFinalizadosPorMes);
 router.get('/historico-cross-docking', obtenerHistoricoCrossDocking);
 router.get('/pedidos-cd', obtenerPedidosCD); // 👈 nueva: pedidos CD en vivo desde Sanced
+router.get('/facturacion-diaria-cd', obtenerFacturacionDiariaCD); // 👈 nueva: facturación diaria CD
 module.exports = router;

@@ -166,6 +166,60 @@ const obtenerHistoricoCrossDocking = async (req, res) => {
     }
 };
 
+// 2026-10-29: Facturación CROSS DOCK por día y tipo — GET /api/Plan/facturacion-diaria-cd?year=&month=
+const CACHE_FACT_CD = new Map();
+const obtenerFacturacionDiariaCD = async (req, res) => {
+    try {
+        const z2 = (x) => String(x).padStart(2, '0');
+        const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+        const fechaStr = (f) => (f instanceof Date
+            ? `${f.getFullYear()}-${z2(f.getMonth() + 1)}-${z2(f.getDate())}` : String(f).slice(0, 10));
+
+        const hoy = new Date();
+        const year = parseInt(req.query.year, 10) || hoy.getFullYear();
+        const month = Math.min(Math.max(parseInt(req.query.month, 10) || hoy.getMonth() + 1, 1), 12);
+        const key = `${year}-${month}`;
+        const c = CACHE_FACT_CD.get(key);
+        if (c && c.exp > Date.now() && !req.query.nocache) return res.json({ ...c.body, cache: true });
+
+        const desde = `${year}-${z2(month)}-01`;
+        const hasta = month === 12 ? `${year + 1}-01-01` : `${year}-${z2(month + 1)}-01`;
+        const pm = month === 1 ? 12 : month - 1, py = month === 1 ? year - 1 : year;
+        const desdeAnt = `${py}-${z2(pm)}-01`;
+
+        const [rows, rowsAnt] = await Promise.all([
+            planModel.obtenerFacturacionDiariaCD(desde, hasta),
+            planModel.obtenerFacturacionDiariaCD(desdeAnt, desde),
+        ]);
+
+        const dias = {};
+        for (const r of rows) {
+            const f = fechaStr(r.fecha);
+            const d = dias[f] || (dias[f] = { fecha: f, facturas: 0, total: 0, total_iva: 0, por_tipo: {} });
+            const v = { facturas: Number(r.facturas) || 0, total: r2(r.total), total_iva: r2(r.total_iva) };
+            d.facturas += v.facturas; d.total = r2(d.total + v.total); d.total_iva = r2(d.total_iva + v.total_iva);
+            d.por_tipo[r.tipo] = v;
+        }
+
+        const body = {
+            ok: true,
+            periodo: { year, month, desde, hasta },
+            dias: Object.values(dias),
+            mes_anterior: {
+                year: py, month: pm,
+                dias: rowsAnt.map((r) => ({ fecha: fechaStr(r.fecha), total: r2(r.total), total_iva: r2(r.total_iva), facturas: Number(r.facturas) || 0 })),
+            },
+        };
+        const esActual = year === hoy.getFullYear() && month === hoy.getMonth() + 1;
+        CACHE_FACT_CD.set(key, { body, exp: Date.now() + (esActual ? 2 * 60 * 1000 : 6 * 3600 * 1000) });
+        if (CACHE_FACT_CD.size > 60) CACHE_FACT_CD.clear();
+        res.json(body);
+    } catch (error) {
+        console.error('❌ Error facturación diaria CD:', error.message);
+        res.status(500).json({ ok: false, message: 'Error al obtener facturación diaria de cross dock.' });
+    }
+};
+
 module.exports = {
     insertarRutasPlan,
     obtenerRutasPlan,
@@ -176,5 +230,6 @@ module.exports = {
     obtenerPedidosPorFactura,
     obtenerPedidosFinalizadosPorMes,
     obtenerHistoricoCrossDocking,
-    obtenerPedidosCD
+    obtenerPedidosCD,
+    obtenerFacturacionDiariaCD, // 👈 nueva
 };

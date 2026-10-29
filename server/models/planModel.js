@@ -378,4 +378,25 @@ const obtenerHistoricoCrossDocking = async (anio) => {
 
     return rows;
 };
-module.exports = { obtenerHistoricoCrossDocking, insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, actualizarEntregaMasiva, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes };
+
+// 2026-10-29: Facturación CROSS DOCK por día y tipo de orden (Histórico Ventas › Facturación diaria)
+// Misma regla que obtenerHistoricoCrossDocking: sanced finalizado, por fecha_factura, y que exista en pedido_finalizado.
+const obtenerFacturacionDiariaCD = async (desde, hasta) => {
+    const [rows] = await pool.query(`
+        SELECT DATE(s.fecha_factura) AS fecha,
+               COALESCE(NULLIF(TRIM(s.tpo_original), ''), 'Sin tipo') AS tipo,
+               COUNT(DISTINCT s.no_orden) AS facturas,
+               COALESCE(SUM(s.total), 0) AS total,
+               COALESCE(SUM(s.total_con_iva), 0) AS total_iva
+          FROM sanced s
+          INNER JOIN (SELECT no_orden, tipo FROM pedido_finalizado GROUP BY no_orden, tipo) pf
+            ON pf.no_orden = CAST(s.no_orden AS UNSIGNED) AND pf.tipo = s.tpo_original
+         WHERE s.status = 'finalizado'
+           AND s.fecha_factura >= ? AND s.fecha_factura < ?
+         GROUP BY fecha, tipo
+         ORDER BY fecha
+    `, [desde, hasta]);
+    return rows;
+};
+
+module.exports = { obtenerHistoricoCrossDocking, insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, actualizarEntregaMasiva, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes, obtenerFacturacionDiariaCD };
