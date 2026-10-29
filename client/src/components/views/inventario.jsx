@@ -1105,20 +1105,22 @@ function InventarioListado() {
                                             <Table size="small" stickyHeader>
                                                 <TableHead>
                                                     <TableRow sx={{ background: "#f0f0f0" }}>
-                                                        {["Código", "Descripción", "Cantidad", "Costo total (s/IVA)", "Estado"].map(col => (
+                                                        {["Código", "Descripción", "Mín", "Máx", "Cantidad", "Costo total (s/IVA)", "Estado"].map(col => (
                                                             <TableCell key={col} sx={{ fontWeight: "bold" }}>{col}</TableCell>
                                                         ))}
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
                                                     {solicitudMasivaResultado.agregados.length === 0 && solicitudMasivaResultado.faltan.length === 0 && !solicitudMasivaResultado.excluidosPorEmpaque?.length ? (
-                                                        <TableRow><TableCell colSpan={5} align="center">Sin resultados</TableCell></TableRow>
+                                                        <TableRow><TableCell colSpan={7} align="center">Sin resultados</TableCell></TableRow>
                                                     ) : (
                                                         <>
                                                             {solicitudMasivaResultado.agregados.map((a) => (
                                                                 <TableRow key={a.codigo}>
                                                                     <TableCell>{a.codigo}</TableCell>
                                                                     <TableCell>{a.descripcion || '-'}</TableCell>
+                                                                    <TableCell>{a.invMin ?? '-'}</TableCell>
+                                                                    <TableCell>{a.invMax ?? '-'}</TableCell>
                                                                     <TableCell>{a.cantidadSolicitada} PZ</TableCell>
                                                                     <TableCell>{a.costoTotalSinIva != null ? `$${Number(a.costoTotalSinIva).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
                                                                     <TableCell>
@@ -1129,7 +1131,7 @@ function InventarioListado() {
                                                             {solicitudMasivaResultado.faltan.map((codigo) => (
                                                                 <TableRow key={codigo}>
                                                                     <TableCell>{codigo}</TableCell>
-                                                                    <TableCell colSpan={3} sx={{ color: '#888' }}>No se encontró en inventario</TableCell>
+                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>No se encontró en inventario</TableCell>
                                                                     <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>❌ No encontrado</span></TableCell>
                                                                 </TableRow>
                                                             ))}
@@ -1139,7 +1141,7 @@ function InventarioListado() {
                                                             {(solicitudMasivaResultado.excluidosPorEmpaque || []).map((e) => (
                                                                 <TableRow key={`excluido-${e.codigo}`} sx={{ backgroundColor: '#ffebee' }}>
                                                                     <TableCell>{e.codigo}</TableCell>
-                                                                    <TableCell colSpan={3} sx={{ color: '#888' }}>
+                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>
                                                                         Pedía {e.cantidadSolicitada} PZ, pero el empaque mínimo es {e.unidadEmpaque} de {e.piezasPorEmpaque} PZ
                                                                     </TableCell>
                                                                     <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>⚠️ Excluido</span></TableCell>

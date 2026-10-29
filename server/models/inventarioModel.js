@@ -233,6 +233,7 @@ const buscarProductosPorCodigos = async (codigos) => {
 
     const [[row]] = await pool.query(
       `SELECT i.id_ubicaccion, i.codigo_producto, i.ubicacion, i.cant_stock_real,
+              i.inv_min, i.inv_max,
               p.descripcion, p._inner, p._master
        FROM inventario i
        LEFT JOIN productos p ON p.codigo = CAST(i.codigo_producto AS UNSIGNED)
