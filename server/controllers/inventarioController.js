@@ -308,6 +308,8 @@ const solicitarProductoMasivoController = async (req, res) => {
         descripcion: row.descripcion,
         ubicacion: row.ubicacion,
         stock: row.cant_stock_real,
+        invMin: row.inv_min ?? null,
+        invMax: row.inv_max ?? null,
         cantidadSolicitada: cantidadAjustada,
         um,
         precioUnitarioSinIva,
