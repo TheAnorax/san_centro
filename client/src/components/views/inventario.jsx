@@ -622,6 +622,8 @@ function InventarioListado() {
             descripcion: match?.descripcion || '(no está en inventario)',
             ubicacion: match?.ubicacion || '-',
             stock: match?.cant_stock_real ?? '-',
+            invMin: match?.inv_min ?? null,
+            invMax: match?.inv_max ?? null,
             encontrado: Boolean(match),
             masterQty,
             innerQty,
@@ -1024,7 +1026,7 @@ function InventarioListado() {
                                                 <TableHead>
                                                     <TableRow sx={{ background: "#ffe7e1" }}>
                                                         {[
-                                                            "Código", "Descripción", "Stock", "Cantidad a solicitar",
+                                                            "Código", "Descripción", "Stock", "Inv. Mínimo", "Inv. Máximo", "Cantidad a solicitar",
                                                             // 🆕 Disponible en vivo del almacén 7050 (Existencia_Fisica -
                                                             // Comprometido) — solo informativo, no se guarda en la base.
                                                             "Disponible (7050)",
@@ -1049,6 +1051,8 @@ function InventarioListado() {
                                                                 <TableCell>{row.codigo}</TableCell>
                                                                 <TableCell>{row.descripcion}</TableCell>
                                                                 <TableCell>{row.stock}</TableCell>
+                                                                <TableCell>{row.invMin ?? '-'}</TableCell>
+                                                                <TableCell>{row.invMax ?? '-'}</TableCell>
                                                                 <TableCell>{row.cantidad} PZ</TableCell>
                                                                 <TableCell>
                                                                     {cargandoDisponible7050
