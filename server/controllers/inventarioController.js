@@ -1,5 +1,6 @@
-const nodemailer = require("nodemailer");
 const axios = require("axios");
+const { sendMail } = require("../services/mailer.service");
+const notificaciones = require("../config/notifications.config");
 const crypto = require("crypto");
 const {
   obtenerInventario,
@@ -26,7 +27,19 @@ const { plantillaCorreoStockMasivo, plantillaCorreoSolicitarAutorizacion } = req
 // costo real de cada producto, no solo el código y la cantidad.
 const { resolverUnidadYCosto } = require("../utils/preciosProducto");
 
-const DESTINATARIOS = ["desarrollo4@santul.net","eduardo.sandler@santul.net","gerente.desarrollo@santul.net"];
+const DESTINATARIOS = notificaciones.recipients.inventario;
+
+// Adjunto del logo (va inline con cid="logo_santul" en las plantillas).
+const LOGO_ADJUNTO = [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul", contentType: "image/png" }];
+
+// Envía por Microsoft Graph. Mantiene el comportamiento de antes: si el envío falla
+// (y las notificaciones están encendidas) lanza error para que el flujo no siga como si
+// el correo hubiera salido. `sendMail` devuelve null cuando falla.
+async function enviarCorreo({ subject, html }) {
+  const r = await sendMail({ to: DESTINATARIOS, subject, html, attachments: LOGO_ADJUNTO });
+  if (!r && notificaciones.enabled) throw new Error("No se pudo enviar el correo (revisa credenciales de Microsoft Graph en el .env).");
+  return r;
+}
 
 // ================================================
 // GET Inventario
@@ -67,11 +80,6 @@ async function solicitarProducto(req, res) {
       });
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
-    });
-
     const html = plantillaCorreoStock({
       codigo, descripcion, ubicacion, stock,
       cantidadSolicitada: cantidadAjustada, solicitante,
@@ -80,13 +88,7 @@ async function solicitarProducto(req, res) {
     });
 
     console.time("envioCorreo");
-    await transporter.sendMail({
-      from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
-      to: DESTINATARIOS.join(", "),
-      subject: `Solicitud de reposición · Código: ${codigo}`,
-      html,
-      attachments: [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul" }]
-    });
+    await enviarCorreo({ subject: `Solicitud de reposición · Código: ${codigo}`, html });
     console.timeEnd("envioCorreo");
 
     // 📝 Se registra en "No Pedido": el correo ya avisó que hay una
@@ -329,20 +331,9 @@ const solicitarProductoMasivoController = async (req, res) => {
       }));
 
     if (agregados.length > 0) {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
-      });
-
       const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante, excluidos: excluidosPorEmpaque });
 
-      await transporter.sendMail({
-        from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
-        to: DESTINATARIOS.join(", "),
-        subject: `Solicitud masiva de reposición · ${agregados.length} producto(s)`,
-        html,
-        attachments: [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul" }]
-      });
+      await enviarCorreo({ subject: `Solicitud masiva de reposición · ${agregados.length} producto(s)`, html });
 
       // 📝 Igual que en la solicitud individual: cada producto que sí se
       // agregó y se mandó por correo queda registrado en "No Pedido", con
@@ -481,11 +472,6 @@ const autorizarSolicitudesInventarioLoteController = async (req, res) => {
     const linkAutorizar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=autorizar`;
     const linkCancelar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=cancelar`;
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
-    });
-
     const html = plantillaCorreoSolicitarAutorizacion({
       cantidadProductos: lote.length,
       total: granTotal,
@@ -494,13 +480,7 @@ const autorizarSolicitudesInventarioLoteController = async (req, res) => {
       linkCancelar,
     });
 
-    await transporter.sendMail({
-      from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
-      to: DESTINATARIOS.join(", "),
-      subject: `Autorización pendiente · ${lote.length} producto(s)`,
-      html,
-      attachments: [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul" }]
-    });
+    await enviarCorreo({ subject: `Autorización pendiente · ${lote.length} producto(s)`, html });
 
     res.json({ ok: true, message: "Se mandó a pedir autorización", token, productos: lote.length });
   } catch (error) {
@@ -569,13 +549,7 @@ const resolverLotePorTokenController = async (req, res) => {
     // 3) Correo de confirmación (el "último correo" del flujo): avisa que ya
     // se resolvió y quién lo hizo.
     try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: "santuldesarrollo@gmail.com", pass: "kcjx obmc cvaz vecr" }
-      });
-      await transporter.sendMail({
-        from: '"📦 Inventario Almacen 7240" <santuldesarrollo@gmail.com>',
-        to: DESTINATARIOS.join(", "),
+      await enviarCorreo({
         subject: `Pedido ${esAutorizar ? "autorizado" : "cancelado"} · ${lote.length} producto(s)`,
         html: `
           <body style="font-family:Arial, sans-serif; padding:20px;">

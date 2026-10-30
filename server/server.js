@@ -38,6 +38,9 @@ app.use(logBodies); // ya no imprime contraseñas
 const RUTAS_PUBLICAS = ['/auth/login', '/auth/roles'];
 app.use('/api', (req, res, next) => {
   if (RUTAS_PUBLICAS.includes(req.path)) return next();
+  // Botones Autorizar/Cancelar del correo a Dirección: se abren sin login; los protege
+  // el token aleatorio de un solo lote que va en la liga (ver inventarioController).
+  if (req.method === 'GET' && req.path === '/inventario/solicitudes/resolver-lote') return next();
   if (req.path === '/surtido/notificar-cambio' && esLoopback(req)) return next();
   // Lectura de solo consulta para `sanced`, que no tiene token de este sistema: usa llave de servicio.
   if (req.method === 'GET' && req.path === '/traspaso/recibidos' && llaveDeServicioValida(req)) return next();
