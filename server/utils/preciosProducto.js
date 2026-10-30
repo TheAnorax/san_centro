@@ -144,12 +144,12 @@ const resolverUnidadYCosto = async (codigo, cantidad, tope = null) => {
         // exentos (tipo_uni === 1, pieza suelta → minimo === 0) no entran
         // aquí y se piden tal cual, sin tocar nada.
         if (!completo) {
-            // Si las piezas sueltas son MÁS de la mitad del empaque, se cierra
-            // hacia ARRIBA al empaque completo (6 de 10 -> 10). Si son la mitad
-            // o menos, se descartan (1 de 10 -> excluido, 23 de 10 -> 20).
+            // Si las piezas sueltas son la MITAD O MÁS del empaque, se cierra
+            // hacia ARRIBA al empaque completo (6 de 10 -> 10, 10 de 20 -> 20).
+            // Si son menos de la mitad, se descartan (1 de 10 -> excluido, 23 de 10 -> 20).
             const sobrante = cantOriginal % minimo;
             const base = Math.floor(cantOriginal / minimo) * minimo;
-            cantidadAjustada = sobrante * 2 > minimo ? base + minimo : base;
+            cantidadAjustada = sobrante * 2 >= minimo ? base + minimo : base;
             if (cantidadAjustada <= 0) {
                 excluidoPorEmpaqueIncompleto = true;
             }
