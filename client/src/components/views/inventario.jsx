@@ -1196,6 +1196,24 @@ function InventarioListado() {
                                                         <TableRow><TableCell colSpan={7} align="center">Sin resultados</TableCell></TableRow>
                                                     ) : (
                                                         <>
+                                                            {/* Excluidos y no encontrados van ARRIBA para que no se pierdan
+                                                                entre los cientos de agregados (la tabla hace scroll). */}
+                                                            {(solicitudMasivaResultado.excluidosPorEmpaque || []).map((e) => (
+                                                                <TableRow key={`excluido-${e.codigo}`} sx={{ backgroundColor: '#ffebee' }}>
+                                                                    <TableCell>{e.codigo}</TableCell>
+                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>
+                                                                        Pedía {e.cantidadSolicitada} PZ, pero el empaque mínimo es {e.unidadEmpaque} de {e.piezasPorEmpaque} PZ
+                                                                    </TableCell>
+                                                                    <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>⚠️ Excluido</span></TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                            {solicitudMasivaResultado.faltan.map((codigo) => (
+                                                                <TableRow key={codigo} sx={{ backgroundColor: '#ffebee' }}>
+                                                                    <TableCell>{codigo}</TableCell>
+                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>No se encontró en inventario</TableCell>
+                                                                    <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>❌ No encontrado</span></TableCell>
+                                                                </TableRow>
+                                                            ))}
                                                             {solicitudMasivaResultado.agregados.map((a) => (
                                                                 <TableRow key={a.codigo}>
                                                                     <TableCell>{a.codigo}</TableCell>
@@ -1207,25 +1225,6 @@ function InventarioListado() {
                                                                     <TableCell>
                                                                         <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Agregado</span>
                                                                     </TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                            {solicitudMasivaResultado.faltan.map((codigo) => (
-                                                                <TableRow key={codigo}>
-                                                                    <TableCell>{codigo}</TableCell>
-                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>No se encontró en inventario</TableCell>
-                                                                    <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>❌ No encontrado</span></TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                            {/* 🆕 Ya no se manda "tal cual, sin redondear": estos códigos
-                                                                no alcanzaban ni para 1 empaque mínimo de venta, así que se
-                                                                excluyeron por completo (no se mandaron, no se cotizaron). */}
-                                                            {(solicitudMasivaResultado.excluidosPorEmpaque || []).map((e) => (
-                                                                <TableRow key={`excluido-${e.codigo}`} sx={{ backgroundColor: '#ffebee' }}>
-                                                                    <TableCell>{e.codigo}</TableCell>
-                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>
-                                                                        Pedía {e.cantidadSolicitada} PZ, pero el empaque mínimo es {e.unidadEmpaque} de {e.piezasPorEmpaque} PZ
-                                                                    </TableCell>
-                                                                    <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>⚠️ Excluido</span></TableCell>
                                                                 </TableRow>
                                                             ))}
                                                         </>
