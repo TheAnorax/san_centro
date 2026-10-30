@@ -25,7 +25,8 @@ const { plantillaCorreoStockMasivo, plantillaCorreoSolicitarAutorizacion } = req
 // 💲 Misma API de precios/unidad de medida que usa Muestras.jsx
 // (pedidoDetProd), para poder mostrar el correo de solicitud con la UM y el
 // costo real de cada producto, no solo el código y la cantidad.
-const { resolverUnidadYCosto } = require("../utils/preciosProducto");
+const { resolverUnidadYCosto, mapaLimitado } = require("../utils/preciosProducto");
+const CONCURRENCIA_CATALOGO = 15; // llamadas simultáneas máximas a la API de catálogo
 
 const DESTINATARIOS = notificaciones.recipients.inventario;
 
@@ -379,7 +380,7 @@ const solicitarProductoMasivoController = async (req, res) => {
     // 📦 7050: también se limita a lo disponible (ver resolverCantidadFinal).
     const mapaDisp = await mapaDisponibilidad7050Seguro();
 
-    const resultados = await Promise.all(encontrados.map(async (row) => {
+    const resultados = await mapaLimitado(encontrados, CONCURRENCIA_CATALOGO, async (row) => {
       const cantidadSolicitada = mapaCantidades[String(row.codigo_producto).trim()] ?? "";
       const fin = await resolverCantidadFinal(row.codigo_producto, cantidadSolicitada, mapaDisp);
 
@@ -409,7 +410,7 @@ const solicitarProductoMasivoController = async (req, res) => {
         costoTotalSinIva,
         minimoVenta,
       };
-    }));
+    });
 
     const agregados = resultados.filter((r) => !r.excluido);
     const excluidosPorEmpaque = resultados
@@ -484,7 +485,7 @@ const validarEmpaqueController = async (req, res) => {
       return res.status(400).json({ ok: false, message: "Falta la lista de productos" });
     }
     const mapaDisp = await mapaDisponibilidad7050Seguro();
-    const resultados = await Promise.all(productos.map(async (p) => {
+    const resultados = await mapaLimitado(productos, CONCURRENCIA_CATALOGO, async (p) => {
       const codigo = String(p.codigo ?? "").trim();
       const cantidad = Number(p.cantidad) || 0;
       const fin = await resolverCantidadFinal(codigo, cantidad, mapaDisp);
@@ -499,7 +500,7 @@ const validarEmpaqueController = async (req, res) => {
         piezasPorEmpaque: fin.detalle?.minimoVenta?.piezasPorEmpaque ?? null,
         conCatalogo: fin.detalle?.conCatalogo ?? null,
       };
-    }));
+    });
     return res.json({ ok: true, resultados });
   } catch (error) {
     console.error("❌ Error validando empaque:", error);

@@ -59,19 +59,50 @@ const derivarPrecios = (prod) => {
  * productos de `inventario` están dados de alta en el catálogo de ventas),
  * regresa null y el llamador debe mostrar el producto sin costo/UM.
  */
+// Caché en memoria (10 min) SOLO de respuestas buenas: la vista previa y el envío
+// consultan los mismos ~500 códigos, y sin caché se duplicaba la carga sobre la
+// API de catálogo (llegaba a fallar y todo salía "sin costo" y sin empaque).
+const CACHE_DETALLE_MS = 10 * 60 * 1000;
+const cacheDetalle = new Map();
+
 const obtenerDetalleProducto = async (codigo) => {
-    try {
-        const { data } = await axios.post(
-            PEDIDO_DET_PROD_URL,
-            { id: 'inventario-solicitudes', codigo: String(codigo).trim() },
-            { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
-        );
-        if (data?.error === true || !data?.prod) return null;
-        return data.prod;
-    } catch (err) {
-        console.error(`No se pudo obtener el detalle de precio/UM del código ${codigo}:`, err.message);
-        return null;
+    const clave = String(codigo).trim();
+    const hit = cacheDetalle.get(clave);
+    if (hit && Date.now() - hit.t < CACHE_DETALLE_MS) return hit.prod;
+
+    let ultimoError = null;
+    for (let intento = 1; intento <= 2; intento++) {
+        try {
+            const { data } = await axios.post(
+                PEDIDO_DET_PROD_URL,
+                { id: 'inventario-solicitudes', codigo: clave },
+                { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
+            );
+            // Respuesta válida pero el código no existe en el catálogo: no se reintenta.
+            if (data?.error === true || !data?.prod) return null;
+            cacheDetalle.set(clave, { t: Date.now(), prod: data.prod });
+            return data.prod;
+        } catch (err) {
+            ultimoError = err;
+        }
     }
+    console.error(`No se pudo obtener el detalle de precio/UM del código ${codigo}:`, ultimoError?.message);
+    return null;
+};
+
+// Recorre `items` con máximo `limite` llamadas a la vez (en vez de ~500 de golpe).
+const mapaLimitado = async (items, limite, fn) => {
+    const resultados = new Array(items.length);
+    let siguiente = 0;
+    const trabajadores = Array.from({ length: Math.min(limite, items.length) }, async () => {
+        while (true) {
+            const i = siguiente++;
+            if (i >= items.length) return;
+            resultados[i] = await fn(items[i], i);
+        }
+    });
+    await Promise.all(trabajadores);
+    return resultados;
 };
 
 // Mismo criterio que obtenerMinimo() en Muestras.jsx: el mínimo de venta
@@ -182,5 +213,6 @@ module.exports = {
     obtenerDetalleProducto,
     obtenerMinimoVenta,
     resolverUnidadYCosto,
+    mapaLimitado,
     IVA,
 };
