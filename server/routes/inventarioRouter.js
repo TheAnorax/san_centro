@@ -10,6 +10,7 @@ const {
   recalcularInvOpt,
   cargaMasivaLimites,
   solicitarProductoMasivo,
+  validarEmpaque,
   listarSolicitudesInventario,
   actualizarEstadoSolicitudInventario,
   actualizarCantidadSolicitudInventario,
@@ -21,6 +22,7 @@ const {
 router.get('/Obtenerinventario', todosLosInventarios);
 router.post("/solicitar-producto", solicitarProducto);
 router.post("/solicitar-producto-masivo", solicitarProductoMasivo);
+router.post("/validar-empaque", validarEmpaque); // 👈 nueva: ajusta cantidades al empaque mínimo ANTES de enviar (no manda nada)
 router.get("/inventario-jde", obtenerInventarioJDE);
 router.get("/disponibilidad-santul", obtenerDisponibilidadSantul); // 👈 nueva: disponible en vivo (Existencia_Fisica - Comprometido) de un almacén, solo para mostrar — no toca la base
 router.put("/actualizar-ubicacion", actualizarUbicacion);

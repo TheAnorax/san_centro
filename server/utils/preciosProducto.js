@@ -98,9 +98,13 @@ const obtenerMinimoVenta = (prod) => {
  * con la etiqueta de uni_prin sería engañoso (ej. decir "23 Empaque" cuando
  * en realidad son 23 piezas sueltas).
  */
-const resolverUnidadYCosto = async (codigo, cantidad) => {
+const resolverUnidadYCosto = async (codigo, cantidad, tope = null) => {
+    // `tope` (opcional): máximo de piezas que se pueden pedir (disponible en 7050).
+    // El redondeo al empaque nunca lo rebasa: si al cerrar hacia arriba se pasa,
+    // se baja al múltiplo completo que sí cabe (y si ni 1 empaque cabe, se excluye).
     const prod = await obtenerDetalleProducto(codigo);
     const cantOriginal = Number(cantidad) || 0;
+    const hayTope = tope !== null && tope !== undefined && Number.isFinite(Number(tope));
 
     if (!prod) {
         return {
@@ -109,7 +113,7 @@ const resolverUnidadYCosto = async (codigo, cantidad) => {
             costoTotalSinIva: null,
             conCatalogo: false,
             minimoVenta: null,
-            cantidadAjustada: cantOriginal,
+            cantidadAjustada: hayTope ? Math.min(cantOriginal, Math.max(Number(tope), 0)) : cantOriginal,
             excluidoPorEmpaqueIncompleto: false,
         };
     }
@@ -150,6 +154,15 @@ const resolverUnidadYCosto = async (codigo, cantidad) => {
                 excluidoPorEmpaqueIncompleto = true;
             }
         }
+
+        // Tope por disponible: si cerrar al empaque se pasa de lo que hay, se baja
+        // al múltiplo completo que sí cabe; si no cabe ni 1 empaque, se excluye.
+        if (hayTope && cantidadAjustada > Number(tope)) {
+            cantidadAjustada = Math.floor(Math.max(Number(tope), 0) / minimo) * minimo;
+            excluidoPorEmpaqueIncompleto = cantidadAjustada <= 0;
+        }
+    } else if (hayTope && cantidadAjustada > Number(tope)) {
+        cantidadAjustada = Math.max(Number(tope), 0);
     }
 
     return {

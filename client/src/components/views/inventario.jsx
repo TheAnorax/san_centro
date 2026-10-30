@@ -13,6 +13,7 @@ import axios from 'axios';
 import * as XLSX from "xlsx";
 
 const API_TRASPASO_INV = 'http://66.232.105.107:3001/api/traspaso';
+const API_INV_BASE = 'http://66.232.105.107:3001/api/inventario';
 const IMG_BASE = 'http://66.232.105.83:9101/images';
 const PLACEHOLDER = 'http://66.232.105.83:9101/images/noimage.png';
 
@@ -232,6 +233,13 @@ function InventarioListado() {
             setCargandoDisponible7050(false);
         }
     };
+    // 🚫 Si el código no tiene disponible en 7050 (no aparece o está en 0) no se
+    // puede pedir: no se solicita. Solo aplica cuando la consulta de 7050 ya
+    // cargó con datos (si falló/está vacía no se bloquea nada para no excluir todo).
+    const disponible7050Cargado = !cargandoDisponible7050 && Object.keys(disponible7050).length > 0;
+    const sinDisponible7050 = (codigo) =>
+        disponible7050Cargado && !(Number(disponible7050[String(codigo).trim()]) > 0);
+    const cantidadEfectiva = (row) => (sinDisponible7050(row.codigo) ? 0 : Number(row.cantidad) || 0);
     // #endregion DISPONIBLE_7050
 
     // #region EXPORTAR_EXCEL_INVENTARIO
@@ -646,7 +654,7 @@ function InventarioListado() {
     // en inventario, se manda el correo y se marca como "Solicitado".
     const enviarSolicitudExcelPreview = async () => {
         // Los códigos cubiertos por un traspaso (cantidad 0) se muestran pero NO se envían.
-        const filasASolicitar = productosExcelPreview.filter(p => Number(p.cantidad) > 0);
+        const filasASolicitar = productosExcelPreview.filter(p => cantidadEfectiva(p) > 0);
         if (filasASolicitar.length === 0) return;
 
         // 🆕 Ya no existe el estado "sin cerrar": el cierre a Inner/Master
@@ -764,9 +772,44 @@ function InventarioListado() {
                     };
                 });
 
-            // Orden: 1º los que tienen traspaso por recibir, 2º los que NO cierran a
-            // Inner/Master (sin cierre), 3º el resto. Dentro de cada grupo, código de menor a mayor.
-            const grupoDeFila = (r) => (r.enTraspaso > 0 ? 0 : (r.cierre === 'master' || r.cierre === 'inner' ? 2 : 1));
+            // 📦 Empaque mínimo de venta: se valida AQUÍ, antes de enviar, para que la
+            // vista previa ya muestre la cantidad final (automática, no editable) o el
+            // código excluido. Regla (igual que en el envío): si las piezas sueltas son
+            // más de la mitad del empaque se cierra hacia arriba; si no, se descartan.
+            let avisoEmpaque = false;
+            try {
+                const aValidar = preview.filter(r => Number(r.cantidad) > 0).map(r => ({ codigo: r.codigo, cantidad: r.cantidad }));
+                if (aValidar.length > 0) {
+                    const resVal = await axios.post(`${API_INV_BASE}/validar-empaque`, { productos: aValidar });
+                    const porCodigo = {};
+                    (resVal.data?.resultados || []).forEach(v => { porCodigo[String(v.codigo).trim()] = v; });
+                    preview.forEach((r, i) => {
+                        const v = porCodigo[String(r.codigo).trim()];
+                        if (!v || Number(r.cantidad) <= 0) return;
+                        if (v.excluido) {
+                            preview[i] = {
+                                ...r, cantidadAntes: r.cantidad, cantidad: 0, excluidoEmpaque: true,
+                                sinDisponibleSrv: Boolean(v.sinDisponible), disponibleSrv: v.disponible,
+                                piezasPorEmpaque: v.piezasPorEmpaque, desglose: { masters: 0, inners: 0, sueltas: 0 },
+                            };
+                        } else if (Number(v.cantidadAjustada) !== Number(r.cantidad)) {
+                            preview[i] = {
+                                ...r, cantidadAntes: r.cantidad, cantidad: v.cantidadAjustada, ajustadoEmpaque: true,
+                                recortadoDisp: Boolean(v.recortadoPorDisponible), disponibleSrv: v.disponible,
+                                piezasPorEmpaque: v.piezasPorEmpaque,
+                                desglose: calcularDesglose(v.cantidadAjustada, r.masterQty, r.innerQty),
+                            };
+                        }
+                    });
+                }
+            } catch (e) {
+                avisoEmpaque = true; // el servidor igual vuelve a validar al enviar
+            }
+
+            // Orden: 0º los ajustados/excluidos por empaque mínimo, 1º los que tienen traspaso por
+            // recibir, 2º los que NO cierran a Inner/Master, 3º el resto. Dentro de cada grupo,
+            // código de menor a mayor.
+            const grupoDeFila = (r) => (r.excluidoEmpaque || r.ajustadoEmpaque ? -1 : (r.enTraspaso > 0 ? 0 : (r.cierre === 'master' || r.cierre === 'inner' ? 2 : 1)));
             preview.sort((a, b) =>
                 grupoDeFila(a) - grupoDeFila(b) ||
                 String(a.codigo).localeCompare(String(b.codigo), 'es', { numeric: true })
@@ -775,13 +818,22 @@ function InventarioListado() {
             setProductosExcelPreview(preview);
             setSolicitudMasivaResultado(null);
 
-            const aSolicitar = preview.length - cubiertosPorTraspaso;
+            const aSolicitar = preview.filter(r => Number(r.cantidad) > 0).length;
             const avisos = [];
+            const nExcluidos = preview.filter(r => r.excluidoEmpaque).length;
+            const nAjustados = preview.filter(r => r.ajustadoEmpaque).length;
+            const nSinDisp = preview.filter(r => r.sinDisponibleSrv).length;
+            const nRecortados = preview.filter(r => r.recortadoDisp).length;
+            if (nAjustados > 0) avisos.push(`${nAjustados} código(s) se ajustaron (empaque mínimo y/o disponible en 7050).`);
+            if (nRecortados > 0) avisos.push(`${nRecortados} código(s) se bajaron a lo disponible en 7050.`);
+            if (nSinDisp > 0) avisos.push(`${nSinDisp} código(s) NO se piden: sin disponible en 7050.`);
+            if (nExcluidos - nSinDisp > 0) avisos.push(`${nExcluidos - nSinDisp} código(s) NO se van a solicitar: no alcanzan ni la mitad de un empaque mínimo.`);
+            if (avisoEmpaque) avisos.push('No se pudo validar el empaque mínimo ahora; el servidor lo volverá a validar al enviar.');
             if (cubiertosPorTraspaso > 0) avisos.push(`${cubiertosPorTraspaso} código(s) ya están cubiertos por traspasos pendientes y no se van a solicitar.`);
             if (traspasosNoDisponibles) avisos.push('No se pudieron consultar los traspasos pendientes: se muestran las cantidades completas.');
 
             Swal.fire(avisos.length
-                ? { icon: traspasosNoDisponibles ? 'warning' : 'info', title: `${aSolicitar} faltante(s) por solicitar`, html: avisos.join('<br>') }
+                ? { icon: (traspasosNoDisponibles || avisoEmpaque || nExcluidos > 0) ? 'warning' : 'info', title: `${aSolicitar} faltante(s) por solicitar`, html: avisos.join('<br>') }
                 : { icon: 'success', title: `${aSolicitar} faltante(s) sincronizado(s)`, timer: 1500, showConfirmButton: false });
         } catch (err) {
             Swal.fire('❌ Error', 'No se pudo sincronizar', 'error');
@@ -1067,7 +1119,12 @@ function InventarioListado() {
                                     <Box sx={{ mt: 2 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
                                             <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
-                                                Lo que vas a solicitar ({productosExcelPreview.filter(p => Number(p.cantidad) > 0).length})
+                                                Lo que vas a solicitar ({productosExcelPreview.filter(p => cantidadEfectiva(p) > 0).length})
+                                                {productosExcelPreview.some(p => Number(p.cantidad) > 0 && sinDisponible7050(p.codigo)) && (
+                                                    <span style={{ fontWeight: 'normal', color: '#d32f2f', marginLeft: 8, fontSize: '0.85rem' }}>
+                                                        · {productosExcelPreview.filter(p => Number(p.cantidad) > 0 && sinDisponible7050(p.codigo)).length} sin disponible en 7050 (no se piden)
+                                                    </span>
+                                                )}
                                                 {productosExcelPreview.some(p => p.cubierto) && (
                                                     <span style={{ fontWeight: 'normal', color: '#1565c0', marginLeft: 8, fontSize: '0.85rem' }}>
                                                         · {productosExcelPreview.filter(p => p.cubierto).length} cubierto(s) por traspaso
@@ -1078,7 +1135,7 @@ function InventarioListado() {
                                                 variant="contained"
                                                 color="error"
                                                 size="small"
-                                                disabled={solicitudMasivaProcesando || !productosExcelPreview.some(p => Number(p.cantidad) > 0)}
+                                                disabled={solicitudMasivaProcesando || !productosExcelPreview.some(p => cantidadEfectiva(p) > 0)}
                                                 onClick={enviarSolicitudExcelPreview}
                                                 sx={{ textTransform: 'none' }}
                                             >
@@ -1111,7 +1168,7 @@ function InventarioListado() {
                                                         // en inventario) es puramente informativo, se deja pasar.
                                                         const sinCerrar = row.cierre === 'ninguno';
                                                         return (
-                                                            <TableRow key={row.codigo} sx={sinCerrar ? { backgroundColor: '#ffebee' } : (!row.encontrado ? { backgroundColor: '#f5f5f5' } : (row.cubierto ? { backgroundColor: '#e8f1fc' } : undefined))}>
+                                                            <TableRow key={row.codigo} sx={sinCerrar || row.excluidoEmpaque || (Number(row.cantidad) > 0 && sinDisponible7050(row.codigo)) ? { backgroundColor: '#ffebee' } : (row.ajustadoEmpaque ? { backgroundColor: '#fff3e0' } : !row.encontrado ? { backgroundColor: '#f5f5f5' } : (row.cubierto ? { backgroundColor: '#e8f1fc' } : undefined))}>
                                                                 <TableCell>{row.codigo}</TableCell>
                                                                 <TableCell>{row.descripcion}</TableCell>
                                                                 <TableCell>{row.stock}</TableCell>
@@ -1130,7 +1187,32 @@ function InventarioListado() {
                                                                         <span style={{ color: '#aaa' }}>—</span>
                                                                     )}
                                                                 </TableCell>
-                                                                <TableCell>{row.cantidad} PZ</TableCell>
+                                                                <TableCell>
+                                                                    {row.excluidoEmpaque ? (
+                                                                        <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                                                            ⚠️ No se solicita<br />
+                                                                            <span style={{ fontWeight: 'normal', color: '#666' }}>
+                                                                                {row.sinDisponibleSrv
+                                                                                    ? `sin disponible en 7050 (pedía ${row.cantidadAntes} PZ)`
+                                                                                    : `pedía ${row.cantidadAntes} PZ, empaque mínimo ${row.piezasPorEmpaque} PZ`}
+                                                                            </span>
+                                                                        </span>
+                                                                    ) : row.ajustadoEmpaque ? (
+                                                                        <span>
+                                                                            <b>{row.cantidad} PZ</b><br />
+                                                                            <span style={{ fontSize: '0.75rem', color: '#e65100' }}>
+                                                                                {row.recortadoDisp
+                                                                                    ? `ajustado de ${row.cantidadAntes} a lo disponible en 7050 (${row.disponibleSrv})`
+                                                                                    : `ajustado de ${row.cantidadAntes} (empaque mín. ${row.piezasPorEmpaque})`}
+                                                                            </span>
+                                                                        </span>
+                                                                    ) : (Number(row.cantidad) > 0 && sinDisponible7050(row.codigo)) ? (
+                                                                        <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                                                            ⚠️ No se solicita<br />
+                                                                            <span style={{ fontWeight: 'normal', color: '#666' }}>sin disponible en 7050 (pedía {row.cantidad} PZ)</span>
+                                                                        </span>
+                                                                    ) : `${row.cantidad} PZ`}
+                                                                </TableCell>
                                                                 <TableCell>
                                                                     {cargandoDisponible7050
                                                                         ? <span style={{ color: '#aaa' }}>...</span>

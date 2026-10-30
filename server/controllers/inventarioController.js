@@ -35,10 +35,51 @@ const LOGO_ADJUNTO = [{ filename: "logob.png", path: __dirname + "/../assets/log
 // Envía por Microsoft Graph. Mantiene el comportamiento de antes: si el envío falla
 // (y las notificaciones están encendidas) lanza error para que el flujo no siga como si
 // el correo hubiera salido. `sendMail` devuelve null cuando falla.
-async function enviarCorreo({ subject, html }) {
-  const r = await sendMail({ to: DESTINATARIOS, subject, html, attachments: LOGO_ADJUNTO });
+async function enviarCorreo({ subject, html, adjuntos = [] }) {
+  const r = await sendMail({ to: DESTINATARIOS, subject, html, attachments: [...LOGO_ADJUNTO, ...adjuntos] });
   if (!r && notificaciones.enabled) throw new Error("No se pudo enviar el correo (revisa credenciales de Microsoft Graph en el .env).");
   return r;
+}
+
+// 📎 Excel con el detalle de lo que se solicita (código, descripción, cantidad...).
+// Usa exceljs si está instalado; si no, genera un CSV (abre igual en Excel) para
+// que el correo salga de todos modos.
+async function construirAdjuntoSolicitud(productos) {
+  const fecha = new Date().toISOString().slice(0, 10);
+  const filas = productos.map((p) => ({
+    codigo: p.codigo,
+    descripcion: p.descripcion || "",
+    cantidad: Number(p.cantidadSolicitada) || 0,
+    original: p.cantidadPedidaOriginal !== undefined ? Number(p.cantidadPedidaOriginal) || 0 : "",
+    disponible: p.disponible7050 ?? "",
+  }));
+  try {
+    const ExcelJS = require("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Solicitud");
+    ws.columns = [
+      { header: "Código", key: "codigo", width: 12 },
+      { header: "Descripción", key: "descripcion", width: 55 },
+      { header: "Cantidad solicitada (PZ)", key: "cantidad", width: 24 },
+      { header: "Cantidad pedida originalmente", key: "original", width: 28 },
+      { header: "Disponible 7050", key: "disponible", width: 16 },
+    ];
+    ws.addRows(filas);
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    return {
+      filename: `solicitud_inventario_${fecha}.xlsx`,
+      content: Buffer.from(buf),
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    };
+  } catch (e) {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = "﻿" + [
+      ["Código", "Descripción", "Cantidad solicitada (PZ)", "Cantidad pedida originalmente", "Disponible 7050"].map(esc).join(","),
+      ...filas.map((f) => [f.codigo, f.descripcion, f.cantidad, f.original, f.disponible].map(esc).join(",")),
+    ].join("\r\n");
+    return { filename: `solicitud_inventario_${fecha}.csv`, content: Buffer.from(csv, "utf8"), contentType: "text/csv" };
+  }
 }
 
 // ================================================
@@ -111,24 +152,64 @@ async function solicitarProducto(req, res) {
 // para la columna "Disponible en 7050" de la tabla de Solicitar Inventario:
 // la sincronización que sí se guarda en la base sigue siendo la del 7240.
 // ================================================
+// Mapa { codigo: disponible } del almacén (Existencia_Fisica - Comprometido).
+async function obtenerMapaDisponibilidad(almacen = "7050") {
+  const { data } = await axios({
+    method: "get",
+    url: "http://santul.verpedidos.com:9010/Santul/Inventarios",
+    headers: { "Content-Type": "application/json" },
+    data: { Almacen: almacen },
+    timeout: 15000,
+  });
+  const productos = Array.isArray(data) ? data : [];
+  const disponibilidad = {};
+  productos.forEach((p) => {
+    if (p.Clave === undefined) return;
+    const comprometido = Number(p.Comprometido) || 0;
+    const fisica = Number(p.Existencia_Fisica) || 0;
+    disponibilidad[String(p.Clave).trim()] = fisica - comprometido;
+  });
+  return disponibilidad;
+}
+
+// Igual pero sin lanzar error: si el servicio de inventarios falla (o viene
+// vacío) regresa null y NO se recorta nada, para no excluir todo por una caída.
+async function mapaDisponibilidad7050Seguro() {
+  try {
+    const mapa = await obtenerMapaDisponibilidad("7050");
+    return Object.keys(mapa).length > 0 ? mapa : null;
+  } catch (e) {
+    console.warn("⚠️ No se pudo consultar disponibilidad 7050, no se recorta por disponible:", e.message);
+    return null;
+  }
+}
+
+// Regla: sin disponible (no aparece o <= 0) -> no se pide; si lo pedido pasa
+// de lo disponible se baja a lo disponible; luego se aplica el empaque mínimo
+// sin rebasar lo disponible. Regresa el detalle para pantalla/correo.
+async function resolverCantidadFinal(codigo, cantidad, mapa) {
+  const pedida = Number(cantidad) || 0;
+  const disp = mapa ? (Number(mapa[String(codigo).trim()]) || 0) : null;
+  if (mapa && disp <= 0) {
+    return { sinDisponible: true, excluido: true, cantidadSolicitada: pedida, disponible: 0, cantidadAjustada: 0 };
+  }
+  const base = mapa ? Math.min(pedida, disp) : pedida;
+  const r = await resolverUnidadYCosto(codigo, base, mapa ? disp : null);
+  return {
+    sinDisponible: false,
+    excluido: Boolean(r.excluidoPorEmpaqueIncompleto),
+    cantidadSolicitada: pedida,
+    disponible: mapa ? disp : null,
+    recortadoPorDisponible: Boolean(mapa && pedida > disp && !r.excluidoPorEmpaqueIncompleto),
+    detalle: r,
+    cantidadAjustada: r.cantidadAjustada,
+  };
+}
+
 async function obtenerDisponibilidadSantul(req, res) {
   try {
     const almacen = req.query.almacen || "7050";
-    const { data } = await axios({
-      method: "get",
-      url: "http://santul.verpedidos.com:9010/Santul/Inventarios",
-      headers: { "Content-Type": "application/json" },
-      data: { Almacen: almacen },
-      timeout: 15000,
-    });
-    const productos = Array.isArray(data) ? data : [];
-    const disponibilidad = {};
-    productos.forEach((p) => {
-      if (p.Clave === undefined) return;
-      const comprometido = Number(p.Comprometido) || 0;
-      const fisica = Number(p.Existencia_Fisica) || 0;
-      disponibilidad[String(p.Clave).trim()] = fisica - comprometido;
-    });
+    const disponibilidad = await obtenerMapaDisponibilidad(almacen);
     res.json({ success: true, almacen, disponibilidad });
   } catch (error) {
     console.error("❌ Error consultando disponibilidad Santul:", error.response?.data || error.message);
@@ -295,17 +376,27 @@ const solicitarProductoMasivoController = async (req, res) => {
     // siquiera alcanza para 1 empaque completo, se excluye por completo
     // (no se manda, no se cotiza, no se registra). Los productos sin
     // empaque mínimo (puro PZ) no se tocan.
+    // 📦 7050: también se limita a lo disponible (ver resolverCantidadFinal).
+    const mapaDisp = await mapaDisponibilidad7050Seguro();
+
     const resultados = await Promise.all(encontrados.map(async (row) => {
       const cantidadSolicitada = mapaCantidades[String(row.codigo_producto).trim()] ?? "";
-      const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta, cantidadAjustada, excluidoPorEmpaqueIncompleto } =
-        await resolverUnidadYCosto(row.codigo_producto, cantidadSolicitada);
+      const fin = await resolverCantidadFinal(row.codigo_producto, cantidadSolicitada, mapaDisp);
 
-      if (excluidoPorEmpaqueIncompleto) {
+      if (fin.sinDisponible) {
+        return { excluido: true, sinDisponible: true, codigo: row.codigo_producto, cantidadSolicitada };
+      }
+      const { um, precioUnitarioSinIva, costoTotalSinIva, minimoVenta, cantidadAjustada } = fin.detalle;
+
+      if (fin.excluido) {
         return { excluido: true, codigo: row.codigo_producto, minimoVenta, cantidadSolicitada };
       }
 
       return {
         excluido: false,
+        recortadoPorDisponible: fin.recortadoPorDisponible,
+        disponible7050: fin.disponible,
+        cantidadPedidaOriginal: cantidadSolicitada,
         codigo: row.codigo_producto,
         descripcion: row.descripcion,
         ubicacion: row.ubicacion,
@@ -322,18 +413,31 @@ const solicitarProductoMasivoController = async (req, res) => {
 
     const agregados = resultados.filter((r) => !r.excluido);
     const excluidosPorEmpaque = resultados
-      .filter((r) => r.excluido)
+      .filter((r) => r.excluido && !r.sinDisponible)
       .map((r) => ({
         codigo: r.codigo,
         cantidadSolicitada: r.cantidadSolicitada,
         piezasPorEmpaque: r.minimoVenta?.piezasPorEmpaque ?? null,
         unidadEmpaque: r.minimoVenta?.unidadEmpaque ?? null,
       }));
+    // 7050: sin disponible (no se piden) y recortados a lo disponible.
+    const sinDisponible = resultados
+      .filter((r) => r.sinDisponible)
+      .map((r) => ({ codigo: r.codigo, cantidadSolicitada: r.cantidadSolicitada }));
+    const recortadosDisponible = agregados
+      .filter((a) => a.recortadoPorDisponible)
+      .map((a) => ({
+        codigo: a.codigo,
+        cantidadSolicitada: a.cantidadPedidaOriginal,
+        cantidadFinal: a.cantidadSolicitada,
+        disponible: a.disponible7050,
+      }));
 
     if (agregados.length > 0) {
-      const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante, excluidos: excluidosPorEmpaque });
+      const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible });
 
-      await enviarCorreo({ subject: `Solicitud masiva de reposición · ${agregados.length} producto(s)`, html });
+      const adjuntoExcel = await construirAdjuntoSolicitud(agregados);
+      await enviarCorreo({ subject: `Solicitud masiva de reposición · ${agregados.length} producto(s)`, html, adjuntos: [adjuntoExcel] });
 
       // 📝 Igual que en la solicitud individual: cada producto que sí se
       // agregó y se mandó por correo queda registrado en "No Pedido", con
@@ -356,11 +460,50 @@ const solicitarProductoMasivoController = async (req, res) => {
       agregados,
       faltan: noEncontrados,
       excluidosPorEmpaque,
+      sinDisponible,
+      recortadosDisponible,
     });
 
   } catch (error) {
     console.error("❌ Error en solicitud masiva:", error);
     return res.status(500).json({ ok: false, message: "Error enviando la solicitud masiva", error: error.message });
+  }
+};
+
+// ================================================
+// POST Validar empaque mínimo (SIN enviar nada)
+// La pantalla lo llama al armar la vista previa para mostrar ya las cantidades
+// finales (ajustadas al empaque mínimo de venta) o los códigos que se excluyen,
+// ANTES de mandar el correo. Usa exactamente la misma regla que el envío.
+// body: { productos: [{ codigo, cantidad }] }
+// ================================================
+const validarEmpaqueController = async (req, res) => {
+  try {
+    const { productos } = req.body;
+    if (!Array.isArray(productos)) {
+      return res.status(400).json({ ok: false, message: "Falta la lista de productos" });
+    }
+    const mapaDisp = await mapaDisponibilidad7050Seguro();
+    const resultados = await Promise.all(productos.map(async (p) => {
+      const codigo = String(p.codigo ?? "").trim();
+      const cantidad = Number(p.cantidad) || 0;
+      const fin = await resolverCantidadFinal(codigo, cantidad, mapaDisp);
+      return {
+        codigo,
+        cantidadSolicitada: cantidad,
+        cantidadAjustada: fin.cantidadAjustada,
+        excluido: fin.excluido,
+        sinDisponible: fin.sinDisponible,
+        recortadoPorDisponible: Boolean(fin.recortadoPorDisponible),
+        disponible: fin.disponible,
+        piezasPorEmpaque: fin.detalle?.minimoVenta?.piezasPorEmpaque ?? null,
+        conCatalogo: fin.detalle?.conCatalogo ?? null,
+      };
+    }));
+    return res.json({ ok: true, resultados });
+  } catch (error) {
+    console.error("❌ Error validando empaque:", error);
+    return res.status(500).json({ ok: false, message: "Error validando empaque" });
   }
 };
 
@@ -610,6 +753,7 @@ module.exports = {
   recalcularInvOpt,
   cargaMasivaLimites: cargaMasivaLimitesController,
   solicitarProductoMasivo: solicitarProductoMasivoController,
+  validarEmpaque: validarEmpaqueController,
   listarSolicitudesInventario: listarSolicitudesInventarioController,
   actualizarEstadoSolicitudInventario: actualizarEstadoSolicitudInventarioController,
   actualizarCantidadSolicitudInventario: actualizarCantidadSolicitudInventarioController,

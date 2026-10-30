@@ -107,9 +107,13 @@ function plantillaCorreoStock({ codigo, descripcion, ubicacion, stock, cantidadS
 // (sin IVA) resueltos contra el catálogo de ventas
 // (misma API que usa Muestras.jsx).
 // ================================================
-function plantillaCorreoStockMasivo({ productos, solicitante, excluidos }) {
+function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recortadosDisponible, sinDisponible }) {
     const lista = productos || [];
     const excluidosLista = excluidos || [];
+    // 7050: códigos cuya cantidad se bajó a lo disponible, y códigos que no se pidieron por no tener.
+    const recortadosLista = recortadosDisponible || [];
+    const sinDispLista = sinDisponible || [];
+    const totalModificadosDisp = recortadosLista.length + sinDispLista.length;
 
     const granTotal = lista.reduce((acc, p) => acc + (Number(p.costoTotalSinIva) || 0), 0);
     const hayNoResueltos = lista.some((p) => p.precioUnitarioSinIva === null || p.precioUnitarioSinIva === undefined);
@@ -160,6 +164,26 @@ function plantillaCorreoStockMasivo({ productos, solicitante, excluidos }) {
                 <p style="font-size:12px; color:#c62828; margin-top:10px;">
                     ⚠️ ${excluidosLista.length} código(s) NO se incluyeron porque la cantidad no alcanza para completar ni 1 empaque mínimo de venta: ${excluidosLista.map((e) => `${e.codigo} (pedía ${e.cantidadSolicitada}, mínimo ${e.piezasPorEmpaque})`).join(", ")}.
                 </p>` : ""}
+
+                ${totalModificadosDisp > 0 ? `
+                <table style="width:100%; border-collapse:collapse; margin-top:12px;">
+                    <tr style="background:#fff3e0;">
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Códigos modificados por disponible en 7050:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>${totalModificadosDisp}</b></td>
+                    </tr>
+                </table>
+                ${recortadosLista.length > 0 ? `
+                <p style="font-size:12px; color:#e65100; margin-top:8px;">
+                    ⚠️ ${recortadosLista.length} código(s) se ajustaron a lo disponible en 7050: ${recortadosLista.map((r) => `${r.codigo} (pedía ${r.cantidadSolicitada}, se pidió ${r.cantidadFinal}, disponible ${r.disponible})`).join(", ")}.
+                </p>` : ""}
+                ${sinDispLista.length > 0 ? `
+                <p style="font-size:12px; color:#c62828; margin-top:8px;">
+                    ⚠️ ${sinDispLista.length} código(s) NO se pidieron por no tener disponible en 7050: ${sinDispLista.map((r) => `${r.codigo} (pedía ${r.cantidadSolicitada})`).join(", ")}.
+                </p>` : ""}` : ""}
+
+                <p style="margin-top:20px; padding:10px; background:#e8f1fc; border-radius:6px;">
+                    📎 <b>Excel adjunto</b> con el detalle de los ${lista.length} código(s) solicitados (código, descripción y cantidad).
+                </p>
 
                 <p style="margin-top:20px;">
                     Favor de reabastecer estos productos a la brevedad.
