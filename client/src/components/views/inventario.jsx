@@ -10,9 +10,9 @@ import SearchIcon from '@mui/icons-material/Search';
 import Swal from "sweetalert2";
 import axios from 'axios';
 
-const API_TRASPASO_INV = 'http://66.232.105.107:3001/api/traspaso';
 import * as XLSX from "xlsx";
 
+const API_TRASPASO_INV = 'http://66.232.105.107:3001/api/traspaso';
 const IMG_BASE = 'http://66.232.105.83:9101/images';
 const PLACEHOLDER = 'http://66.232.105.83:9101/images/noimage.png';
 

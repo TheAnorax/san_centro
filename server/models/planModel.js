@@ -174,7 +174,7 @@ const obtenerPedidosPorFecha = async (fecha) => {
             s.fecha_entrega, s.costos
         FROM sanced s
         INNER JOIN pedido_finalizado pf ON pf.no_orden = s.no_orden
-        WHERE (? = 'todos' OR DATE_FORMAT(s.fecha_factura, '%Y-%m') = ?)
+        WHERE DATE_FORMAT(s.fecha_factura, '%Y-%m') = ?
 
         UNION
 
@@ -192,10 +192,10 @@ const obtenerPedidosPorFecha = async (fecha) => {
             ON CONVERT(SUBSTRING_INDEX(pf2.ordenes_unidas, '-', -1) USING utf8mb4) COLLATE utf8mb4_unicode_ci 
              = CONVERT(CAST(s2.no_orden AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci
         INNER JOIN sanced s3 ON s3.no_orden = pf2.no_orden
-        WHERE (? = 'todos' OR DATE_FORMAT(s3.fecha_factura, '%Y-%m') = ?)
+        WHERE DATE_FORMAT(s3.fecha_factura, '%Y-%m') = ?
 
         ORDER BY fecha_factura ASC, registro DESC
-    `, [fechaFiltro, fechaFiltro, fechaFiltro, fechaFiltro]);
+    `, [fechaFiltro, fechaFiltro]);
 
     return rows;
 };
@@ -260,17 +260,23 @@ const obtenerPedidosPorFactura = async (no_factura) => {
             s.no_orden       AS orden,
             s.tpo_original   AS tipo,
             s.direccion,
-            DATE_FORMAT(s.fecha_factura, '%d-%m-%Y') AS fecha_entrega,
+            DATE_FORMAT(s.fecha_entrega, '%d-%m-%Y') AS fecha_entrega,
+            DATE_FORMAT(s.fecha_factura, '%d-%m-%Y') AS fecha_factura,
             s.no_factura     AS numero_factura
         FROM sanced s
-        WHERE EXISTS (
-            SELECT 1
-            FROM pedido_finalizado pf
-            WHERE pf.no_orden = s.no_orden
-              AND pf.tipo = s.tpo_original
+        WHERE (
+            -- Finalizado según sanced, o con registro en pedido_finalizado
+            s.status = 'finalizado'
+            OR EXISTS (
+                SELECT 1
+                FROM pedido_finalizado pf
+                WHERE pf.no_orden = CAST(s.no_orden AS UNSIGNED)
+                  AND UPPER(TRIM(pf.tipo)) = UPPER(TRIM(s.tpo_original))
+            )
         )
-        AND s.no_factura = ?
-    `, [no_factura]);
+        -- Acepta "492400" o "492400-F2" (cualquier sufijo -Fn)
+        AND (s.no_factura = ? OR s.no_factura LIKE CONCAT(?, '-%'))
+    `, [String(no_factura).trim(), String(no_factura).trim()]);
     return rows;
 };
 
@@ -378,13 +384,12 @@ const obtenerHistoricoCrossDocking = async (anio) => {
 
     return rows;
 };
-
 // 2026-10-29: Facturación CROSS DOCK por día y tipo de orden (Histórico Ventas › Facturación diaria)
 // Misma regla que obtenerHistoricoCrossDocking: sanced finalizado, por fecha_factura, y que exista en pedido_finalizado.
 const obtenerFacturacionDiariaCD = async (desde, hasta) => {
     const [rows] = await pool.query(`
-        SELECT DATE(s.fecha_factura) AS fecha,
-               COALESCE(NULLIF(TRIM(s.tpo_original), ''), 'Sin tipo') AS tipo,
+        SELECT DATE(s.fecha_factura) AS dia_fact,
+               COALESCE(NULLIF(TRIM(s.tpo_original), ''), 'Sin tipo') AS tipo_fact,
                COUNT(DISTINCT s.no_orden) AS facturas,
                COALESCE(SUM(s.total), 0) AS total,
                COALESCE(SUM(s.total_con_iva), 0) AS total_iva
@@ -393,10 +398,26 @@ const obtenerFacturacionDiariaCD = async (desde, hasta) => {
             ON pf.no_orden = CAST(s.no_orden AS UNSIGNED) AND pf.tipo = s.tpo_original
          WHERE s.status = 'finalizado'
            AND s.fecha_factura >= ? AND s.fecha_factura < ?
-         GROUP BY fecha, tipo
-         ORDER BY fecha
+         GROUP BY dia_fact, tipo_fact
+         ORDER BY dia_fact
+    `, [desde, hasta]);
+    // ⚠️ Alias propios: la tabla sanced ya tiene columna `fecha` y GROUP BY la tomaba en vez del alias
+    return rows.map((r) => ({ ...r, fecha: r.dia_fact, tipo: r.tipo_fact }));
+};
+// 2026-10-30: Detalle por ORDEN de lo facturado en Cross dock (para deduplicar contra paquetería en SANCED).
+// Sin INNER JOIN a pedido_finalizado: muchas órdenes facturadas no tienen líneas ahí y se perdían (~$1M en oct-2026).
+const obtenerFacturacionCDOrdenes = async (desde, hasta) => {
+    const [rows] = await pool.query(`
+        SELECT CAST(s.no_orden AS UNSIGNED)                AS orden,
+               TRIM(s.tpo_original)                        AS tipo_orden,
+               DATE(MIN(s.fecha_factura))                  AS dia_fact,
+               COALESCE(SUM(s.total), 0)                   AS total,
+               COALESCE(SUM(s.total_con_iva), 0)           AS total_iva
+          FROM sanced s
+         WHERE s.status = 'finalizado'
+           AND s.fecha_factura >= ? AND s.fecha_factura < ?
+         GROUP BY CAST(s.no_orden AS UNSIGNED), TRIM(s.tpo_original)
     `, [desde, hasta]);
     return rows;
 };
-
-module.exports = { obtenerHistoricoCrossDocking, insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, actualizarEntregaMasiva, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes, obtenerFacturacionDiariaCD };
+module.exports = { obtenerFacturacionCDOrdenes, obtenerHistoricoCrossDocking, obtenerFacturacionDiariaCD, insertarRutas, obtenerRutas, obtenerPedidosPorFecha, actualizarStatusEntrega, actualizarEntregaMasiva, registrarEntregaPaqueteria, obtenerPedidosPorFactura, obtenerPedidosFinalizadosPorMes };
