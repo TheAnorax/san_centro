@@ -13,8 +13,8 @@ module.exports = {
   // Únicas personas que reciben los botones Autorizar/Cancelar y que pueden
   // resolver el pedido (el formulario del enlace solo acepta estos nombres).
   aprobadores: [
-    { nombre: "Eduardo Sandler", email: "eduardo.sandler@santul.net" },
-    { nombre: "Jonathan Alcantara", email: "desarrollo4@santul.net" },
+    { id: "eduardo", nombre: "Eduardo Sandler", email: "eduardo.sandler@santul.net" },
+    { id: "jonathan", nombre: "Jonathan Alcantara", email: "desarrollo4@santul.net" },
   ],
 
   recipients: {

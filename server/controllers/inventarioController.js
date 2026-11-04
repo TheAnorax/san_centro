@@ -23,7 +23,7 @@ const {
   marcarPedidoRegistradoEnCedis
 } = require('../models/inventarioModel');
 const plantillaCorreoStock = require("../utils/plantillaCorreoStock");
-const { plantillaCorreoStockMasivo, plantillaCorreoSolicitarAutorizacion } = require("../utils/plantillaCorreoStock");
+const { plantillaCorreoStockMasivo, plantillaCorreoSolicitarAutorizacion, plantillaCorreoResolucion } = require("../utils/plantillaCorreoStock");
 // 💲 Misma API de precios/unidad de medida que usa Muestras.jsx
 // (pedidoDetProd), para poder mostrar el correo de solicitud con la UM y el
 // costo real de cada producto, no solo el código y la cantidad.
@@ -35,8 +35,29 @@ const DESTINATARIOS = notificaciones.recipients.inventario;
 const APROBADORES = notificaciones.aprobadores;
 const EMAILS_APROBADORES = APROBADORES.map((a) => a.email.toLowerCase());
 const DESTINATARIOS_SIN_BOTONES = DESTINATARIOS.filter((d) => !EMAILS_APROBADORES.includes(String(d).toLowerCase()));
-const esAprobadorValido = (nombre) =>
-  APROBADORES.some((a) => a.nombre.toLowerCase() === String(nombre || "").trim().toLowerCase());
+
+// 🔐 Cada aprobador recibe SU PROPIO enlace: lleva su id (`por`) y una firma HMAC
+// del token del lote + ese id, así nadie puede cambiar `por` para hacerse pasar
+// por el otro. El nombre sale de la config, no se escribe.
+const { JWT_SECRET: SECRETO_FIRMA } = require("../appSanCed/config/auth.config");
+const firmarAprobador = (token, idAprobador) =>
+  crypto.createHmac("sha256", String(SECRETO_FIRMA)).update(`${token}:${idAprobador}`).digest("hex").slice(0, 40);
+const aprobadorDesdeEnlace = (token, por, firma) => {
+  const ap = APROBADORES.find((a) => a.id === por);
+  if (!ap || !firma) return null;
+  const esperada = Buffer.from(firmarAprobador(token, ap.id));
+  const recibida = Buffer.from(String(firma));
+  if (esperada.length !== recibida.length || !crypto.timingSafeEqual(esperada, recibida)) return null;
+  return ap;
+};
+const enlacesAprobador = (token, ap) => {
+  const baseUrl = process.env.APP_BASE_URL || "http://66.232.105.107:3001";
+  const q = `token=${token}&por=${ap.id}&firma=${firmarAprobador(token, ap.id)}`;
+  return {
+    linkAutorizar: `${baseUrl}/api/inventario/solicitudes/resolver-lote?${q}&accion=autorizar`,
+    linkCancelar: `${baseUrl}/api/inventario/solicitudes/resolver-lote?${q}&accion=cancelar`,
+  };
+};
 
 // Adjunto del logo (va inline con cid="logo_santul" en las plantillas).
 const LOGO_ADJUNTO = [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul", contentType: "image/png" }];
@@ -48,6 +69,22 @@ async function enviarCorreo({ subject, html, adjuntos = [], to = DESTINATARIOS }
   const r = await sendMail({ to, subject, html, attachments: [...LOGO_ADJUNTO, ...adjuntos] });
   if (!r && notificaciones.enabled) throw new Error("No se pudo enviar el correo (revisa credenciales de Microsoft Graph en el .env).");
   return r;
+}
+
+// Manda un correo por aprobador con SUS enlaces. `armar(links)` regresa
+// { subject, html, adjuntos }. Regresa cuántos salieron bien.
+async function enviarIndividualAprobadores(token, armar) {
+  let enviados = 0;
+  for (const ap of APROBADORES) {
+    try {
+      const { subject, html, adjuntos } = armar(enlacesAprobador(token, ap));
+      await enviarCorreo({ subject, html, adjuntos, to: [ap.email] });
+      enviados += 1;
+    } catch (e) {
+      console.error(`No se pudo mandar el correo con botones a ${ap.nombre}:`, e.message);
+    }
+  }
+  return enviados;
 }
 
 // 📎 Excel con el detalle de lo que se solicita (código, descripción, cantidad...).
@@ -455,38 +492,29 @@ const solicitarProductoMasivoController = async (req, res) => {
       const token = crypto.randomBytes(16).toString("hex");
       await marcarPedidoPendienteAutorizacion(numeroPedido, token, solicitante);
 
-      const baseUrl = process.env.APP_BASE_URL || "http://66.232.105.107:3001";
-      const linkAutorizar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=autorizar`;
-      const linkCancelar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=cancelar`;
-
       const datosPlantilla = { productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible };
       const asunto = `Solicitud masiva de reposición · ${agregados.length} producto(s)`;
       const adjuntoExcel = await construirAdjuntoSolicitud(agregados);
 
-      try {
-        // Con botones: solo Eduardo y Jonathan.
-        await enviarCorreo({
-          subject: asunto,
-          html: plantillaCorreoStockMasivo({ ...datosPlantilla, linkAutorizar, linkCancelar }),
-          adjuntos: [adjuntoExcel],
-          to: EMAILS_APROBADORES,
-        });
-      } catch (mailErr) {
-        // Si no salió el correo con botones, el lote no debe quedar colgado.
+      // Con botones: un correo INDEPENDIENTE para cada aprobador, con su propio enlace.
+      const enviadosAprobadores = await enviarIndividualAprobadores(token, (links) => ({
+        subject: asunto,
+        html: plantillaCorreoStockMasivo({ ...datosPlantilla, ...links }),
+        adjuntos: [adjuntoExcel],
+      }));
+      if (enviadosAprobadores === 0) {
+        // Si no salió ninguno con botones, el lote no debe quedar colgado.
         await revertirLotePendiente(token).catch(() => {});
-        throw mailErr;
+        throw new Error("No se pudo enviar el correo a los aprobadores (revisa credenciales de Microsoft Graph en el .env).");
       }
       // Sin botones: el resto de los destinatarios (solo informativo; si falla no frena nada).
-      if (DESTINATARIOS_SIN_BOTONES.length > 0) {
+      // Se manda uno por uno para que, si alguno falla, se vea cuál (y los demás sí salen).
+      const htmlSinBotones = plantillaCorreoStockMasivo(datosPlantilla);
+      for (const destino of DESTINATARIOS_SIN_BOTONES) {
         try {
-          await enviarCorreo({
-            subject: asunto,
-            html: plantillaCorreoStockMasivo(datosPlantilla),
-            adjuntos: [adjuntoExcel],
-            to: DESTINATARIOS_SIN_BOTONES,
-          });
+          await enviarCorreo({ subject: asunto, html: htmlSinBotones, adjuntos: [adjuntoExcel], to: [destino] });
         } catch (mailErr) {
-          console.error("No se pudo mandar la copia informativa (sin botones):", mailErr.message);
+          console.error(`No se pudo mandar la copia informativa (sin botones) a ${destino}:`, mailErr.message);
         }
       }
     }
@@ -654,20 +682,22 @@ const autorizarSolicitudesInventarioLoteController = async (req, res) => {
     }));
     const granTotal = conCosto.reduce((acc, c) => acc + (Number(c) || 0), 0);
 
-    const baseUrl = process.env.APP_BASE_URL || "http://66.232.105.107:3001";
-    const linkAutorizar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=autorizar`;
-    const linkCancelar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=cancelar`;
-
-    const html = plantillaCorreoSolicitarAutorizacion({
-      cantidadProductos: lote.length,
-      total: granTotal,
-      solicitante: modificadoPor,
-      linkAutorizar,
-      linkCancelar,
-    });
-
-    // Los botones solo les llegan a los aprobadores (Eduardo y Jonathan).
-    await enviarCorreo({ subject: `Autorización pendiente · ${lote.length} producto(s)`, html, to: EMAILS_APROBADORES });
+    // Los botones solo les llegan a los aprobadores (Eduardo y Jonathan), un correo
+    // independiente para cada uno con su propio enlace.
+    const enviados = await enviarIndividualAprobadores(token, (links) => ({
+      subject: `Autorización pendiente · ${lote.length} producto(s)`,
+      html: plantillaCorreoSolicitarAutorizacion({
+        cantidadProductos: lote.length,
+        total: granTotal,
+        solicitante: modificadoPor,
+        ...links,
+      }),
+      adjuntos: [],
+    }));
+    if (enviados === 0) {
+      await revertirLotePendiente(token).catch(() => {});
+      throw new Error("No se pudo enviar el correo a los aprobadores.");
+    }
 
     res.json({ ok: true, message: "Se mandó a pedir autorización", token, productos: lote.length });
   } catch (error) {
@@ -689,11 +719,19 @@ const autorizarSolicitudesInventarioLoteController = async (req, res) => {
 // ================================================
 const resolverLotePorTokenController = async (req, res) => {
   try {
-    const { token, accion, nombre } = req.query;
+    const { token, accion, por, firma, confirmar } = req.query;
 
     if (!token || !["autorizar", "cancelar"].includes(accion)) {
       return res.status(400).send("<h2>Enlace inválido.</h2>");
     }
+
+    // Cada enlace es personal: trae el id del aprobador y su firma. Sin firma
+    // válida no se puede ver ni resolver nada.
+    const aprobador = aprobadorDesdeEnlace(token, por, firma);
+    if (!aprobador) {
+      return res.status(403).send("<h2>Enlace inválido o no autorizado.</h2>");
+    }
+    const nombre = aprobador.nombre;
 
     const lote = await obtenerLotePorToken(token);
     if (lote.length === 0) {
@@ -707,22 +745,21 @@ const resolverLotePorTokenController = async (req, res) => {
     const colorAccion = esAutorizar ? "#2e7d32" : "#c62828";
     const tituloAccion = esAutorizar ? "Autorizar pedido" : "Cancelar pedido";
 
-    // 1) Todavía no viene el nombre → se pide con un formulario (por GET, sin
-    // necesitar sesión ni body-parser especial) antes de aplicar el cambio.
-    if (!nombre || !nombre.trim()) {
+    // 1) Primero una página de confirmación con un solo botón (sin pedir nombre:
+    // ya se sabe quién es por su enlace). El clic en el correo solo la muestra, así
+    // los escáneres de enlaces del correo no autorizan nada por accidente.
+    if (confirmar !== "1") {
       return res.send(`
         <body style="font-family:Arial, sans-serif; text-align:center; padding:40px; background:#f4f4f4;">
           <div style="max-width:420px; margin:auto; background:#fff; padding:30px; border-radius:10px; box-shadow:0 0 10px #ccc;">
             <h2 style="margin-top:0;">${tituloAccion}</h2>
-            <p>${lote.length} producto(s) · Antes de confirmar, dinos tu nombre:</p>
+            <p>Hola <b>${nombre}</b>. ${lote.length} producto(s) en este pedido.</p>
             <form method="GET" action="/api/inventario/solicitudes/resolver-lote">
               <input type="hidden" name="token" value="${token}" />
               <input type="hidden" name="accion" value="${accion}" />
-              <select name="nombre" required
-                style="width:100%; padding:10px; margin:12px 0; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; background:#fff;">
-                <option value="" disabled selected>Selecciona tu nombre</option>
-                ${APROBADORES.map((a) => `<option value="${a.nombre}">${a.nombre}</option>`).join("")}
-              </select>
+              <input type="hidden" name="por" value="${aprobador.id}" />
+              <input type="hidden" name="firma" value="${firma}" />
+              <input type="hidden" name="confirmar" value="1" />
               <button type="submit" style="background:${colorAccion}; color:#fff; border:none; padding:12px 28px; border-radius:6px; font-weight:bold; cursor:pointer;">
                 Confirmar ${esAutorizar ? "autorización" : "cancelación"}
               </button>
@@ -732,26 +769,21 @@ const resolverLotePorTokenController = async (req, res) => {
       `);
     }
 
-    // 2) Solo los aprobadores autorizados pueden resolver el pedido.
-    if (!esAprobadorValido(nombre)) {
-      return res.status(403).send("<h2>Solo Eduardo Sandler o Jonathan Alcantara pueden autorizar o cancelar este pedido.</h2>");
-    }
-
-    // 3) Ya viene el nombre válido → se aplica el cambio de verdad.
+    // 2) Confirmado → se aplica el cambio de verdad, a nombre de el dueño del enlace.
     const nuevoEstado = esAutorizar ? "Autorizada" : "Cancelada";
-    await resolverLotePorToken(token, nuevoEstado, nombre.trim());
+    await resolverLotePorToken(token, nuevoEstado, nombre);
 
     // 3) Correo de confirmación (el "último correo" del flujo): avisa que ya
     // se resolvió y quién lo hizo.
     try {
       await enviarCorreo({
         subject: `Pedido ${esAutorizar ? "autorizado" : "cancelado"} · ${lote.length} producto(s)`,
-        html: `
-          <body style="font-family:Arial, sans-serif; padding:20px;">
-            <h2>${esAutorizar ? "✅ Pedido autorizado" : "❌ Pedido cancelado"}</h2>
-            <p><b>${nombre.trim()}</b> ${esAutorizar ? "autorizó" : "canceló"} este pedido (${lote.length} producto(s)).</p>
-          </body>
-        `,
+        html: plantillaCorreoResolucion({
+          autorizado: esAutorizar,
+          cantidadProductos: lote.length,
+          resueltoPor: nombre,
+          numeroPedido: lote[0]?.numero_pedido,
+        }),
       });
     } catch (mailErr) {
       console.error("No se pudo mandar el correo de confirmación final:", mailErr.message);
@@ -760,7 +792,7 @@ const resolverLotePorTokenController = async (req, res) => {
     res.send(`
       <body style="font-family:Arial, sans-serif; text-align:center; padding:40px;">
         <h2>${esAutorizar ? "✅ Pedido autorizado" : "❌ Pedido cancelado"}</h2>
-        <p>${lote.length} producto(s) fueron marcados como "${nuevoEstado}" por <b>${nombre.trim()}</b>.</p>
+        <p>${lote.length} producto(s) fueron marcados como "${nuevoEstado}" por <b>${nombre}</b>.</p>
       </body>
     `);
   } catch (error) {

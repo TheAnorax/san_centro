@@ -307,6 +307,77 @@ function plantillaCorreoSolicitarAutorizacion({ cantidadProductos, total, solici
     `;
 }
 
+// ================================================
+// Correo final: el pedido ya fue AUTORIZADO o CANCELADO.
+// Mismo diseño que los demás (logo + banner), el banner va
+// en verde (autorizado) o rojo (cancelado).
+// ================================================
+function plantillaCorreoResolucion({ autorizado, cantidadProductos, resueltoPor, numeroPedido }) {
+    const color = autorizado ? '#2e7d32' : '#c62828';
+    const titulo = autorizado ? '✅ Pedido autorizado' : '❌ Pedido cancelado';
+    const verbo = autorizado ? 'autorizó' : 'canceló';
+    const fecha = new Date().toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' });
+    return `
+    <body style="background-color:#f4f4f4; padding:20px; font-family:Arial, sans-serif;">
+    <table style="max-width:600px; margin:auto; background:#fff; border-radius:8px; box-shadow:0 0 10px #ccc;">
+
+        <!-- LOGO -->
+        <tr>
+            <td style="text-align:center; padding:20px;">
+                <img src="cid:logo_santul" alt="Logo Santul" width="180" />
+            </td>
+        </tr>
+
+        <!-- TITULO -->
+        <tr>
+            <td style="background:${color}; color:white; padding:20px; border-radius:8px 8px 0 0;">
+                <h2 style="margin:0;">${titulo}</h2>
+            </td>
+        </tr>
+
+        <!-- CONTENIDO -->
+        <tr>
+            <td style="padding:22px;">
+
+                <p><b>${resueltoPor}</b> ${verbo} el pedido de reposición de inventario.</p>
+
+                <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+                    ${numeroPedido ? `
+                    <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Pedido:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">#${numeroPedido}</td>
+                    </tr>` : ''}
+                    <tr style="background:#f9f9f9;">
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Productos:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${cantidadProductos}</td>
+                    </tr>
+                    <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Estado:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;"><b style="color:${color};">${autorizado ? 'Autorizado' : 'Cancelado'}</b></td>
+                    </tr>
+                    <tr style="background:#f9f9f9;">
+                        <td style="border:1px solid #ccc; padding:8px;"><b>${autorizado ? 'Autorizado' : 'Cancelado'} por:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${resueltoPor}</td>
+                    </tr>
+                    <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Fecha:</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${fecha}</td>
+                    </tr>
+                </table>
+
+                <p style="font-size:12px; color:#888; margin-top:30px;">
+                    Este correo fue generado automáticamente por el sistema de inventario · Santul San Cen.
+                </p>
+
+            </td>
+        </tr>
+
+    </table>
+    </body>
+    `;
+}
+
 module.exports = plantillaCorreoStock;
+module.exports.plantillaCorreoResolucion = plantillaCorreoResolucion;
 module.exports.plantillaCorreoStockMasivo = plantillaCorreoStockMasivo;
 module.exports.plantillaCorreoSolicitarAutorizacion = plantillaCorreoSolicitarAutorizacion;
