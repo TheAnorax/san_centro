@@ -17,12 +17,18 @@ module.exports = {
     { id: "jonathan", nombre: "Jonathan Alcantara", email: "desarrollo4@santul.net" },
   ],
 
+  // En copia (CC): reciben el mismo correo pero SIN botones de autorizar/cancelar.
+  copia: [
+    { nombre: "Rodrigo Arias", email: "gerente.desarrollo@santul.net" },
+  ],
+
   recipients: {
     // Solicitudes de inventario: solicitud, autorización pendiente y confirmación final.
     inventario: [
       "desarrollo4@santul.net",
       "eduardo.sandler@santul.net",
       "gerente.desarrollo@santul.net",
+      
     ],
   },
 };

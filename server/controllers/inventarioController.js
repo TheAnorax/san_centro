@@ -34,7 +34,16 @@ const DESTINATARIOS = notificaciones.recipients.inventario;
 // Solo ellos reciben los botones Autorizar/Cancelar y pueden resolver el pedido.
 const APROBADORES = notificaciones.aprobadores;
 const EMAILS_APROBADORES = APROBADORES.map((a) => a.email.toLowerCase());
-const DESTINATARIOS_SIN_BOTONES = DESTINATARIOS.filter((d) => !EMAILS_APROBADORES.includes(String(d).toLowerCase()));
+// En copia (CC): mismo correo, sin botones. Se agregan también los de `recipients.inventario`
+// que no sean aprobadores, por si se suma alguien a esa lista.
+const COPIA = notificaciones.copia || [];
+const DESTINATARIOS_SIN_BOTONES = [...new Set([
+  ...COPIA.map((c) => c.email),
+  ...DESTINATARIOS.filter((d) => !EMAILS_APROBADORES.includes(String(d).toLowerCase())),
+])];
+// Texto "Para / CC" que se muestra dentro del correo para que todos vean a quién le llegó.
+const PARA_TEXTO = APROBADORES.map((a) => a.nombre).join(", ");
+const CC_TEXTO = COPIA.map((c) => c.nombre).join(", ");
 
 // 🔐 Cada aprobador recibe SU PROPIO enlace: lleva su id (`por`) y una firma HMAC
 // del token del lote + ese id, así nadie puede cambiar `por` para hacerse pasar
@@ -65,8 +74,8 @@ const LOGO_ADJUNTO = [{ filename: "logob.png", path: __dirname + "/../assets/log
 // Envía por Microsoft Graph. Mantiene el comportamiento de antes: si el envío falla
 // (y las notificaciones están encendidas) lanza error para que el flujo no siga como si
 // el correo hubiera salido. `sendMail` devuelve null cuando falla.
-async function enviarCorreo({ subject, html, adjuntos = [], to = DESTINATARIOS }) {
-  const r = await sendMail({ to, subject, html, attachments: [...LOGO_ADJUNTO, ...adjuntos] });
+async function enviarCorreo({ subject, html, adjuntos = [], to = DESTINATARIOS, cc }) {
+  const r = await sendMail({ to, cc, subject, html, attachments: [...LOGO_ADJUNTO, ...adjuntos] });
   if (!r && notificaciones.enabled) throw new Error("No se pudo enviar el correo (revisa credenciales de Microsoft Graph en el .env).");
   return r;
 }
@@ -492,7 +501,7 @@ const solicitarProductoMasivoController = async (req, res) => {
       const token = crypto.randomBytes(16).toString("hex");
       await marcarPedidoPendienteAutorizacion(numeroPedido, token, solicitante);
 
-      const datosPlantilla = { productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible };
+      const datosPlantilla = { productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible, para: PARA_TEXTO, cc: CC_TEXTO };
       const asunto = `Solicitud masiva de reposición · ${agregados.length} producto(s)`;
       const adjuntoExcel = await construirAdjuntoSolicitud(agregados);
 
@@ -690,6 +699,8 @@ const autorizarSolicitudesInventarioLoteController = async (req, res) => {
         cantidadProductos: lote.length,
         total: granTotal,
         solicitante: modificadoPor,
+        para: PARA_TEXTO,
+        cc: CC_TEXTO,
         ...links,
       }),
       adjuntos: [],
@@ -784,6 +795,9 @@ const resolverLotePorTokenController = async (req, res) => {
           resueltoPor: nombre,
           numeroPedido: lote[0]?.numero_pedido,
         }),
+        // Confirmación final: Para = aprobadores, CC = copia (header real del correo).
+        to: APROBADORES.map((a) => a.email),
+        cc: DESTINATARIOS_SIN_BOTONES,
       });
     } catch (mailErr) {
       console.error("No se pudo mandar el correo de confirmación final:", mailErr.message);

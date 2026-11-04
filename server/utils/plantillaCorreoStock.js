@@ -107,7 +107,13 @@ function plantillaCorreoStock({ codigo, descripcion, ubicacion, stock, cantidadS
 // (sin IVA) resueltos contra el catálogo de ventas
 // (misma API que usa Muestras.jsx).
 // ================================================
-function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recortadosDisponible, sinDisponible, linkAutorizar, linkCancelar }) {
+// Línea "Para / CC" para que se vea a quién le llegó el correo.
+const lineaParaCc = (para, cc) => (para || cc) ? `
+                <p style="font-size:12px; color:#555; margin:0 0 12px 0;">
+                    ${para ? `<b>Para:</b> ${para}` : ''}${para && cc ? ' &nbsp;·&nbsp; ' : ''}${cc ? `<b>CC:</b> ${cc}` : ''}
+                </p>` : '';
+
+function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recortadosDisponible, sinDisponible, linkAutorizar, linkCancelar, para, cc }) {
     const lista = productos || [];
     const conBotones = Boolean(linkAutorizar && linkCancelar);
     // Piezas totales solicitadas y stock real actual (mi inventario) de estos códigos.
@@ -143,7 +149,7 @@ function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recorta
         <!-- CONTENIDO -->
         <tr>
             <td style="padding:22px;">
-
+                ${lineaParaCc(para, cc)}
                 <table style="width:100%; border-collapse:collapse; margin-top:5px;">
                     <tr>
                         <td style="border:1px solid #ccc; padding:8px;"><b>Productos solicitados:</b></td>
@@ -240,7 +246,7 @@ function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recorta
 // directamente desde el correo, sin tener que entrar
 // al sistema.
 // ================================================
-function plantillaCorreoSolicitarAutorizacion({ cantidadProductos, total, solicitante, linkAutorizar, linkCancelar }) {
+function plantillaCorreoSolicitarAutorizacion({ cantidadProductos, total, solicitante, linkAutorizar, linkCancelar, para, cc }) {
     return `
     <body style="background-color:#f4f4f4; padding:20px; font-family:Arial, sans-serif;">
     <table style="max-width:600px; margin:auto; background:#fff; border-radius:8px; box-shadow:0 0 10px #ccc;">
@@ -263,6 +269,7 @@ function plantillaCorreoSolicitarAutorizacion({ cantidadProductos, total, solici
         <tr>
             <td style="padding:22px;">
 
+                ${lineaParaCc(para, cc)}
                 <p>Planeación revisó y mandó el siguiente pedido para su autorización:</p>
 
                 <table style="width:100%; border-collapse:collapse; margin-top:10px;">
