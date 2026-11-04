@@ -356,6 +356,24 @@ const marcarLotePendienteAutorizacion = async (ids, token, modificadoPor) => {
   return result;
 };
 
+// Marca todo un pedido recién creado ("No Pedido") como pendiente de autorización.
+const marcarPedidoPendienteAutorizacion = async (numeroPedido, token, modificadoPor) => {
+  const [result] = await pool.query(
+    `UPDATE solicitudes_inventario SET estado = 'Pendiente Autorizacion', lote_token = ?, modificado_por = ? WHERE numero_pedido = ? AND estado = 'No Pedido'`,
+    [token, modificadoPor || null, Number(numeroPedido)]
+  );
+  return result;
+};
+
+// Si el correo no pudo salir, el lote vuelve a "No Pedido" para no dejarlo colgado.
+const revertirLotePendiente = async (token) => {
+  const [result] = await pool.query(
+    `UPDATE solicitudes_inventario SET estado = 'No Pedido', lote_token = NULL WHERE lote_token = ? AND estado = 'Pendiente Autorizacion'`,
+    [token]
+  );
+  return result;
+};
+
 const obtenerLotePorToken = async (token) => {
   const [rows] = await pool.query(`${SELECT_SOLICITUDES} WHERE si.lote_token = ?`, [token]);
   return rows;
@@ -400,6 +418,8 @@ module.exports = {
   actualizarEstadoSolicitudInventario,
   actualizarCantidadSolicitudInventario,
   marcarLotePendienteAutorizacion,
+  marcarPedidoPendienteAutorizacion,
+  revertirLotePendiente,
   obtenerLotePorToken,
   resolverLotePorToken,
   marcarPedidoRegistradoEnCedis

@@ -107,8 +107,12 @@ function plantillaCorreoStock({ codigo, descripcion, ubicacion, stock, cantidadS
 // (sin IVA) resueltos contra el catálogo de ventas
 // (misma API que usa Muestras.jsx).
 // ================================================
-function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recortadosDisponible, sinDisponible }) {
+function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recortadosDisponible, sinDisponible, linkAutorizar, linkCancelar }) {
     const lista = productos || [];
+    const conBotones = Boolean(linkAutorizar && linkCancelar);
+    // Piezas totales solicitadas y stock real actual (mi inventario) de estos códigos.
+    const totalPiezas = lista.reduce((acc, p) => acc + (Number(p.cantidadSolicitada) || 0), 0);
+    const stockTotal = lista.reduce((acc, p) => acc + (Number(p.stock) || 0), 0);
     const excluidosLista = excluidos || [];
     // 7050: códigos cuya cantidad se bajó a lo disponible, y códigos que no se pidieron por no tener.
     const recortadosLista = recortadosDisponible || [];
@@ -150,6 +154,14 @@ function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recorta
                         <td style="border:1px solid #ccc; padding:8px;"><b>${formatCurrency(granTotal)}</b></td>
                     </tr>
                     <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Piezas solicitadas (total):</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${totalPiezas.toLocaleString("es-MX")} PZ</td>
+                    </tr>
+                    <tr style="background:#f9f9f9;">
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Stock real actual de estos códigos (mi inventario):</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;">${stockTotal.toLocaleString("es-MX")} PZ</td>
+                    </tr>
+                    <tr>
                         <td style="border:1px solid #ccc; padding:8px;"><b>Solicitante:</b></td>
                         <td style="border:1px solid #ccc; padding:8px;">${solicitante}</td>
                     </tr>
@@ -188,6 +200,23 @@ function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recorta
                 <p style="margin-top:20px;">
                     Favor de reabastecer estos productos a la brevedad.
                 </p>
+
+                ${conBotones ? `
+                <p style="margin-top:20px; font-weight:bold; color:#e65100;">🔔 Autorización pendiente</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:10px auto 0 auto;">
+                    <tr>
+                        <td style="padding:0 8px;">
+                            <a href="${linkAutorizar}" style="display:inline-block; background:#2e7d32; color:#ffffff; text-decoration:none; padding:14px 30px; border-radius:6px; font-weight:bold; font-family:Arial, sans-serif;">
+                                ✅ Autorizar pedido
+                            </a>
+                        </td>
+                        <td style="padding:0 8px;">
+                            <a href="${linkCancelar}" style="display:inline-block; background:#c62828; color:#ffffff; text-decoration:none; padding:14px 30px; border-radius:6px; font-weight:bold; font-family:Arial, sans-serif;">
+                                ❌ Cancelar pedido
+                            </a>
+                        </td>
+                    </tr>
+                </table>` : ""}
 
                 <p style="font-size:12px; color:#888; margin-top:30px;">
                     Este correo fue generado automáticamente por el sistema de inventario · Santul San Cen.

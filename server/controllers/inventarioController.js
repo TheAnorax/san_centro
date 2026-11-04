@@ -16,6 +16,8 @@ const {
   actualizarEstadoSolicitudInventario,
   actualizarCantidadSolicitudInventario,
   marcarLotePendienteAutorizacion,
+  marcarPedidoPendienteAutorizacion,
+  revertirLotePendiente,
   obtenerLotePorToken,
   resolverLotePorToken,
   marcarPedidoRegistradoEnCedis
@@ -29,6 +31,12 @@ const { resolverUnidadYCosto, mapaLimitado } = require("../utils/preciosProducto
 const CONCURRENCIA_CATALOGO = 15; // llamadas simultáneas máximas a la API de catálogo
 
 const DESTINATARIOS = notificaciones.recipients.inventario;
+// Solo ellos reciben los botones Autorizar/Cancelar y pueden resolver el pedido.
+const APROBADORES = notificaciones.aprobadores;
+const EMAILS_APROBADORES = APROBADORES.map((a) => a.email.toLowerCase());
+const DESTINATARIOS_SIN_BOTONES = DESTINATARIOS.filter((d) => !EMAILS_APROBADORES.includes(String(d).toLowerCase()));
+const esAprobadorValido = (nombre) =>
+  APROBADORES.some((a) => a.nombre.toLowerCase() === String(nombre || "").trim().toLowerCase());
 
 // Adjunto del logo (va inline con cid="logo_santul" en las plantillas).
 const LOGO_ADJUNTO = [{ filename: "logob.png", path: __dirname + "/../assets/logob.png", cid: "logo_santul", contentType: "image/png" }];
@@ -36,8 +44,8 @@ const LOGO_ADJUNTO = [{ filename: "logob.png", path: __dirname + "/../assets/log
 // Envía por Microsoft Graph. Mantiene el comportamiento de antes: si el envío falla
 // (y las notificaciones están encendidas) lanza error para que el flujo no siga como si
 // el correo hubiera salido. `sendMail` devuelve null cuando falla.
-async function enviarCorreo({ subject, html, adjuntos = [] }) {
-  const r = await sendMail({ to: DESTINATARIOS, subject, html, attachments: [...LOGO_ADJUNTO, ...adjuntos] });
+async function enviarCorreo({ subject, html, adjuntos = [], to = DESTINATARIOS }) {
+  const r = await sendMail({ to, subject, html, attachments: [...LOGO_ADJUNTO, ...adjuntos] });
   if (!r && notificaciones.enabled) throw new Error("No se pudo enviar el correo (revisa credenciales de Microsoft Graph en el .env).");
   return r;
 }
@@ -53,6 +61,7 @@ async function construirAdjuntoSolicitud(productos) {
     cantidad: Number(p.cantidadSolicitada) || 0,
     original: p.cantidadPedidaOriginal !== undefined ? Number(p.cantidadPedidaOriginal) || 0 : "",
     disponible: p.disponible7050 ?? "",
+    stock: p.stock === null || p.stock === undefined ? "" : Number(p.stock),
   }));
   try {
     const ExcelJS = require("exceljs");
@@ -64,6 +73,7 @@ async function construirAdjuntoSolicitud(productos) {
       { header: "Cantidad solicitada (PZ)", key: "cantidad", width: 24 },
       { header: "Cantidad pedida originalmente", key: "original", width: 28 },
       { header: "Disponible 7050", key: "disponible", width: 16 },
+      { header: "Stock real (mi inventario)", key: "stock", width: 26 },
     ];
     ws.addRows(filas);
     ws.getRow(1).font = { bold: true };
@@ -76,8 +86,8 @@ async function construirAdjuntoSolicitud(productos) {
   } catch (e) {
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const csv = "﻿" + [
-      ["Código", "Descripción", "Cantidad solicitada (PZ)", "Cantidad pedida originalmente", "Disponible 7050"].map(esc).join(","),
-      ...filas.map((f) => [f.codigo, f.descripcion, f.cantidad, f.original, f.disponible].map(esc).join(",")),
+      ["Código", "Descripción", "Cantidad solicitada (PZ)", "Cantidad pedida originalmente", "Disponible 7050", "Stock real (mi inventario)"].map(esc).join(","),
+      ...filas.map((f) => [f.codigo, f.descripcion, f.cantidad, f.original, f.disponible, f.stock].map(esc).join(",")),
     ].join("\r\n");
     return { filename: `solicitud_inventario_${fecha}.csv`, content: Buffer.from(csv, "utf8"), contentType: "text/csv" };
   }
@@ -435,18 +445,50 @@ const solicitarProductoMasivoController = async (req, res) => {
       }));
 
     if (agregados.length > 0) {
-      const html = plantillaCorreoStockMasivo({ productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible });
-
-      const adjuntoExcel = await construirAdjuntoSolicitud(agregados);
-      await enviarCorreo({ subject: `Solicitud masiva de reposición · ${agregados.length} producto(s)`, html, adjuntos: [adjuntoExcel] });
-
-      // 📝 Igual que en la solicitud individual: cada producto que sí se
-      // agregó y se mandó por correo queda registrado en "No Pedido", con
-      // `solicitante` como solicitado_por.
-      await crearSolicitudesInventario(
+      // 📝 Primero se registra el pedido y se deja "Pendiente Autorizacion" con su
+      // token, para que ESTE MISMO correo lleve los botones Autorizar/Cancelar
+      // (ya no hay un segundo correo de "autorización pendiente").
+      const { numeroPedido } = await crearSolicitudesInventario(
         agregados.map((a) => ({ sku: a.codigo, cantidad: a.cantidadSolicitada })),
         solicitante
       );
+      const token = crypto.randomBytes(16).toString("hex");
+      await marcarPedidoPendienteAutorizacion(numeroPedido, token, solicitante);
+
+      const baseUrl = process.env.APP_BASE_URL || "http://66.232.105.107:3001";
+      const linkAutorizar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=autorizar`;
+      const linkCancelar = `${baseUrl}/api/inventario/solicitudes/resolver-lote?token=${token}&accion=cancelar`;
+
+      const datosPlantilla = { productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible };
+      const asunto = `Solicitud masiva de reposición · ${agregados.length} producto(s)`;
+      const adjuntoExcel = await construirAdjuntoSolicitud(agregados);
+
+      try {
+        // Con botones: solo Eduardo y Jonathan.
+        await enviarCorreo({
+          subject: asunto,
+          html: plantillaCorreoStockMasivo({ ...datosPlantilla, linkAutorizar, linkCancelar }),
+          adjuntos: [adjuntoExcel],
+          to: EMAILS_APROBADORES,
+        });
+      } catch (mailErr) {
+        // Si no salió el correo con botones, el lote no debe quedar colgado.
+        await revertirLotePendiente(token).catch(() => {});
+        throw mailErr;
+      }
+      // Sin botones: el resto de los destinatarios (solo informativo; si falla no frena nada).
+      if (DESTINATARIOS_SIN_BOTONES.length > 0) {
+        try {
+          await enviarCorreo({
+            subject: asunto,
+            html: plantillaCorreoStockMasivo(datosPlantilla),
+            adjuntos: [adjuntoExcel],
+            to: DESTINATARIOS_SIN_BOTONES,
+          });
+        } catch (mailErr) {
+          console.error("No se pudo mandar la copia informativa (sin botones):", mailErr.message);
+        }
+      }
     }
 
     // 🆕 Ya no hay "advertencias de empaque incompleto" (antes se mandaban
@@ -624,7 +666,8 @@ const autorizarSolicitudesInventarioLoteController = async (req, res) => {
       linkCancelar,
     });
 
-    await enviarCorreo({ subject: `Autorización pendiente · ${lote.length} producto(s)`, html });
+    // Los botones solo les llegan a los aprobadores (Eduardo y Jonathan).
+    await enviarCorreo({ subject: `Autorización pendiente · ${lote.length} producto(s)`, html, to: EMAILS_APROBADORES });
 
     res.json({ ok: true, message: "Se mandó a pedir autorización", token, productos: lote.length });
   } catch (error) {
@@ -675,8 +718,11 @@ const resolverLotePorTokenController = async (req, res) => {
             <form method="GET" action="/api/inventario/solicitudes/resolver-lote">
               <input type="hidden" name="token" value="${token}" />
               <input type="hidden" name="accion" value="${accion}" />
-              <input type="text" name="nombre" placeholder="Tu nombre" required
-                style="width:100%; padding:10px; margin:12px 0; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;" />
+              <select name="nombre" required
+                style="width:100%; padding:10px; margin:12px 0; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; background:#fff;">
+                <option value="" disabled selected>Selecciona tu nombre</option>
+                ${APROBADORES.map((a) => `<option value="${a.nombre}">${a.nombre}</option>`).join("")}
+              </select>
               <button type="submit" style="background:${colorAccion}; color:#fff; border:none; padding:12px 28px; border-radius:6px; font-weight:bold; cursor:pointer;">
                 Confirmar ${esAutorizar ? "autorización" : "cancelación"}
               </button>
@@ -686,7 +732,12 @@ const resolverLotePorTokenController = async (req, res) => {
       `);
     }
 
-    // 2) Ya viene el nombre → se aplica el cambio de verdad.
+    // 2) Solo los aprobadores autorizados pueden resolver el pedido.
+    if (!esAprobadorValido(nombre)) {
+      return res.status(403).send("<h2>Solo Eduardo Sandler o Jonathan Alcantara pueden autorizar o cancelar este pedido.</h2>");
+    }
+
+    // 3) Ya viene el nombre válido → se aplica el cambio de verdad.
     const nuevoEstado = esAutorizar ? "Autorizada" : "Cancelada";
     await resolverLotePorToken(token, nuevoEstado, nombre.trim());
 

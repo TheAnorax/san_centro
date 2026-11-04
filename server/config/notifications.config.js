@@ -10,6 +10,13 @@ module.exports = {
   // Pon MAIL_NOTIFICATIONS_ENABLED=false en .env para apagar todo sin tocar código.
   enabled: process.env.MAIL_NOTIFICATIONS_ENABLED !== "false",
 
+  // Únicas personas que reciben los botones Autorizar/Cancelar y que pueden
+  // resolver el pedido (el formulario del enlace solo acepta estos nombres).
+  aprobadores: [
+    { nombre: "Eduardo Sandler", email: "eduardo.sandler@santul.net" },
+    { nombre: "Jonathan Alcantara", email: "desarrollo4@santul.net" },
+  ],
+
   recipients: {
     // Solicitudes de inventario: solicitud, autorización pendiente y confirmación final.
     inventario: [
