@@ -117,9 +117,22 @@ const actualizarUbicacion = async (id, ubicacion) => {
   return result;
 };
 
+// Stock real por código (suma de todas sus ubicaciones) de un almacén, solo > 0.
+const obtenerStockPorCodigo = async (almacen) => {
+  const [rows] = await pool.query(
+    `SELECT codigo_producto, SUM(CAST(cant_stock_real AS SIGNED)) AS stock
+     FROM inventario
+     WHERE almacen = ? AND cant_stock_real IS NOT NULL
+     GROUP BY codigo_producto
+     HAVING stock > 0`,
+    [String(almacen)]
+  );
+  return rows;
+};
+
 // ================================================
 // PUT Calcular inv_opt
-// ================================================ 
+// ================================================
 const actualizarInvOpt = async () => {
   const [result] = await pool.query(`
     UPDATE inventario
@@ -412,6 +425,7 @@ module.exports = {
   actualizarInvOpt,
   limpiarInvOpt,
   sincronizarStockRealSantul,
+  obtenerStockPorCodigo,
   actualizarLimites,
   cargaMasivaLimites,
   buscarProductosPorCodigos,

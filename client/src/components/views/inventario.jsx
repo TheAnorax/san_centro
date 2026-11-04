@@ -243,6 +243,33 @@ function InventarioListado() {
     // #endregion DISPONIBLE_7050
 
     // #region EXPORTAR_EXCEL_INVENTARIO
+    // 💰 Valor de mi inventario (sin IVA): stock real × precio por pieza del catálogo.
+    const verValorInventario = async () => {
+        Swal.fire({
+            title: 'Calculando valor del inventario...',
+            html: 'Consultando precios de cada código, puede tardar un poco.',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading(),
+        });
+        try {
+            const res = await axios.get(`${API_INV_BASE}/valor-inventario`, { params: { almacen: '7240' }, timeout: 300000 });
+            const d = res.data || {};
+            const dinero = Number(d.valorTotalSinIva || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+            Swal.fire({
+                icon: 'info',
+                title: `Inventario: ${dinero}`,
+                html: `<div style="text-align:left">
+                    Valor sin IVA del almacén <b>${d.almacen}</b>.<br/>
+                    Códigos con stock: <b>${Number(d.codigosConStock || 0).toLocaleString('es-MX')}</b><br/>
+                    Piezas en total: <b>${Number(d.piezasTotales || 0).toLocaleString('es-MX')}</b><br/>
+                    ${d.codigosSinPrecio > 0 ? `<span style="color:#e65100">⚠️ ${d.codigosSinPrecio} código(s) no están en el catálogo de ventas y no se valuaron.</span>` : ''}
+                </div>`,
+            });
+        } catch (e) {
+            Swal.fire('❌ Error', 'No se pudo calcular el valor del inventario', 'error');
+        }
+    };
+
     const exportarExcel = () => {
         const data = filtered.map(row => {
             const qty = row.cant_stock_real !== null ? Number(row.cant_stock_real) : null;
@@ -1348,6 +1375,10 @@ function InventarioListado() {
                             <Button variant="contained" color="success" onClick={exportarExcel}
                                 sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}>
                                 <BsFileEarmarkExcel style={{ verticalAlign: "-2px", marginRight: 8, fontSize: "1.15em" }} />Exportar Excel
+                            </Button>
+                            <Button variant="outlined" color="success" onClick={verValorInventario}
+                                sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}>
+                                💰 Valor de mi inventario
                             </Button>
                             {/* Agregar después del botón "Exportar Excel" */}
 
