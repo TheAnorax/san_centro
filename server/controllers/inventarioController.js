@@ -514,7 +514,16 @@ const solicitarProductoMasivoController = async (req, res) => {
       const token = crypto.randomBytes(16).toString("hex");
       await marcarPedidoPendienteAutorizacion(numeroPedido, token, solicitante);
 
-      const datosPlantilla = { productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible, para: PARA_TEXTO, cc: CC_TEXTO };
+      // 💰 Valor en pesos (sin IVA) de lo que hay hoy en el inventario, para compararlo con el
+      // costo de la solicitud. Si no se puede calcular, el correo sale igual sin ese renglón.
+      let valorInventario = null;
+      try {
+        valorInventario = (await calcularValorInventario("7240")).valorTotalSinIva;
+      } catch (e) {
+        console.warn("No se pudo calcular el valor del inventario para el correo:", e.message);
+      }
+
+      const datosPlantilla = { productos: agregados, solicitante, excluidos: excluidosPorEmpaque, recortadosDisponible, sinDisponible, para: PARA_TEXTO, cc: CC_TEXTO, valorInventario };
       const asunto = `Solicitud masiva de reposición · ${agregados.length} producto(s)`;
       const adjuntoExcel = await construirAdjuntoSolicitud(agregados);
 
@@ -560,37 +569,48 @@ const solicitarProductoMasivoController = async (req, res) => {
 // pieza del catálogo de ventas (el mismo precio con el que se costea la solicitud).
 // Solo consulta: no cambia nada en la base. ?almacen=7240 (por defecto)
 // ================================================
+// Calcula el valor (sin IVA) del inventario de un almacén. Se guarda 10 min en memoria
+// para no repetir ~2000 consultas de precio cada vez que sale un correo.
+const CACHE_VALOR_INV_MS = 10 * 60 * 1000;
+const cacheValorInventario = new Map(); // almacen -> { t, datos }
+async function calcularValorInventario(almacen = "7240") {
+  const hit = cacheValorInventario.get(almacen);
+  if (hit && Date.now() - hit.t < CACHE_VALOR_INV_MS) return hit.datos;
+
+  const filas = await obtenerStockPorCodigo(almacen);
+  let total = 0;
+  let piezas = 0;
+  const sinPrecio = [];
+  await mapaLimitado(filas, CONCURRENCIA_CATALOGO, async (f) => {
+    const codigo = String(f.codigo_producto).trim();
+    const stock = Number(f.stock) || 0;
+    piezas += stock;
+    // El precio por pieza no depende de la cantidad: se toma directo (sin reglas de empaque).
+    const r = await resolverUnidadYCosto(codigo, stock);
+    const precio = r.precioUnitarioSinIva;
+    if (precio === null || precio === undefined) {
+      sinPrecio.push(codigo);
+      return;
+    }
+    total += precio * stock;
+  });
+
+  const datos = {
+    almacen,
+    valorTotalSinIva: parseFloat(total.toFixed(2)),
+    codigosConStock: filas.length,
+    piezasTotales: piezas,
+    codigosSinPrecio: sinPrecio.length,
+    listaSinPrecio: sinPrecio.slice(0, 200),
+  };
+  cacheValorInventario.set(almacen, { t: Date.now(), datos });
+  return datos;
+}
+
 const valorInventarioController = async (req, res) => {
   try {
-    const almacen = String(req.query.almacen || "7240");
-    const filas = await obtenerStockPorCodigo(almacen);
-
-    let total = 0;
-    let piezas = 0;
-    const sinPrecio = [];
-    await mapaLimitado(filas, CONCURRENCIA_CATALOGO, async (f) => {
-      const codigo = String(f.codigo_producto).trim();
-      const stock = Number(f.stock) || 0;
-      piezas += stock;
-      // El precio por pieza no depende de la cantidad: se toma directo (sin reglas de empaque).
-      const r = await resolverUnidadYCosto(codigo, stock);
-      const precio = r.precioUnitarioSinIva;
-      if (precio === null || precio === undefined) {
-        sinPrecio.push(codigo);
-        return;
-      }
-      total += precio * stock;
-    });
-
-    return res.json({
-      ok: true,
-      almacen,
-      valorTotalSinIva: parseFloat(total.toFixed(2)),
-      codigosConStock: filas.length,
-      piezasTotales: piezas,
-      codigosSinPrecio: sinPrecio.length,
-      listaSinPrecio: sinPrecio.slice(0, 200),
-    });
+    const datos = await calcularValorInventario(String(req.query.almacen || "7240"));
+    return res.json({ ok: true, ...datos });
   } catch (error) {
     console.error("❌ Error calculando valor de inventario:", error);
     return res.status(500).json({ ok: false, message: "Error calculando el valor del inventario" });

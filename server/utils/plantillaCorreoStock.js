@@ -113,7 +113,7 @@ const lineaParaCc = (para, cc) => (para || cc) ? `
                     ${para ? `<b>Para:</b> ${para}` : ''}${para && cc ? ' &nbsp;·&nbsp; ' : ''}${cc ? `<b>CC:</b> ${cc}` : ''}
                 </p>` : '';
 
-function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recortadosDisponible, sinDisponible, linkAutorizar, linkCancelar, para, cc }) {
+function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recortadosDisponible, sinDisponible, linkAutorizar, linkCancelar, para, cc, valorInventario }) {
     const lista = productos || [];
     const conBotones = Boolean(linkAutorizar && linkCancelar);
     // Piezas totales solicitadas y stock real actual (mi inventario) de estos códigos.
@@ -159,6 +159,11 @@ function plantillaCorreoStockMasivo({ productos, solicitante, excluidos, recorta
                         <td style="border:1px solid #ccc; padding:8px;"><b>Costo total de la solicitud (sin IVA):</b></td>
                         <td style="border:1px solid #ccc; padding:8px;"><b>${formatCurrency(granTotal)}</b></td>
                     </tr>
+                    ${(valorInventario !== null && valorInventario !== undefined) ? `
+                    <tr>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>Valor de mi inventario actual (sin IVA):</b></td>
+                        <td style="border:1px solid #ccc; padding:8px;"><b>${formatCurrency(valorInventario)}</b></td>
+                    </tr>` : ''}
                     <tr>
                         <td style="border:1px solid #ccc; padding:8px;"><b>Piezas solicitadas (total):</b></td>
                         <td style="border:1px solid #ccc; padding:8px;">${totalPiezas.toLocaleString("es-MX")} PZ</td>
