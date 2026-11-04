@@ -37,8 +37,10 @@ const sincronizarStockRealSantul = async (almacen = ALMACEN_SANTUL) => {
 
   for (const producto of productos) {
     const codigo = producto.Clave;
-    const existenciaFisica = producto.Existencia_Fisica;
-    if (codigo === undefined || existenciaFisica === undefined) continue;
+    // 📌 El stock real es el campo `Cant` de la API (lo que de verdad hay), NO
+    // Existencia_Fisica (que incluye lo comprometido). Se deja el nombre de la variable.
+    const existenciaFisica = producto.Cant;
+    if (codigo === undefined || existenciaFisica === undefined || existenciaFisica === '') continue;
 
     try {
       const [rows] = await pool.query(

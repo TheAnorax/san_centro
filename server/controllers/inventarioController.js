@@ -55,6 +55,26 @@ const limpiarCodigosVencidos = () => {
   const ahora = Date.now();
   for (const [k, v] of CODIGOS_VERIFICACION) if (v.expira < ahora && ahora - v.desde > VIGENCIA_CODIGO_MS) CODIGOS_VERIFICACION.delete(k);
 };
+// 🍪 "Recordar este dispositivo": tras verificarse UNA vez con código, el navegador guarda
+// una cookie firmada con el id del aprobador (180 días). Después, el clic en el botón del
+// correo lo identifica solo: sin correo ni código. Quien no tenga la cookie (ej. los de CC)
+// sigue pasando por la verificación.
+const { JWT_SECRET: SECRETO_FIRMA } = require("../appSanCed/config/auth.config");
+const NOMBRE_COOKIE_APROBADOR = "aprob";
+const VIGENCIA_COOKIE_S = 180 * 24 * 60 * 60;
+const firmaCookieAprobador = (id) =>
+  crypto.createHmac("sha256", String(SECRETO_FIRMA)).update(`aprobador:${id}`).digest("hex").slice(0, 40);
+const valorCookieAprobador = (ap) => `${ap.id}.${firmaCookieAprobador(ap.id)}`;
+const aprobadorDeCookie = (req) => {
+  const crudo = String(req.headers?.cookie || "").split(";").map((c) => c.trim())
+    .find((c) => c.startsWith(`${NOMBRE_COOKIE_APROBADOR}=`));
+  if (!crudo) return null;
+  const [id, firma] = decodeURIComponent(crudo.slice(NOMBRE_COOKIE_APROBADOR.length + 1)).split(".");
+  const ap = APROBADORES.find((a) => a.id === id);
+  if (!ap || !firma) return null;
+  const esperada = Buffer.from(firmaCookieAprobador(ap.id)), recibida = Buffer.from(firma);
+  return esperada.length === recibida.length && crypto.timingSafeEqual(esperada, recibida) ? ap : null;
+};
 const enlacesLote = (token) => {
   const baseUrl = process.env.APP_BASE_URL || "http://66.232.105.107:3001";
   const q = `token=${token}`;
@@ -734,85 +754,92 @@ const resolverLotePorTokenController = async (req, res) => {
     const ocultos = `<input type="hidden" name="token" value="${escaparHtml(token)}" /><input type="hidden" name="accion" value="${accion}" />`;
     const boton = (texto) => `<button type="submit" style="background:${colorAccion}; color:#fff; border:none; padding:12px 28px; border-radius:6px; font-weight:bold; cursor:pointer;">${texto}</button>`;
 
-    // 1) Sin correo: solo pueden resolver Eduardo y Jonathan. Se pide el correo para
-    // mandarle un código (el correo lo ven también los de CC, por eso se verifica).
-    if (!correo || !String(correo).trim()) {
-      return res.send(paginaVerificacion(`
-        <h2 style="margin-top:0;">${tituloAccion}</h2>
-        <p>${lote.length} producto(s). Para continuar, verifica que eres tú: escribe tu correo de Santul y te enviamos un código.</p>
-        <form method="GET" action="/api/inventario/solicitudes/resolver-lote">
-          ${ocultos}
-          <input type="email" name="correo" placeholder="tu.correo@santul.net" required style="${estiloInput}" />
-          ${boton("Enviarme el código")}
-        </form>`));
-    }
+    // Si el navegador ya está registrado (cookie), se identifica solo: un clic y listo.
+    let aprobador = aprobadorDeCookie(req);
+    if (!aprobador) {
+      // 1) Sin correo: solo pueden resolver Eduardo y Jonathan. Se pide el correo para
+      // mandarle un código (el correo lo ven también los de CC, por eso se verifica).
+      if (!correo || !String(correo).trim()) {
+        return res.send(paginaVerificacion(`
+          <h2 style="margin-top:0;">${tituloAccion}</h2>
+          <p>${lote.length} producto(s). Para continuar, verifica que eres tú: escribe tu correo de Santul y te enviamos un código.</p>
+          <form method="GET" action="/api/inventario/solicitudes/resolver-lote">
+            ${ocultos}
+            <input type="email" name="correo" placeholder="tu.correo@santul.net" required style="${estiloInput}" />
+            ${boton("Enviarme el código")}
+          </form>`));
+      }
 
-    const aprobador = aprobadorPorCorreo(correo);
-    const llave = `${token}|${String(correo).trim().toLowerCase()}`;
-    limpiarCodigosVencidos();
-    const formularioCodigo = (mensaje = "") => paginaVerificacion(`
-        <h2 style="margin-top:0;">${tituloAccion}</h2>
-        <p>Si el correo está autorizado, te enviamos un código de 6 dígitos (vale 10 minutos).</p>
-        ${mensaje ? `<p style="color:#c62828; font-weight:bold;">${mensaje}</p>` : ""}
-        <form method="GET" action="/api/inventario/solicitudes/resolver-lote">
-          ${ocultos}
-          <input type="hidden" name="correo" value="${escaparHtml(String(correo).trim())}" />
-          <input type="text" name="codigo" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="Código de 6 dígitos" required style="${estiloInput} letter-spacing:6px; font-size:20px;" />
-          ${boton(`Confirmar ${esAutorizar ? "autorización" : "cancelación"}`)}
-        </form>`);
+      const apCorreo = aprobadorPorCorreo(correo);
+      const llave = `${token}|${String(correo).trim().toLowerCase()}`;
+      limpiarCodigosVencidos();
+      const formularioCodigo = (mensaje = "") => paginaVerificacion(`
+          <h2 style="margin-top:0;">${tituloAccion}</h2>
+          <p>Si el correo está autorizado, te enviamos un código de 6 dígitos (vale 10 minutos).</p>
+          ${mensaje ? `<p style="color:#c62828; font-weight:bold;">${mensaje}</p>` : ""}
+          <form method="GET" action="/api/inventario/solicitudes/resolver-lote">
+            ${ocultos}
+            <input type="hidden" name="correo" value="${escaparHtml(String(correo).trim())}" />
+            <input type="text" name="codigo" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="Código de 6 dígitos" required style="${estiloInput} letter-spacing:6px; font-size:20px;" />
+            ${boton(`Confirmar ${esAutorizar ? "autorización" : "cancelación"}`)}
+          </form>`);
 
-    // 2) Con correo y sin código: se manda el código (solo si es de un aprobador).
-    if (!codigo) {
-      if (aprobador) {
-        const previo = CODIGOS_VERIFICACION.get(llave);
-        const ahora = Date.now();
-        const envios = previo && ahora - previo.desde < VIGENCIA_CODIGO_MS ? previo.envios : 0;
-        if (envios >= MAX_ENVIOS_CODIGO) {
-          return res.status(429).send(formularioCodigo("Demasiados intentos. Espera unos minutos y vuelve a abrir el enlace del correo."));
-        }
-        const nuevo = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-        CODIGOS_VERIFICACION.set(llave, {
-          codigo: nuevo,
-          expira: ahora + VIGENCIA_CODIGO_MS,
-          intentos: 0,
-          envios: envios + 1,
-          desde: previo && envios > 0 ? previo.desde : ahora,
-        });
-        try {
-          await enviarCorreo({
-            subject: `Tu código para ${esAutorizar ? "autorizar" : "cancelar"} el pedido`,
-            html: `
-              <body style="font-family:Arial, sans-serif; padding:20px;">
-                <p>Hola <b>${aprobador.nombre}</b>, tu código de verificación es:</p>
-                <h1 style="letter-spacing:6px;">${nuevo}</h1>
-                <p style="font-size:12px; color:#888;">Vale 10 minutos. Si no lo pediste, ignora este correo.</p>
-              </body>`,
-            to: [aprobador.email],
+      // 2) Con correo y sin código: se manda el código (solo si es de un aprobador).
+      if (!codigo) {
+        if (apCorreo) {
+          const previo = CODIGOS_VERIFICACION.get(llave);
+          const ahora = Date.now();
+          const envios = previo && ahora - previo.desde < VIGENCIA_CODIGO_MS ? previo.envios : 0;
+          if (envios >= MAX_ENVIOS_CODIGO) {
+            return res.status(429).send(formularioCodigo("Demasiados intentos. Espera unos minutos y vuelve a abrir el enlace del correo."));
+          }
+          const nuevo = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+          CODIGOS_VERIFICACION.set(llave, {
+            codigo: nuevo,
+            expira: ahora + VIGENCIA_CODIGO_MS,
+            intentos: 0,
+            envios: envios + 1,
+            desde: previo && envios > 0 ? previo.desde : ahora,
           });
-        } catch (mailErr) {
-          console.error("No se pudo mandar el código de verificación:", mailErr.message);
-          return res.status(500).send("<h2>No se pudo enviar el código. Intenta de nuevo en un momento.</h2>");
+          try {
+            await enviarCorreo({
+              subject: `Tu código para ${esAutorizar ? "autorizar" : "cancelar"} el pedido`,
+              html: `
+                <body style="font-family:Arial, sans-serif; padding:20px;">
+                  <p>Hola <b>${apCorreo.nombre}</b>, tu código de verificación es:</p>
+                  <h1 style="letter-spacing:6px;">${nuevo}</h1>
+                  <p style="font-size:12px; color:#888;">Vale 10 minutos. Si no lo pediste, ignora este correo.</p>
+                </body>`,
+              to: [apCorreo.email],
+            });
+          } catch (mailErr) {
+            console.error("No se pudo mandar el código de verificación:", mailErr.message);
+            return res.status(500).send("<h2>No se pudo enviar el código. Intenta de nuevo en un momento.</h2>");
+          }
         }
+        // Misma respuesta exista o no el correo, para no revelar quién es aprobador.
+        return res.send(formularioCodigo());
       }
-      // Misma respuesta exista o no el correo, para no revelar quién es aprobador.
-      return res.send(formularioCodigo());
-    }
 
-    // 3) Con código: se valida.
-    const guardado = aprobador ? CODIGOS_VERIFICACION.get(llave) : null;
-    const bien = (() => {
-      if (!guardado || guardado.expira < Date.now() || guardado.intentos >= MAX_INTENTOS_CODIGO) return false;
-      const a = Buffer.from(guardado.codigo), b = Buffer.from(String(codigo).trim());
-      return a.length === b.length && crypto.timingSafeEqual(a, b);
-    })();
-    if (!bien) {
-      if (guardado) {
-        guardado.intentos += 1;
-        if (guardado.intentos >= MAX_INTENTOS_CODIGO) CODIGOS_VERIFICACION.delete(llave);
+      // 3) Con código: se valida.
+      const guardado = apCorreo ? CODIGOS_VERIFICACION.get(llave) : null;
+      const bien = (() => {
+        if (!guardado || guardado.expira < Date.now() || guardado.intentos >= MAX_INTENTOS_CODIGO) return false;
+        const a = Buffer.from(guardado.codigo), b = Buffer.from(String(codigo).trim());
+        return a.length === b.length && crypto.timingSafeEqual(a, b);
+      })();
+      if (!bien) {
+        if (guardado) {
+          guardado.intentos += 1;
+          if (guardado.intentos >= MAX_INTENTOS_CODIGO) CODIGOS_VERIFICACION.delete(llave);
+        }
+        return res.status(403).send(formularioCodigo("Código incorrecto o vencido."));
       }
-      return res.status(403).send(formularioCodigo("Código incorrecto o vencido."));
+      CODIGOS_VERIFICACION.delete(llave);
+      aprobador = apCorreo;
+      // Recuerda este dispositivo para no volver a pedir código.
+      res.setHeader("Set-Cookie", `${NOMBRE_COOKIE_APROBADOR}=${encodeURIComponent(valorCookieAprobador(aprobador))}; Max-Age=${VIGENCIA_COOKIE_S}; Path=/api/inventario/solicitudes; HttpOnly; SameSite=Lax`);
     }
-    CODIGOS_VERIFICACION.delete(llave);
     const nombre = aprobador.nombre;
 
     // 4) Verificado → se aplica el cambio de verdad, a nombre de quien se verificó.
