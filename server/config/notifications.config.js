@@ -14,12 +14,14 @@ module.exports = {
   // resolver el pedido (el formulario del enlace solo acepta estos nombres).
   aprobadores: [
     { id: "eduardo", nombre: "Eduardo Sandler", email: "eduardo.sandler@santul.net" },
-    { id: "jonathan", nombre: "Jonathan Alcantara", email: "desarrollo4@santul.net" },
   ],
 
   // En copia (CC): reciben el mismo correo pero SIN botones de autorizar/cancelar.
   copia: [
+    { nombre: "Jonathan Alcantara", email: "desarrollo4@santul.net" },
     { nombre: "Rodrigo Arias", email: "gerente.desarrollo@santul.net" },
+    { nombre: "Ruben Acosta", email: "coordinador.planeacion@santul.net" },
+    { nombre: "Juan Pablo Cuamatla", email: "gerente.crossdock@santul.net" },
   ],
 
   recipients: {

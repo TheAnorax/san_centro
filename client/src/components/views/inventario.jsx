@@ -156,7 +156,7 @@ function InventarioListado() {
     const userRolId = Number(user?.rol_id);
     const puedeVerSolicitarInventario = (
         userRolId === 1
-        // || userRolId === 13 // supervisor — deshabilitado temporalmente
+        || userRolId === 13 // supervisor — deshabilitado temporalmente
         // || userRolId === 20 // Planeación — deshabilitado temporalmente
     );
     // #endregion ACCESO_TAB_SOLICITAR_INVENTARIO
@@ -1003,347 +1003,347 @@ function InventarioListado() {
                             )}
                             {/* #endregion UI_SUBIR_EXCEL_SOLICITUD */}
 
-                                {/* #region UI_BANDEJA_PLANEACION */}
-                                {/* 🆕 Bandeja de Planeación: revisar solicitudes ya mandadas y
+                            {/* #region UI_BANDEJA_PLANEACION */}
+                            {/* 🆕 Bandeja de Planeación: revisar solicitudes ya mandadas y
                                     moverlas de No Pedido -> Revisión (Modificación) -> Autorizada. */}
-                                {puedeGestionarSolicitudes && (
-                                    <Box sx={{ mt: 3 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-                                            <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
-                                                📋 Pedido de solicitudes ({solicitudesVisiblesPlaneacion.length})
-                                            </p>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Button variant="outlined" size="small" disabled={cargandoSolicitudesPlaneacion} onClick={cargarSolicitudesPlaneacion}>
-                                                    {cargandoSolicitudesPlaneacion ? "Cargando..." : "🔄 Actualizar"}
-                                                </Button>
-                                                <Button
-                                                    variant={editandoCantidadesPlaneacion ? "contained" : "outlined"}
-                                                    color="secondary"
-                                                    size="small"
-                                                    onClick={() => setEditandoCantidadesPlaneacion(v => !v)}
-                                                    sx={{ textTransform: 'none' }}
-                                                >
-                                                    {editandoCantidadesPlaneacion ? "🔒 Terminar edición" : "✏️ Modificar cantidades"}
-                                                </Button>
-                                                <Button
-                                                    variant="contained"
-                                                    color="primary"
-                                                    size="small"
-                                                    disabled={!solicitudesVisiblesPlaneacion.some(s => s.estado === 'No Pedido' || s.estado === 'Modificacion')}
-                                                    onClick={autorizarLoteSolicitudes}
-                                                    sx={{ textTransform: 'none' }}
-                                                >
-                                                    📨 Mandar todo a autorizar
-                                                </Button>
-                                            </Box>
-                                        </Box>
-                                        {solicitudesVisiblesPlaneacion.length === 0 ? (
-                                            <p style={{ fontSize: '0.85rem', color: '#888' }}>No hay solicitudes pendientes.</p>
-                                        ) : (
-                                            <TableContainer sx={{ maxHeight: '45vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
-                                                <Table size="small" stickyHeader>
-                                                    <TableHead>
-                                                        <TableRow sx={{ background: "#e3f2fd" }}>
-                                                            {["Pedido #", "SKU", "Descripción", "Cantidad", "Empaque (Inner/Master)", "Estado", "CEDIS"].map(col => (
-                                                                <TableCell key={col} sx={{ fontWeight: "bold" }}>{col}</TableCell>
-                                                            ))}
-                                                        </TableRow>
-                                                    </TableHead>
-                                                    <TableBody>
-                                                        {solicitudesVisiblesPlaneacion.map((s) => {
-                                                            const masterQty = Number(s._master) || 0;
-                                                            const innerQty = Number(s._inner) || 0;
-                                                            const { cierre, desglose } = calcularCierreSolicitud(Number(s.cantidad) || 0, masterQty, innerQty);
-                                                            const sinCerrar = cierre === 'ninguno';
-                                                            const bloqueada = s.estado === 'Autorizada' || s.estado === 'Pendiente Autorizacion' || s.estado === 'Cancelada';
-                                                            return (
-                                                                <TableRow key={s.id} sx={sinCerrar ? { backgroundColor: '#ffebee' } : undefined}>
-                                                                    <TableCell>{s.numero_pedido ?? '-'}</TableCell>
-                                                                    <TableCell>{s.sku}</TableCell>
-                                                                    <TableCell>{s.descripcion || '(no está en catálogo)'}</TableCell>
-                                                                    <TableCell>
-                                                                        {editandoCantidadesPlaneacion && !bloqueada ? (
-                                                                            <TextField
-                                                                                size="small"
-                                                                                type="number"
-                                                                                value={s.cantidad}
-                                                                                onChange={(e) => editarCantidadSolicitudLocal(s.id, e.target.value)}
-                                                                                onBlur={(e) => guardarCantidadSolicitud(s.id, e.target.value)}
-                                                                                sx={{ width: 90 }}
-                                                                            />
-                                                                        ) : (
-                                                                            <span>{s.cantidad} PZ</span>
-                                                                        )}
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        {cierre === null ? (
-                                                                            <span style={{ color: '#aaa' }}>—</span>
-                                                                        ) : (
-                                                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                                                                                <span style={{ fontSize: '0.78rem' }}>
-                                                                                    {desglose?.masters > 0 && <span>📦 {desglose.masters} Master </span>}
-                                                                                    {desglose?.inners > 0 && <span>📬 {desglose.inners} Inner </span>}
-                                                                                    {desglose?.sueltas > 0 && <span>🔹 {desglose.sueltas} PZ</span>}
-                                                                                </span>
-                                                                                {sinCerrar ? (
-                                                                                    <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.75rem' }}>
-                                                                                        ⚠️ No cierra a Inner ({innerQty}) ni a Master ({masterQty})
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '0.75rem' }}>
-                                                                                        ✅ Cierra a {cierre === 'master' ? 'Master' : 'Inner'}
-                                                                                    </span>
-                                                                                )}
-                                                                            </Box>
-                                                                        )}
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <Chip
-                                                                            size="small"
-                                                                            label={
-                                                                                s.estado === 'Modificacion' ? 'En revisión'
-                                                                                    : s.estado === 'Pendiente Autorizacion' ? 'Pendiente de autorizar'
-                                                                                        : s.estado === 'Cancelada' ? 'Cancelado'
-                                                                                            : s.estado
-                                                                            }
-                                                                            color={
-                                                                                s.estado === 'Autorizada' ? 'success'
-                                                                                    : s.estado === 'Cancelada' ? 'error'
-                                                                                        : s.estado === 'Pendiente Autorizacion' ? 'info'
-                                                                                            : s.estado === 'Modificacion' ? 'warning'
-                                                                                                : 'default'
-                                                                            }
-                                                                        />
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        {s.registrado_cedis ? (
-                                                                            <span style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '0.78rem' }}>✅ Registrado</span>
-                                                                        ) : (
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="outlined"
-                                                                                onClick={() => marcarPedidoRegistradoCedis(s.numero_pedido)}
-                                                                                disabled={!s.numero_pedido}
-                                                                                sx={{ textTransform: 'none' }}
-                                                                            >
-                                                                                Marcar en CEDIS
-                                                                            </Button>
-                                                                        )}
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            );
-                                                        })}
-                                                    </TableBody>
-                                                </Table>
-                                            </TableContainer>
-                                        )}
-                                    </Box>
-                                )}
-                                {/* #endregion UI_BANDEJA_PLANEACION */}
-
-                                {/* #region UI_PREVIEW_EXCEL_ANTES_DE_ENVIAR */}
-                                {productosExcelPreview.length > 0 && (
-                                    <Box sx={{ mt: 2 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-                                            <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
-                                                Lo que vas a solicitar ({productosExcelPreview.filter(p => cantidadEfectiva(p) > 0).length})
-                                                {productosExcelPreview.some(p => Number(p.cantidad) > 0 && sinDisponible7050(p.codigo)) && (
-                                                    <span style={{ fontWeight: 'normal', color: '#d32f2f', marginLeft: 8, fontSize: '0.85rem' }}>
-                                                        · {productosExcelPreview.filter(p => Number(p.cantidad) > 0 && sinDisponible7050(p.codigo)).length} sin disponible en 7050 (no se piden)
-                                                    </span>
-                                                )}
-                                                {productosExcelPreview.some(p => p.cubierto) && (
-                                                    <span style={{ fontWeight: 'normal', color: '#1565c0', marginLeft: 8, fontSize: '0.85rem' }}>
-                                                        · {productosExcelPreview.filter(p => p.cubierto).length} cubierto(s) por traspaso
-                                                    </span>
-                                                )}
-                                            </p>
+                            {puedeGestionarSolicitudes && (
+                                <Box sx={{ mt: 3 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                                        <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
+                                            📋 Pedido de solicitudes ({solicitudesVisiblesPlaneacion.length})
+                                        </p>
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <Button variant="outlined" size="small" disabled={cargandoSolicitudesPlaneacion} onClick={cargarSolicitudesPlaneacion}>
+                                                {cargandoSolicitudesPlaneacion ? "Cargando..." : "🔄 Actualizar"}
+                                            </Button>
                                             <Button
-                                                variant="contained"
-                                                color="error"
+                                                variant={editandoCantidadesPlaneacion ? "contained" : "outlined"}
+                                                color="secondary"
                                                 size="small"
-                                                disabled={solicitudMasivaProcesando || !productosExcelPreview.some(p => cantidadEfectiva(p) > 0)}
-                                                onClick={enviarSolicitudExcelPreview}
+                                                onClick={() => setEditandoCantidadesPlaneacion(v => !v)}
                                                 sx={{ textTransform: 'none' }}
                                             >
-                                                {solicitudMasivaProcesando ? "Enviando..." : "📨 Solicitar estos productos"}
+                                                {editandoCantidadesPlaneacion ? "🔒 Terminar edición" : "✏️ Modificar cantidades"}
+                                            </Button>
+                                            <Button
+                                                variant="contained"
+                                                color="primary"
+                                                size="small"
+                                                disabled={!solicitudesVisiblesPlaneacion.some(s => s.estado === 'No Pedido' || s.estado === 'Modificacion')}
+                                                onClick={autorizarLoteSolicitudes}
+                                                sx={{ textTransform: 'none' }}
+                                            >
+                                                📨 Mandar todo a autorizar
                                             </Button>
                                         </Box>
-                                        <TableContainer sx={{ maxHeight: '35vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
+                                    </Box>
+                                    {solicitudesVisiblesPlaneacion.length === 0 ? (
+                                        <p style={{ fontSize: '0.85rem', color: '#888' }}>No hay solicitudes pendientes.</p>
+                                    ) : (
+                                        <TableContainer sx={{ maxHeight: '45vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
                                             <Table size="small" stickyHeader>
                                                 <TableHead>
-                                                    <TableRow sx={{ background: "#ffe7e1" }}>
-                                                        {[
-                                                            "Código", "Descripción", "Stock", "Inv. Mínimo", "Inv. Máximo", "Traspaso", "Cantidad a solicitar",
-                                                            // 🆕 Disponible en vivo del almacén 7050 (Existencia_Fisica -
-                                                            // Comprometido) — solo informativo, no se guarda en la base.
-                                                            "Disponible (7050)",
-                                                            // 🔒 El desglose Master/Inner y la validación de cierre de
-                                                            // empaque son cosas que solo el admin necesita ver/resolver;
-                                                            // otros roles (ej. supervisor) solo ven qué están pidiendo
-                                                            // y el botón de mandarlo.
-                                                            ...(userRole === 'admin' ? ["Master / Inner solicitados", "Empaque (Inner/Master)"] : []),
-                                                        ].map(col => (
-                                                            <TableCell key={col} sx={{ fontWeight: "bold", color: "#e23b22" }}>{col}</TableCell>
+                                                    <TableRow sx={{ background: "#e3f2fd" }}>
+                                                        {["Pedido #", "SKU", "Descripción", "Cantidad", "Empaque (Inner/Master)", "Estado", "CEDIS"].map(col => (
+                                                            <TableCell key={col} sx={{ fontWeight: "bold" }}>{col}</TableCell>
                                                         ))}
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
-                                                    {productosExcelPreview.map((row) => {
-                                                        // 🔒 Solo se valida cierre a Inner/Master si el código maneja
-                                                        // AMBOS empaques. Si cierre es null (solo PZ, o no se encontró
-                                                        // en inventario) es puramente informativo, se deja pasar.
-                                                        const sinCerrar = row.cierre === 'ninguno';
+                                                    {solicitudesVisiblesPlaneacion.map((s) => {
+                                                        const masterQty = Number(s._master) || 0;
+                                                        const innerQty = Number(s._inner) || 0;
+                                                        const { cierre, desglose } = calcularCierreSolicitud(Number(s.cantidad) || 0, masterQty, innerQty);
+                                                        const sinCerrar = cierre === 'ninguno';
+                                                        const bloqueada = s.estado === 'Autorizada' || s.estado === 'Pendiente Autorizacion' || s.estado === 'Cancelada';
                                                         return (
-                                                            <TableRow key={row.codigo} sx={sinCerrar || row.excluidoEmpaque || (Number(row.cantidad) > 0 && sinDisponible7050(row.codigo)) ? { backgroundColor: '#ffebee' } : (row.ajustadoEmpaque ? { backgroundColor: '#fff3e0' } : !row.encontrado ? { backgroundColor: '#f5f5f5' } : (row.cubierto ? { backgroundColor: '#e8f1fc' } : undefined))}>
-                                                                <TableCell>{row.codigo}</TableCell>
-                                                                <TableCell>{row.descripcion}</TableCell>
-                                                                <TableCell>{row.stock}</TableCell>
-                                                                <TableCell>{row.invMin ?? '-'}</TableCell>
-                                                                <TableCell>{row.invMax ?? '-'}</TableCell>
+                                                            <TableRow key={s.id} sx={sinCerrar ? { backgroundColor: '#ffebee' } : undefined}>
+                                                                <TableCell>{s.numero_pedido ?? '-'}</TableCell>
+                                                                <TableCell>{s.sku}</TableCell>
+                                                                <TableCell>{s.descripcion || '(no está en catálogo)'}</TableCell>
                                                                 <TableCell>
-                                                                    {row.enTraspaso > 0 ? (
-                                                                        <Box sx={{ lineHeight: 1.3 }}>
-                                                                            <span style={{ color: '#1565c0', fontWeight: 'bold' }}>✅ Falta recibir {row.enTraspaso}</span>
-                                                                            <br />
-                                                                            <span style={{ fontSize: '0.75rem', color: '#666' }}>
-                                                                                Faltante {row.faltanteOriginal} → {row.cubierto ? 'cubierto, no se pide' : `pedir ${row.cantidad}`}
-                                                                            </span>
-                                                                        </Box>
+                                                                    {editandoCantidadesPlaneacion && !bloqueada ? (
+                                                                        <TextField
+                                                                            size="small"
+                                                                            type="number"
+                                                                            value={s.cantidad}
+                                                                            onChange={(e) => editarCantidadSolicitudLocal(s.id, e.target.value)}
+                                                                            onBlur={(e) => guardarCantidadSolicitud(s.id, e.target.value)}
+                                                                            sx={{ width: 90 }}
+                                                                        />
                                                                     ) : (
-                                                                        <span style={{ color: '#aaa' }}>—</span>
+                                                                        <span>{s.cantidad} PZ</span>
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell>
-                                                                    {row.excluidoEmpaque ? (
-                                                                        <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                                                                            ⚠️ No se solicita<br />
-                                                                            <span style={{ fontWeight: 'normal', color: '#666' }}>
-                                                                                {row.sinDisponibleSrv
-                                                                                    ? `sin disponible en 7050 (pedía ${row.cantidadAntes} PZ)`
-                                                                                    : `pedía ${row.cantidadAntes} PZ, empaque mínimo ${row.piezasPorEmpaque} PZ`}
+                                                                    {cierre === null ? (
+                                                                        <span style={{ color: '#aaa' }}>—</span>
+                                                                    ) : (
+                                                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                                                                            <span style={{ fontSize: '0.78rem' }}>
+                                                                                {desglose?.masters > 0 && <span>📦 {desglose.masters} Master </span>}
+                                                                                {desglose?.inners > 0 && <span>📬 {desglose.inners} Inner </span>}
+                                                                                {desglose?.sueltas > 0 && <span>🔹 {desglose.sueltas} PZ</span>}
                                                                             </span>
-                                                                        </span>
-                                                                    ) : row.ajustadoEmpaque ? (
-                                                                        <span>
-                                                                            <b>{row.cantidad} PZ</b><br />
-                                                                            <span style={{ fontSize: '0.75rem', color: '#e65100' }}>
-                                                                                {row.recortadoDisp
-                                                                                    ? `ajustado de ${row.cantidadAntes} a lo disponible en 7050 (${row.disponibleSrv})`
-                                                                                    : `ajustado de ${row.cantidadAntes} (empaque mín. ${row.piezasPorEmpaque})`}
-                                                                            </span>
-                                                                        </span>
-                                                                    ) : (Number(row.cantidad) > 0 && sinDisponible7050(row.codigo)) ? (
-                                                                        <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                                                                            ⚠️ No se solicita<br />
-                                                                            <span style={{ fontWeight: 'normal', color: '#666' }}>sin disponible en 7050 (pedía {row.cantidad} PZ)</span>
-                                                                        </span>
-                                                                    ) : `${row.cantidad} PZ`}
+                                                                            {sinCerrar ? (
+                                                                                <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                                                                                    ⚠️ No cierra a Inner ({innerQty}) ni a Master ({masterQty})
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                                                                                    ✅ Cierra a {cierre === 'master' ? 'Master' : 'Inner'}
+                                                                                </span>
+                                                                            )}
+                                                                        </Box>
+                                                                    )}
                                                                 </TableCell>
                                                                 <TableCell>
-                                                                    {cargandoDisponible7050
-                                                                        ? <span style={{ color: '#aaa' }}>...</span>
-                                                                        : (disponible7050[String(row.codigo).trim()] ?? <span style={{ color: '#aaa' }}>—</span>)}
+                                                                    <Chip
+                                                                        size="small"
+                                                                        label={
+                                                                            s.estado === 'Modificacion' ? 'En revisión'
+                                                                                : s.estado === 'Pendiente Autorizacion' ? 'Pendiente de autorizar'
+                                                                                    : s.estado === 'Cancelada' ? 'Cancelado'
+                                                                                        : s.estado
+                                                                        }
+                                                                        color={
+                                                                            s.estado === 'Autorizada' ? 'success'
+                                                                                : s.estado === 'Cancelada' ? 'error'
+                                                                                    : s.estado === 'Pendiente Autorizacion' ? 'info'
+                                                                                        : s.estado === 'Modificacion' ? 'warning'
+                                                                                            : 'default'
+                                                                        }
+                                                                    />
                                                                 </TableCell>
-                                                                {userRole === 'admin' && (
-                                                                    <>
-                                                                        <TableCell>
-                                                                            {row.masterQty > 1 || row.innerQty > 1 ? (
-                                                                                <span style={{ fontSize: '0.8rem' }}>
-                                                                                    {row.desglose?.masters > 0 && <span>📦 {row.desglose.masters} Master </span>}
-                                                                                    {row.desglose?.inners > 0 && <span>📬 {row.desglose.inners} Inner </span>}
-                                                                                    {row.desglose?.sueltas > 0 && <span>🔹 {row.desglose.sueltas} PZ</span>}
-                                                                                    {!row.desglose?.masters && !row.desglose?.inners && !row.desglose?.sueltas && <span>0</span>}
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span style={{ color: '#aaa' }}>—</span>
-                                                                            )}
-                                                                        </TableCell>
-                                                                        <TableCell>
-                                                                            {row.cierre === null ? (
-                                                                                <span style={{ color: '#aaa' }}>—</span>
-                                                                            ) : (
-                                                                                // 🆕 Ya no hay botones ni estado "no cierra": la cantidad
-                                                                                // siempre se redondeó hacia arriba automáticamente al
-                                                                                // armar la vista previa, así que aquí siempre cierra.
-                                                                                <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
-                                                                                    ✅ Cierra a {row.cierre === 'master' ? 'Master' : 'Inner'}
-                                                                                </span>
-                                                                            )}
-                                                                        </TableCell>
-                                                                    </>
-                                                                )}
+                                                                <TableCell>
+                                                                    {s.registrado_cedis ? (
+                                                                        <span style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '0.78rem' }}>✅ Registrado</span>
+                                                                    ) : (
+                                                                        <Button
+                                                                            size="small"
+                                                                            variant="outlined"
+                                                                            onClick={() => marcarPedidoRegistradoCedis(s.numero_pedido)}
+                                                                            disabled={!s.numero_pedido}
+                                                                            sx={{ textTransform: 'none' }}
+                                                                        >
+                                                                            Marcar en CEDIS
+                                                                        </Button>
+                                                                    )}
+                                                                </TableCell>
                                                             </TableRow>
                                                         );
                                                     })}
                                                 </TableBody>
                                             </Table>
                                         </TableContainer>
-                                    </Box>
-                                )}
-                                {/* #endregion UI_PREVIEW_EXCEL_ANTES_DE_ENVIAR */}
+                                    )}
+                                </Box>
+                            )}
+                            {/* #endregion UI_BANDEJA_PLANEACION */}
 
-                                {/* #region UI_RESULTADO_ENVIO_SOLICITUD */}
-                                {solicitudMasivaResultado && (
-                                    <Box sx={{ mt: 2 }}>
-                                        <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#333" }}>
-                                            Resultado de la solicitud: {solicitudMasivaResultado.agregados.length} agregado(s), {solicitudMasivaResultado.faltan.length} no encontrado(s)
-                                            {solicitudMasivaResultado.excluidosPorEmpaque?.length > 0 ? `, ${solicitudMasivaResultado.excluidosPorEmpaque.length} excluido(s) por empaque incompleto` : ""}
+                            {/* #region UI_PREVIEW_EXCEL_ANTES_DE_ENVIAR */}
+                            {productosExcelPreview.length > 0 && (
+                                <Box sx={{ mt: 2 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                                        <p style={{ margin: 0, fontWeight: "bold", color: "#333" }}>
+                                            Lo que vas a solicitar ({productosExcelPreview.filter(p => cantidadEfectiva(p) > 0).length})
+                                            {productosExcelPreview.some(p => Number(p.cantidad) > 0 && sinDisponible7050(p.codigo)) && (
+                                                <span style={{ fontWeight: 'normal', color: '#d32f2f', marginLeft: 8, fontSize: '0.85rem' }}>
+                                                    · {productosExcelPreview.filter(p => Number(p.cantidad) > 0 && sinDisponible7050(p.codigo)).length} sin disponible en 7050 (no se piden)
+                                                </span>
+                                            )}
+                                            {productosExcelPreview.some(p => p.cubierto) && (
+                                                <span style={{ fontWeight: 'normal', color: '#1565c0', marginLeft: 8, fontSize: '0.85rem' }}>
+                                                    · {productosExcelPreview.filter(p => p.cubierto).length} cubierto(s) por traspaso
+                                                </span>
+                                            )}
                                         </p>
-
-                                        <TableContainer sx={{ maxHeight: '35vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2, mb: 2 }}>
-                                            <Table size="small" stickyHeader>
-                                                <TableHead>
-                                                    <TableRow sx={{ background: "#f0f0f0" }}>
-                                                        {["Código", "Descripción", "Mín", "Máx", "Cantidad", "Costo total (s/IVA)", "Estado"].map(col => (
-                                                            <TableCell key={col} sx={{ fontWeight: "bold" }}>{col}</TableCell>
-                                                        ))}
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    {solicitudMasivaResultado.agregados.length === 0 && solicitudMasivaResultado.faltan.length === 0 && !solicitudMasivaResultado.excluidosPorEmpaque?.length ? (
-                                                        <TableRow><TableCell colSpan={7} align="center">Sin resultados</TableCell></TableRow>
-                                                    ) : (
-                                                        <>
-                                                            {/* Excluidos y no encontrados van ARRIBA para que no se pierdan
-                                                                entre los cientos de agregados (la tabla hace scroll). */}
-                                                            {(solicitudMasivaResultado.excluidosPorEmpaque || []).map((e) => (
-                                                                <TableRow key={`excluido-${e.codigo}`} sx={{ backgroundColor: '#ffebee' }}>
-                                                                    <TableCell>{e.codigo}</TableCell>
-                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>
-                                                                        Pedía {e.cantidadSolicitada} PZ, pero el empaque mínimo es {e.unidadEmpaque} de {e.piezasPorEmpaque} PZ
-                                                                    </TableCell>
-                                                                    <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>⚠️ Excluido</span></TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                            {solicitudMasivaResultado.faltan.map((codigo) => (
-                                                                <TableRow key={codigo} sx={{ backgroundColor: '#ffebee' }}>
-                                                                    <TableCell>{codigo}</TableCell>
-                                                                    <TableCell colSpan={5} sx={{ color: '#888' }}>No se encontró en inventario</TableCell>
-                                                                    <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>❌ No encontrado</span></TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                            {solicitudMasivaResultado.agregados.map((a) => (
-                                                                <TableRow key={a.codigo}>
-                                                                    <TableCell>{a.codigo}</TableCell>
-                                                                    <TableCell>{a.descripcion || '-'}</TableCell>
-                                                                    <TableCell>{a.invMin ?? '-'}</TableCell>
-                                                                    <TableCell>{a.invMax ?? '-'}</TableCell>
-                                                                    <TableCell>{a.cantidadSolicitada} PZ</TableCell>
-                                                                    <TableCell>{a.costoTotalSinIva != null ? `$${Number(a.costoTotalSinIva).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
-                                                                    <TableCell>
-                                                                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Agregado</span>
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                        </>
-                                                    )}
-                                                </TableBody>
-                                            </Table>
-                                        </TableContainer>
+                                        <Button
+                                            variant="contained"
+                                            color="error"
+                                            size="small"
+                                            disabled={solicitudMasivaProcesando || !productosExcelPreview.some(p => cantidadEfectiva(p) > 0)}
+                                            onClick={enviarSolicitudExcelPreview}
+                                            sx={{ textTransform: 'none' }}
+                                        >
+                                            {solicitudMasivaProcesando ? "Enviando..." : "📨 Solicitar estos productos"}
+                                        </Button>
                                     </Box>
-                                )}
-                                {/* #endregion UI_RESULTADO_ENVIO_SOLICITUD */}
+                                    <TableContainer sx={{ maxHeight: '35vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2 }}>
+                                        <Table size="small" stickyHeader>
+                                            <TableHead>
+                                                <TableRow sx={{ background: "#ffe7e1" }}>
+                                                    {[
+                                                        "Código", "Descripción", "Stock", "Inv. Mínimo", "Inv. Máximo", "Traspaso", "Cantidad a solicitar",
+                                                        // 🆕 Disponible en vivo del almacén 7050 (Existencia_Fisica -
+                                                        // Comprometido) — solo informativo, no se guarda en la base.
+                                                        "Disponible (7050)",
+                                                        // 🔒 El desglose Master/Inner y la validación de cierre de
+                                                        // empaque son cosas que solo el admin necesita ver/resolver;
+                                                        // otros roles (ej. supervisor) solo ven qué están pidiendo
+                                                        // y el botón de mandarlo.
+                                                        ...(userRole === 'admin' ? ["Master / Inner solicitados", "Empaque (Inner/Master)"] : []),
+                                                    ].map(col => (
+                                                        <TableCell key={col} sx={{ fontWeight: "bold", color: "#e23b22" }}>{col}</TableCell>
+                                                    ))}
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {productosExcelPreview.map((row) => {
+                                                    // 🔒 Solo se valida cierre a Inner/Master si el código maneja
+                                                    // AMBOS empaques. Si cierre es null (solo PZ, o no se encontró
+                                                    // en inventario) es puramente informativo, se deja pasar.
+                                                    const sinCerrar = row.cierre === 'ninguno';
+                                                    return (
+                                                        <TableRow key={row.codigo} sx={sinCerrar || row.excluidoEmpaque || (Number(row.cantidad) > 0 && sinDisponible7050(row.codigo)) ? { backgroundColor: '#ffebee' } : (row.ajustadoEmpaque ? { backgroundColor: '#fff3e0' } : !row.encontrado ? { backgroundColor: '#f5f5f5' } : (row.cubierto ? { backgroundColor: '#e8f1fc' } : undefined))}>
+                                                            <TableCell>{row.codigo}</TableCell>
+                                                            <TableCell>{row.descripcion}</TableCell>
+                                                            <TableCell>{row.stock}</TableCell>
+                                                            <TableCell>{row.invMin ?? '-'}</TableCell>
+                                                            <TableCell>{row.invMax ?? '-'}</TableCell>
+                                                            <TableCell>
+                                                                {row.enTraspaso > 0 ? (
+                                                                    <Box sx={{ lineHeight: 1.3 }}>
+                                                                        <span style={{ color: '#1565c0', fontWeight: 'bold' }}>✅ Falta recibir {row.enTraspaso}</span>
+                                                                        <br />
+                                                                        <span style={{ fontSize: '0.75rem', color: '#666' }}>
+                                                                            Faltante {row.faltanteOriginal} → {row.cubierto ? 'cubierto, no se pide' : `pedir ${row.cantidad}`}
+                                                                        </span>
+                                                                    </Box>
+                                                                ) : (
+                                                                    <span style={{ color: '#aaa' }}>—</span>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {row.excluidoEmpaque ? (
+                                                                    <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                                                        ⚠️ No se solicita<br />
+                                                                        <span style={{ fontWeight: 'normal', color: '#666' }}>
+                                                                            {row.sinDisponibleSrv
+                                                                                ? `sin disponible en 7050 (pedía ${row.cantidadAntes} PZ)`
+                                                                                : `pedía ${row.cantidadAntes} PZ, empaque mínimo ${row.piezasPorEmpaque} PZ`}
+                                                                        </span>
+                                                                    </span>
+                                                                ) : row.ajustadoEmpaque ? (
+                                                                    <span>
+                                                                        <b>{row.cantidad} PZ</b><br />
+                                                                        <span style={{ fontSize: '0.75rem', color: '#e65100' }}>
+                                                                            {row.recortadoDisp
+                                                                                ? `ajustado de ${row.cantidadAntes} a lo disponible en 7050 (${row.disponibleSrv})`
+                                                                                : `ajustado de ${row.cantidadAntes} (empaque mín. ${row.piezasPorEmpaque})`}
+                                                                        </span>
+                                                                    </span>
+                                                                ) : (Number(row.cantidad) > 0 && sinDisponible7050(row.codigo)) ? (
+                                                                    <span style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                                                        ⚠️ No se solicita<br />
+                                                                        <span style={{ fontWeight: 'normal', color: '#666' }}>sin disponible en 7050 (pedía {row.cantidad} PZ)</span>
+                                                                    </span>
+                                                                ) : `${row.cantidad} PZ`}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {cargandoDisponible7050
+                                                                    ? <span style={{ color: '#aaa' }}>...</span>
+                                                                    : (disponible7050[String(row.codigo).trim()] ?? <span style={{ color: '#aaa' }}>—</span>)}
+                                                            </TableCell>
+                                                            {userRole === 'admin' && (
+                                                                <>
+                                                                    <TableCell>
+                                                                        {row.masterQty > 1 || row.innerQty > 1 ? (
+                                                                            <span style={{ fontSize: '0.8rem' }}>
+                                                                                {row.desglose?.masters > 0 && <span>📦 {row.desglose.masters} Master </span>}
+                                                                                {row.desglose?.inners > 0 && <span>📬 {row.desglose.inners} Inner </span>}
+                                                                                {row.desglose?.sueltas > 0 && <span>🔹 {row.desglose.sueltas} PZ</span>}
+                                                                                {!row.desglose?.masters && !row.desglose?.inners && !row.desglose?.sueltas && <span>0</span>}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span style={{ color: '#aaa' }}>—</span>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {row.cierre === null ? (
+                                                                            <span style={{ color: '#aaa' }}>—</span>
+                                                                        ) : (
+                                                                            // 🆕 Ya no hay botones ni estado "no cierra": la cantidad
+                                                                            // siempre se redondeó hacia arriba automáticamente al
+                                                                            // armar la vista previa, así que aquí siempre cierra.
+                                                                            <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                                                                                ✅ Cierra a {row.cierre === 'master' ? 'Master' : 'Inner'}
+                                                                            </span>
+                                                                        )}
+                                                                    </TableCell>
+                                                                </>
+                                                            )}
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                </Box>
+                            )}
+                            {/* #endregion UI_PREVIEW_EXCEL_ANTES_DE_ENVIAR */}
+
+                            {/* #region UI_RESULTADO_ENVIO_SOLICITUD */}
+                            {solicitudMasivaResultado && (
+                                <Box sx={{ mt: 2 }}>
+                                    <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#333" }}>
+                                        Resultado de la solicitud: {solicitudMasivaResultado.agregados.length} agregado(s), {solicitudMasivaResultado.faltan.length} no encontrado(s)
+                                        {solicitudMasivaResultado.excluidosPorEmpaque?.length > 0 ? `, ${solicitudMasivaResultado.excluidosPorEmpaque.length} excluido(s) por empaque incompleto` : ""}
+                                    </p>
+
+                                    <TableContainer sx={{ maxHeight: '35vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2, mb: 2 }}>
+                                        <Table size="small" stickyHeader>
+                                            <TableHead>
+                                                <TableRow sx={{ background: "#f0f0f0" }}>
+                                                    {["Código", "Descripción", "Mín", "Máx", "Cantidad", "Costo total (s/IVA)", "Estado"].map(col => (
+                                                        <TableCell key={col} sx={{ fontWeight: "bold" }}>{col}</TableCell>
+                                                    ))}
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {solicitudMasivaResultado.agregados.length === 0 && solicitudMasivaResultado.faltan.length === 0 && !solicitudMasivaResultado.excluidosPorEmpaque?.length ? (
+                                                    <TableRow><TableCell colSpan={7} align="center">Sin resultados</TableCell></TableRow>
+                                                ) : (
+                                                    <>
+                                                        {/* Excluidos y no encontrados van ARRIBA para que no se pierdan
+                                                                entre los cientos de agregados (la tabla hace scroll). */}
+                                                        {(solicitudMasivaResultado.excluidosPorEmpaque || []).map((e) => (
+                                                            <TableRow key={`excluido-${e.codigo}`} sx={{ backgroundColor: '#ffebee' }}>
+                                                                <TableCell>{e.codigo}</TableCell>
+                                                                <TableCell colSpan={5} sx={{ color: '#888' }}>
+                                                                    Pedía {e.cantidadSolicitada} PZ, pero el empaque mínimo es {e.unidadEmpaque} de {e.piezasPorEmpaque} PZ
+                                                                </TableCell>
+                                                                <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>⚠️ Excluido</span></TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                        {solicitudMasivaResultado.faltan.map((codigo) => (
+                                                            <TableRow key={codigo} sx={{ backgroundColor: '#ffebee' }}>
+                                                                <TableCell>{codigo}</TableCell>
+                                                                <TableCell colSpan={5} sx={{ color: '#888' }}>No se encontró en inventario</TableCell>
+                                                                <TableCell><span style={{ color: '#d32f2f', fontWeight: 'bold' }}>❌ No encontrado</span></TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                        {solicitudMasivaResultado.agregados.map((a) => (
+                                                            <TableRow key={a.codigo}>
+                                                                <TableCell>{a.codigo}</TableCell>
+                                                                <TableCell>{a.descripcion || '-'}</TableCell>
+                                                                <TableCell>{a.invMin ?? '-'}</TableCell>
+                                                                <TableCell>{a.invMax ?? '-'}</TableCell>
+                                                                <TableCell>{a.cantidadSolicitada} PZ</TableCell>
+                                                                <TableCell>{a.costoTotalSinIva != null ? `$${Number(a.costoTotalSinIva).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
+                                                                <TableCell>
+                                                                    <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Agregado</span>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                </Box>
+                            )}
+                            {/* #endregion UI_RESULTADO_ENVIO_SOLICITUD */}
                         </Paper>
                     )}
                 </Box>
